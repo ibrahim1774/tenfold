@@ -91,9 +91,14 @@ export type EditDocument = {
   wordOverrides: { wordIndex: number; text: string }[];
   captions: CaptionSettings;
   zoom: { mode: ZoomMode; intensity: 1 | 2 | 3; faceFollow: boolean };
-  crop: { auto916: boolean };
+  /** `aspect` wins; `auto916` is the legacy switch for documents saved before aspect ratios existed. */
+  crop: { auto916: boolean; aspect?: AspectRatio };
   audio: { mode: AudioMode };
+  /** Split points (source seconds) the user added on the timeline. UI only: the engine ignores them. */
+  splits?: number[];
 };
+
+export type AspectRatio = 'original' | '9:16' | '1:1' | '4:5' | '16:9';
 
 export type AnalysisOptions = { silence: SilenceLevel; fillers: FillerLevel; language: string };
 

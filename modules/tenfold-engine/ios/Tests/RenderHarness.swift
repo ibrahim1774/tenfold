@@ -142,13 +142,17 @@ func frame(_ url: URL, at t: Double, orient: Bool = true) async throws -> CGImag
 }
 
 func orientationSuite(outDir: URL, check: (Bool, String) -> Void) async throws {
-  struct Case { var name: String; var size: CGSize; var transform: CGAffineTransform; var crop: Bool; var quality: RenderQuality; var expect: CGSize }
+  struct Case { var name: String; var size: CGSize; var transform: CGAffineTransform; var crop: Bool; var quality: RenderQuality; var expect: CGSize; var aspect: String? = nil }
   let rot = CGAffineTransform(rotationAngle: .pi / 2)
   let cases = [
     Case(name: "portrait-rotated", size: CGSize(width: 1280, height: 720), transform: rot, crop: true, quality: .hd, expect: CGSize(width: 1080, height: 1920)),
     Case(name: "landscape-crop", size: CGSize(width: 1280, height: 720), transform: .identity, crop: true, quality: .hd, expect: CGSize(width: 1080, height: 1920)),
     Case(name: "landscape-keep", size: CGSize(width: 1280, height: 720), transform: .identity, crop: false, quality: .hd, expect: CGSize(width: 1920, height: 1080)),
     Case(name: "uhd-portrait", size: CGSize(width: 2160, height: 3840), transform: .identity, crop: true, quality: .uhd, expect: CGSize(width: 2160, height: 3840)),
+    Case(name: "portrait-to-16x9", size: CGSize(width: 720, height: 1280), transform: .identity, crop: true, quality: .hd, expect: CGSize(width: 1920, height: 1080), aspect: "16:9"),
+    Case(name: "portrait-to-1x1", size: CGSize(width: 720, height: 1280), transform: .identity, crop: true, quality: .hd, expect: CGSize(width: 1080, height: 1080), aspect: "1:1"),
+    Case(name: "portrait-to-4x5", size: CGSize(width: 720, height: 1280), transform: .identity, crop: true, quality: .hd, expect: CGSize(width: 1080, height: 1350), aspect: "4:5"),
+    Case(name: "portrait-original", size: CGSize(width: 720, height: 1280), transform: .identity, crop: false, quality: .hd, expect: CGSize(width: 1080, height: 1920), aspect: "original"),
   ]
   for c in cases {
     print("• \(c.name)")
@@ -157,7 +161,7 @@ func orientationSuite(outDir: URL, check: (Bool, String) -> Void) async throws {
     try await makeClip(src, seconds: 2, size: c.size, transform: c.transform)
     let media = try await AnalysisEngine.probe(src)
     var doc = EditDocument(cuts: [])
-    doc.crop = CropSettings(auto916: c.crop)
+    doc.crop = CropSettings(auto916: c.crop, aspect: c.aspect)
     doc.zoom = ZoomSettings(mode: .off)
     doc.captions.enabled = false
     let analysis = Analysis(media: media, transcript: nil, envelopeDb: [], noiseFloorDb: -60, speechThresholdDb: -38, speechCoverage: 0, noSpeech: true, cuts: [], faces: [], warnings: [])
@@ -180,7 +184,7 @@ func orientationSuite(outDir: URL, check: (Bool, String) -> Void) async throws {
     // Orientation: where the marker is in the upright source, it must be in the export too (unless cropped away).
     let expected = redCorner(src0)
     let got = redCorner(out0)
-    if c.crop && c.size.width > c.size.height && c.transform == .identity {
+    if (c.crop && c.size.width > c.size.height && c.transform == .identity) || (c.aspect != nil && c.aspect != "original") {
       check(got == nil || got == expected, "\(c.name): marker \(got ?? "cropped") vs source \(expected ?? "none")")
     } else {
       check(expected != nil && got == expected, "\(c.name): marker in \(got ?? "none"), source \(expected ?? "none")")

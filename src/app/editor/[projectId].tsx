@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,7 +22,8 @@ import {
   ToolButton,
 } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
-import { Timeline } from '@/editor/Timeline';
+import { ASPECTS, aspectOf, aspectRatioValue } from '@/editor/aspect';
+import { regionsOf, Timeline, toSource, type Region } from '@/editor/Timeline';
 import {
   Engine,
   TenfoldPreviewView,
@@ -52,6 +53,11 @@ const FILLERS: { v: FillerLevel; l: string }[] = [
   { v: 'aggressive', l: 'Aggressive' },
 ];
 
+/** Unique id for a cut the user makes (module scope: ids use the clock, which render code must not). */
+function newId(prefix: string) {
+  return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+}
+
 export default function EditorScreen() {
   const insets = useSafeAreaInsets();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -72,7 +78,12 @@ export default function EditorScreen() {
   const [previewReady, setPreviewReady] = useState(false);
   const [suggestionDismissed, setSuggestionDismissed] = useState(false);
   const [levels, setLevels] = useState<{ silence: SilenceLevel; fillers: FillerLevel } | null>(null);
+  // Selection is tied to the document it was made on, so any edit (or undo) clears it.
+  const [selection, setSelection] = useState<{ region: Region; key: string } | null>(null);
+  const [renderAspect, setRenderAspect] = useState<number | null>(null);
   const preview = useRef<TenfoldPreviewViewRef>(null);
+  const scrubSeekAt = useRef(0);
+  const { width: screenW, height: screenH } = useWindowDimensions();
 
   // Load the analysis (transcript, envelope) and filmstrip frames from the native project folder.
   useEffect(() => {
@@ -149,7 +160,7 @@ export default function EditorScreen() {
       const prevEnd = i > 0 ? words[i - 1].end : 0;
       const nextStart = i + 1 < words.length ? words[i + 1].start : w.end + 1;
       const cut: Cut = {
-        id: `m${i}-${Date.now().toString(36)}`,
+        id: newId(`m${i}`),
         start: Math.max(prevEnd, w.start - 0.03),
         end: Math.min(nextStart, w.end + 0.03),
         reason: 'manual',
@@ -185,13 +196,60 @@ export default function EditorScreen() {
   const srcTime = sourceAt(time);
   const activeWord = words.findIndex((w) => srcTime >= w.start && srcTime <= w.end);
 
-  const cutAtPlayhead = () => {
-    const i = words.findIndex((w) => srcTime >= w.start - 0.05 && srcTime <= w.end + 0.05);
-    if (i >= 0) toggleWord(i);
+  // Scrubbing: move the playhead every frame, seek the player at most ~20 times a second, then exactly at the end.
+  const onScrubStart = useCallback(() => setPlaying(false), []);
+  const onScrub = useCallback((t: number) => {
+    setTime(t);
+    const now = Date.now();
+    if (now - scrubSeekAt.current > 50) {
+      scrubSeekAt.current = now;
+      preview.current?.seek(t).catch(() => {});
+    }
+  }, []);
+  const onScrubEnd = useCallback((t: number) => {
+    setTime(t);
+    preview.current?.seek(t).catch(() => {});
+  }, []);
+
+  const segments = useMemo(() => plan?.segments ?? [], [plan]);
+  // User splits (source time) → composition time, keeping only those inside a kept segment.
+  const compSplits = useMemo(() => {
+    const out: number[] = [];
+    for (const src of doc?.splits ?? []) {
+      const seg = segments.find((g) => src > g.start + 0.1 && src < g.end - 0.1);
+      if (seg) out.push(seg.compStart + (src - seg.start));
+    }
+    return out;
+  }, [doc?.splits, segments]);
+  const selected = selection && selection.key === docJSON ? selection.region : null;
+  const onSelect = useCallback((region: Region | null) => setSelection(region ? { region, key: docJSON } : null), [docJSON]);
+
+  const splitAtPlayhead = () => {
+    if (!doc) return;
+    const seg = segments.find((g) => time > g.compStart + 0.15 && time < g.compEnd - 0.15);
+    if (!seg || compSplits.some((c) => Math.abs(c - time) < 0.15)) {
+      Alert.alert('Can’t split here', 'Move the playhead inside a clip, away from its edges.');
+      return;
+    }
+    setPlaying(false);
+    commit({ ...doc, splits: [...(doc.splits ?? []), seg.start + (time - seg.compStart)] });
   };
 
-  const seek = (t: number) => {
+  const deleteSelected = () => {
+    if (!doc || !selected || !plan) return;
+    if (regionsOf(segments, compSplits, plan.compDuration).length <= 1) {
+      Alert.alert('Can’t delete the whole video', 'Split it first, then delete the part you don’t want.');
+      return;
+    }
+    const start = toSource(segments, selected.start + 1e-4);
+    const end = toSource(segments, selected.end - 1e-4);
     setPlaying(false);
+    commit({
+      ...doc,
+      cuts: [...doc.cuts, { id: newId('d'), start, end, reason: 'manual', accepted: true, confidence: 1 }],
+    });
+    setSelection(null);
+    const t = Math.min(selected.start, Math.max(0, plan.compDuration - (selected.end - selected.start) - 0.05));
     setTime(t);
     preview.current?.seek(t).catch(() => {});
   };
@@ -266,6 +324,13 @@ export default function EditorScreen() {
   const acceptedPauses = doc.cuts.filter((c) => c.accepted && c.reason === 'silence').length;
   const total = plan?.compDuration ?? project.media?.durationSec ?? 0;
   const muted = doc.audio.mode === 'mute';
+  const aspect = aspectOf(doc.crop);
+  // Size the preview frame to the output's shape so there are no bars around the video.
+  const frameAspect = renderAspect ?? aspectRatioValue(aspect, project.media ?? undefined);
+  const maxW = screenW - spacing.gutter * 2;
+  const maxH = Math.min(460, screenH * 0.46);
+  const frameW = Math.min(maxW, maxH * frameAspect);
+  const frameH = frameW / frameAspect;
   const currentLevels = levels ?? {
     silence: batch?.preset.analysis.silence ?? 'medium',
     fillers: batch?.preset.analysis.fillers ?? 'standard',
@@ -297,7 +362,8 @@ export default function EditorScreen() {
 
         <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
           <View style={styles.gutter}>
-            <View style={styles.preview}>
+            <View style={[styles.previewSlot, { height: maxH }]}>
+            <View style={[styles.preview, { width: frameW, height: frameH }]}>
               <TenfoldPreviewView
                 ref={preview}
                 projectId={projectId}
@@ -306,10 +372,27 @@ export default function EditorScreen() {
                 muted={muted}
                 style={StyleSheet.absoluteFill}
                 onTime={(e) => setTime(e.nativeEvent.time)}
-                onReady={() => setPreviewReady(true)}
+                onReady={(e) => {
+                  setPreviewReady(true);
+                  const { width, height } = e.nativeEvent;
+                  if (width > 0 && height > 0) setRenderAspect(width / height);
+                }}
                 onEnd={() => setPlaying(false)}
+                onPlayingChange={(e) => setPlaying(e.nativeEvent.playing)}
                 onError={(e) => setLoadError(e.nativeEvent.message)}
               />
+              {/* Tap the video to play or pause. */}
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={() => setPlaying((p) => !p)}
+                accessibilityRole="button"
+                accessibilityLabel={playing ? 'Pause' : 'Play'}>
+                {!playing && previewReady && (
+                  <View style={styles.bigPlay} pointerEvents="none">
+                    <SymbolView name="play.fill" size={26} tintColor="#FFFFFF" />
+                  </View>
+                )}
+              </Pressable>
               {!previewReady && (
                 <View style={styles.previewLoading} pointerEvents="none">
                   <ActivityIndicator color="#FFFFFF" />
@@ -319,6 +402,7 @@ export default function EditorScreen() {
                 <SymbolView name="sparkles" size={14} tintColor={colors.textPrimary} />
                 <AppText variant="label">Auto-edited</AppText>
               </View>
+            </View>
             </View>
           </View>
 
@@ -353,18 +437,32 @@ export default function EditorScreen() {
 
           {plan && (
             <Timeline
-              segments={plan.segments}
+              segments={segments}
               compDuration={plan.compDuration}
               cards={plan.cards}
               envelopeDb={analysis.envelopeDb}
               thumbs={thumbs}
+              splits={compSplits}
+              selected={selected}
               time={time}
-              playing={playing}
               muted={muted}
-              onSeek={seek}
-              onAddCut={cutAtPlayhead}
+              onScrubStart={onScrubStart}
+              onScrub={onScrub}
+              onScrubEnd={onScrubEnd}
+              onSelect={onSelect}
+              onSplit={splitAtPlayhead}
               onToggleMute={() => commit({ ...doc, audio: { mode: muted ? 'original' : 'mute' } })}
             />
+          )}
+
+          {plan && (
+            <View style={[styles.gutter, styles.editBar]}>
+              <EditAction icon="scissors" label="Split" onPress={splitAtPlayhead} />
+              <EditAction icon="trash" label="Delete" onPress={deleteSelected} disabled={!selected} danger />
+              <AppText variant="caption" color={colors.textMuted} style={styles.editHint} numberOfLines={2}>
+                {selected ? 'Clip selected. Delete removes it, undo brings it back.' : 'Drag the strip to scrub. Tap a clip to select it.'}
+              </AppText>
+            </View>
           )}
 
           <View style={[styles.gutter, styles.panel]}>
@@ -519,12 +617,37 @@ export default function EditorScreen() {
             {tool === 'crop' && (
               <Animated.View entering={FadeIn.duration(200)}>
                 <Card style={styles.panelCard}>
-                  <ToggleRow
-                    title="9:16 vertical"
-                    subtitle="Reframe for TikTok, Reels and Shorts"
-                    value={doc.crop.auto916}
-                    onChange={(v) => commit({ ...doc, crop: { auto916: v } })}
-                  />
+                  <OptionLabel>Aspect ratio</OptionLabel>
+                  <View style={styles.aspects}>
+                    {ASPECTS.map((a) => {
+                      const on = aspect === a.id;
+                      const r = aspectRatioValue(a.id, project.media ?? undefined);
+                      const box = r >= 1 ? { width: 26, height: 26 / r } : { width: 26 * r, height: 26 };
+                      return (
+                        <PressableScale
+                          key={a.id}
+                          scaleTo={0.94}
+                          onPress={() => {
+                            setRenderAspect(null);
+                            commit({ ...doc, crop: { auto916: a.id === '9:16', aspect: a.id } });
+                          }}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: on }}
+                          accessibilityLabel={`${a.label}, ${a.hint}`}
+                          style={[styles.aspect, on && styles.aspectOn]}>
+                          <View style={styles.aspectIcon}>
+                            <View style={[styles.aspectBox, box, on && styles.aspectBoxOn]} />
+                          </View>
+                          <AppText variant="label" color={on ? colors.textPrimary : colors.textSecondary}>
+                            {a.label}
+                          </AppText>
+                        </PressableScale>
+                      );
+                    })}
+                  </View>
+                  <AppText variant="caption" color={colors.textMuted}>
+                    {ASPECTS.find((a) => a.id === aspect)?.hint}. Tenfold crops automatically and keeps the speaker in frame.
+                  </AppText>
                   <ToggleRow
                     title="Follow face"
                     subtitle={analysis.faces.length ? 'Keep the speaker centred' : 'No face found in this clip'}
@@ -550,6 +673,25 @@ export default function EditorScreen() {
   );
 }
 
+function EditAction({ icon, label, onPress, disabled, danger }: { icon: 'scissors' | 'trash'; label: string; onPress: () => void; disabled?: boolean; danger?: boolean }) {
+  const tint = disabled ? colors.textMuted : danger ? colors.danger : colors.textPrimary;
+  return (
+    <PressableScale
+      onPress={onPress}
+      disabled={disabled}
+      scaleTo={0.92}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      accessibilityLabel={label}
+      style={[styles.editAction, disabled && styles.editActionOff]}>
+      <SymbolView name={icon} size={16} tintColor={tint} />
+      <AppText variant="label" color={tint}>
+        {label}
+      </AppText>
+    </PressableScale>
+  );
+}
+
 function Stat({ value, label, decimals }: { value: number; label: string; decimals?: boolean }) {
   return (
     <View style={styles.stat}>
@@ -566,8 +708,8 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: spacing.gutter },
   centerText: { textAlign: 'center' },
   gutter: { paddingHorizontal: spacing.gutter },
+  previewSlot: { alignItems: 'center', justifyContent: 'center' },
   preview: {
-    height: 360,
     borderRadius: radii.card,
     borderCurve: 'continuous',
     overflow: 'hidden',
@@ -590,6 +732,48 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.16)',
   },
+  bigPlay: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '50%',
+    marginTop: -32,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    paddingLeft: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  editBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: spacing.md },
+  editAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 38,
+    paddingHorizontal: 14,
+    borderRadius: 19,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  editActionOff: { opacity: 0.5 },
+  editHint: { flex: 1 },
+  aspects: { flexDirection: 'row', gap: 8 },
+  aspect: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: colors.chipFill,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  aspectOn: { borderColor: '#FFFFFF', backgroundColor: colors.cardHigh },
+  aspectIcon: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  aspectBox: { borderRadius: 3, borderWidth: 1.5, borderColor: colors.textSecondary },
+  aspectBoxOn: { borderColor: '#FFFFFF' },
   transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.lg },
   transportSide: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
   transportRight: { justifyContent: 'flex-end' },

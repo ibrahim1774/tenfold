@@ -32,6 +32,7 @@ import { setCaptionStyle as setStyle, setPresetId as setPreset, updatePreset } f
 import { exportsLeft as freeExportsLeft, FREE_LIMITS, maxBatchSize, useEntitlements } from '@/state/entitlements';
 import { formatDuration, projectsOf, useLibrary } from '@/state/library';
 import { PRESET_OPTIONS } from '@/state/presets';
+import { aspectOf } from '@/editor/aspect';
 
 const SILENCE: { v: SilenceLevel; l: string }[] = [
   { v: 'light', l: 'Light' },
@@ -252,8 +253,8 @@ export default function BatchSetupScreen() {
               icon="crop"
               title="9:16 crop"
               subtitle="Reframe for Reels"
-              value={preset.crop.auto916}
-              onChange={(v) => update((p) => ({ ...p, crop: { auto916: v } }))}
+              value={aspectOf(preset.crop) === '9:16'}
+              onChange={(v) => update((p) => ({ ...p, crop: { auto916: v, aspect: v ? '9:16' : 'original' } }))}
             />
             <ActionCard
               icon="face.smiling"

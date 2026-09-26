@@ -19,13 +19,16 @@ public struct BuiltComposition {
 public enum CompositionBuilder {
   static func time(_ s: Double) -> CMTime { CMTime(seconds: s, preferredTimescale: 600) }
 
-  public static func renderSize(media: MediaInfo, crop916: Bool, quality: RenderQuality) -> CGSize {
+  /// Short side 1080 (or 2160), long side from the chosen aspect ratio or the source's own shape.
+  public static func renderSize(media: MediaInfo, crop: CropSettings, quality: RenderQuality) -> CGSize {
     let short: Double = quality == .uhd ? 2160 : 1080
-    if crop916 { return CGSize(width: short, height: short * 16 / 9) }
+    func even(_ v: Double) -> Double { (v / 2).rounded() * 2 }
+    if let r = crop.ratio {
+      return r < 1 ? CGSize(width: short, height: even(short / r)) : CGSize(width: even(short * r), height: short)
+    }
     let w = media.width, h = media.height
     guard w > 0, h > 0 else { return CGSize(width: 1080, height: 1920) }
     let k = short / min(w, h)
-    func even(_ v: Double) -> Double { (v / 2).rounded() * 2 }
     return CGSize(width: even(w * k), height: even(h * k))
   }
 
@@ -65,7 +68,7 @@ public enum CompositionBuilder {
     let displayRect = CGRect(origin: .zero, size: natural).applying(preferred)
     let display = CGSize(width: abs(displayRect.width), height: abs(displayRect.height))
     let orient = preferred.concatenating(CGAffineTransform(translationX: -displayRect.minX, y: -displayRect.minY))
-    let render = renderSize(media: MediaInfo(durationSec: media.durationSec, width: display.width, height: display.height, fps: media.fps, isHDR: media.isHDR, hasAudio: media.hasAudio), crop916: doc.crop.auto916, quality: quality)
+    let render = renderSize(media: MediaInfo(durationSec: media.durationSec, width: display.width, height: display.height, fps: media.fps, isHDR: media.isHDR, hasAudio: media.hasAudio), crop: doc.crop, quality: quality)
     let fill = max(render.width / display.width, render.height / display.height)
 
     func transform(zoom: Double, focusX: Double, focusY: Double) -> CGAffineTransform {

@@ -25,6 +25,8 @@ export type TenfoldPreviewViewProps = {
   onTime?: (event: { nativeEvent: { time: number } }) => void;
   onReady?: (event: { nativeEvent: { duration: number; width: number; height: number } }) => void;
   onEnd?: () => void;
+  /** The player actually started or stopped (including at the end of the clip). */
+  onPlayingChange?: (event: { nativeEvent: { playing: boolean } }) => void;
   onError?: (event: { nativeEvent: { message: string } }) => void;
   style?: StyleProp<ViewStyle>;
 };

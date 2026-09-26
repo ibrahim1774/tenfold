@@ -1,16 +1,18 @@
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { memo, useEffect, useMemo, useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
 import { AppText, IconButton } from '@/design/components';
 import { colors, fonts } from '@/design/tokens';
 import type { CaptionCard, CompSegment, Thumbnail } from '@/engine/types';
 
 const PPS = 46; // points per second of composition time
-const LEFT = 8;
 const FRAME_W = 34;
 const ENVELOPE_STEP = 0.02; // seconds per envelope frame (Swift Envelope.frameSec)
+
+/** A stretch of the composition between two edit points (a cut or a user split), in composition seconds. */
+export type Region = { start: number; end: number };
 
 export type TimelineProps = {
   segments: CompSegment[];
@@ -18,39 +20,91 @@ export type TimelineProps = {
   cards: CaptionCard[]; // composition time
   envelopeDb: number[]; // source time
   thumbs: Thumbnail[]; // source time
+  splits: number[]; // composition time, strictly inside kept segments
+  selected: Region | null;
   time: number; // composition time
-  playing: boolean;
   muted: boolean;
-  onSeek: (compTime: number) => void;
-  onAddCut: () => void;
+  onScrubStart: () => void;
+  onScrub: (compTime: number) => void;
+  onScrubEnd: (compTime: number) => void;
+  onSelect: (region: Region | null) => void;
+  onSplit: () => void;
   onToggleMute: () => void;
 };
 
-function toSource(segs: CompSegment[], comp: number) {
+export function toSource(segs: CompSegment[], comp: number) {
   for (const s of segs) if (comp <= s.compEnd) return s.start + Math.max(0, comp - s.compStart);
   return segs.length ? segs[segs.length - 1].end : 0;
 }
 
-export function Timeline({ segments, compDuration, cards, envelopeDb, thumbs, time, playing, muted, onSeek, onAddCut, onToggleMute }: TimelineProps) {
-  const scroll = useRef<ScrollView>(null);
-  const total = compDuration;
-  const width = Math.max(total * PPS + LEFT * 2, 200);
-  const x = (t: number) => LEFT + t * PPS;
-  const seekRef = useRef(onSeek);
-  useEffect(() => {
-    seekRef.current = onSeek;
-  });
+/** Edit points → regions the user can tap to select. */
+export function regionsOf(segments: CompSegment[], splits: number[], total: number): Region[] {
+  const points = [...new Set([0, ...segments.map((s) => s.compStart), ...splits, total])].sort((a, b) => a - b);
+  const out: Region[] = [];
+  for (let i = 0; i + 1 < points.length; i++) if (points[i + 1] - points[i] > 0.01) out.push({ start: points[i], end: points[i + 1] });
+  return out;
+}
 
+/**
+ * CapCut-style timeline: the playhead stays in the middle and the strip scrolls under it.
+ * Dragging the strip scrubs the video; tapping a clip selects it for Split / Delete.
+ */
+export function Timeline({
+  segments,
+  compDuration,
+  cards,
+  envelopeDb,
+  thumbs,
+  splits,
+  selected,
+  time,
+  muted,
+  onScrubStart,
+  onScrub,
+  onScrubEnd,
+  onSelect,
+  onSplit,
+  onToggleMute,
+}: TimelineProps) {
+  const scroll = useRef<ScrollView>(null);
+  const [viewW, setViewW] = useState(0);
+  const pad = viewW / 2;
+  const total = compDuration;
+  // True while the finger (or its momentum) drives the strip; programmatic scrolls are ignored.
+  const dragging = useRef(false);
+  const endTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastScrub = useRef(-1);
+
+  const clampT = (x: number) => Math.max(0, Math.min(total, x / PPS));
+
+  // Follow the playhead (playback, taps on words, undo) unless the user is the one moving it.
   useEffect(() => {
-    if (playing) scroll.current?.scrollTo({ x: Math.max(0, x(time) - 60), animated: false });
-  }, [time, playing]);
+    if (dragging.current || !viewW) return;
+    if (Math.abs(time - lastScrub.current) < 0.02) return;
+    scroll.current?.scrollTo({ x: time * PPS, animated: false });
+  }, [time, viewW]);
+
+  const finish = (t: number) => {
+    dragging.current = false;
+    lastScrub.current = t;
+    onScrubEnd(t);
+  };
+
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!dragging.current) return;
+    const t = clampT(e.nativeEvent.contentOffset.x);
+    lastScrub.current = t;
+    onScrub(t);
+  };
+
+  const regions = useMemo(() => regionsOf(segments, splits, total), [segments, splits, total]);
 
   return (
     <View style={styles.wrap}>
       <View style={styles.side}>
         <View style={styles.rulerSpacer} />
         <View style={styles.sideButtons}>
-          <IconButton icon="scissors" label="Cut the word at the playhead" tone="ghost" size={40} iconScale={0.5} onPress={onAddCut} />
+          <IconButton icon="scissors" label="Split at the playhead" tone="ghost" size={40} iconScale={0.5} onPress={onSplit} />
           <IconButton
             icon={muted ? 'speaker.slash' : 'speaker.wave.2'}
             label={muted ? 'Unmute' : 'Mute'}
@@ -62,34 +116,85 @@ export function Timeline({ segments, compDuration, cards, envelopeDb, thumbs, ti
         </View>
       </View>
 
-      <ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} style={styles.flex}>
-        <Pressable
-          style={{ width }}
-          onPress={(e) => seekRef.current(Math.max(0, Math.min(total, (e.nativeEvent.locationX - LEFT) / PPS)))}
-          accessibilityLabel="Timeline. Tap to move the playhead.">
-          <TimelineTracks segments={segments} total={total} cards={cards} envelopeDb={envelopeDb} thumbs={thumbs} muted={muted} />
-          <View pointerEvents="none" style={[styles.playhead, { left: x(time) - 6 }]}>
-            <SymbolView name="arrowtriangle.down.fill" size={12} tintColor="#FFFFFF" />
-            <View style={styles.playLine} />
-          </View>
-        </Pressable>
-      </ScrollView>
+      <View style={styles.flex} onLayout={(e) => setViewW(e.nativeEvent.layout.width)}>
+        {viewW > 0 && (
+          <ScrollView
+            ref={scroll}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            scrollEventThrottle={16}
+            decelerationRate="fast"
+            onScroll={onScroll}
+            onScrollBeginDrag={() => {
+              if (endTimer.current) clearTimeout(endTimer.current);
+              dragging.current = true;
+              onScrubStart();
+            }}
+            onScrollEndDrag={(e) => {
+              const t = clampT(e.nativeEvent.contentOffset.x);
+              // If no momentum follows, the scrub ends here.
+              endTimer.current = setTimeout(() => finish(t), 80);
+            }}
+            onMomentumScrollBegin={() => {
+              if (endTimer.current) clearTimeout(endTimer.current);
+            }}
+            onMomentumScrollEnd={(e) => {
+              if (dragging.current) finish(clampT(e.nativeEvent.contentOffset.x));
+            }}>
+            <View style={{ width: total * PPS + viewW }}>
+              <TimelineTracks
+                pad={pad}
+                segments={segments}
+                regions={regions}
+                selected={selected}
+                total={total}
+                cards={cards}
+                envelopeDb={envelopeDb}
+                thumbs={thumbs}
+                muted={muted}
+                onSelect={onSelect}
+              />
+            </View>
+          </ScrollView>
+        )}
+        <View pointerEvents="none" style={[styles.playhead, { left: pad - 6 }]}>
+          <SymbolView name="arrowtriangle.down.fill" size={12} tintColor="#FFFFFF" />
+          <View style={styles.playLine} />
+        </View>
+      </View>
     </View>
   );
 }
 
 type TracksProps = {
+  pad: number;
   segments: CompSegment[];
+  regions: Region[];
+  selected: Region | null;
   total: number;
   cards: CaptionCard[];
   envelopeDb: number[];
   thumbs: Thumbnail[];
   muted: boolean;
+  onSelect: (region: Region | null) => void;
 };
 
-/** Everything that doesn't move with the playhead, memoised so playback only re-renders the playhead. */
-const TimelineTracks = memo(function TimelineTracks({ segments, total, cards, envelopeDb, thumbs, muted }: TracksProps) {
-  const x = (t: number) => LEFT + t * PPS;
+const same = (a: Region | null, b: Region) => !!a && Math.abs(a.start - b.start) < 1e-3 && Math.abs(a.end - b.end) < 1e-3;
+
+/** Everything that doesn't move with the playhead, memoised so playback only scrolls. */
+const TimelineTracks = memo(function TimelineTracks({
+  pad,
+  segments,
+  regions,
+  selected,
+  total,
+  cards,
+  envelopeDb,
+  thumbs,
+  muted,
+  onSelect,
+}: TracksProps) {
+  const x = (t: number) => pad + t * PPS;
 
   const ticks = useMemo(() => {
     const step = total > 40 ? 10 : total > 16 ? 5 : 2;
@@ -103,7 +208,7 @@ const TimelineTracks = memo(function TimelineTracks({ segments, total, cards, en
     for (let px = 0; px < total * PPS; px += 4) {
       const src = toSource(segments, px / PPS);
       const db = envelopeDb[Math.floor(src / ENVELOPE_STEP)] ?? -100;
-      out.push({ left: LEFT + px, h: 2 + Math.max(0, Math.min(1, (db + 60) / 50)) * 34 });
+      out.push({ left: px, h: 2 + Math.max(0, Math.min(1, (db + 60) / 50)) * 34 });
     }
     return out;
   }, [segments, envelopeDb, total]);
@@ -128,31 +233,39 @@ const TimelineTracks = memo(function TimelineTracks({ segments, total, cards, en
         )}
       </View>
 
-      {/* One block per kept segment; a handle marks every cut. */}
+      {/* One block per region (between cuts and splits); tap to select. */}
       <View style={styles.clipTrack}>
-        {segments.map((s, i) => {
-          const w = Math.max(4, (s.compEnd - s.compStart) * PPS - 2);
+        {regions.map((r) => {
+          const w = Math.max(4, (r.end - r.start) * PPS - 2);
           const n = Math.max(1, Math.ceil(w / FRAME_W));
+          const isSel = same(selected, r);
           return (
-            <View key={i} style={[styles.clip, { left: x(s.compStart) + 1, width: w }]}>
+            <Pressable
+              key={`${r.start.toFixed(3)}`}
+              onPress={() => onSelect(isSel ? null : r)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSel }}
+              accessibilityLabel={`Clip from ${r.start.toFixed(1)} to ${r.end.toFixed(1)} seconds`}
+              style={[styles.clip, { left: x(r.start) + 1, width: w }, isSel && styles.clipSelected]}>
               {Array.from({ length: n }).map((_, k) => {
-                const uri = frameFor(s.start + ((k + 0.5) * FRAME_W) / PPS);
+                const uri = frameFor(toSource(segments, r.start + ((k + 0.5) * FRAME_W) / PPS));
                 return uri ? (
                   <Image key={k} source={{ uri }} style={[styles.frame, { left: k * FRAME_W }]} contentFit="cover" />
                 ) : (
                   <View key={k} style={[styles.frame, styles.framePlaceholder, { left: k * FRAME_W }]} />
                 );
               })}
-            </View>
+              {isSel && <View pointerEvents="none" style={styles.selectedTint} />}
+            </Pressable>
           );
         })}
-        {segments.map((s, i) => (
-          <View key={`h${i}`} style={[styles.handle, { left: x(s.compStart) - 5 }]}>
+        {regions.map((r, i) => (
+          <View key={`h${i}`} pointerEvents="none" style={[styles.handle, { left: x(r.start) - 5 }]}>
             <View style={styles.handleGrip} />
           </View>
         ))}
-        {segments.length > 0 && (
-          <View style={[styles.handle, { left: x(total) - 5 }]}>
+        {regions.length > 0 && (
+          <View pointerEvents="none" style={[styles.handle, { left: x(total) - 5 }]}>
             <View style={styles.handleGrip} />
           </View>
         )}
@@ -169,7 +282,7 @@ const TimelineTracks = memo(function TimelineTracks({ segments, total, cards, en
         ))}
       </View>
 
-      <View style={styles.wave}>
+      <View style={[styles.wave, { marginLeft: pad, width: total * PPS }]}>
         {bars.map((b, i) => (
           <View key={i} style={[styles.bar, { left: b.left, height: muted ? 2 : b.h }]} />
         ))}
@@ -190,6 +303,8 @@ const styles = StyleSheet.create({
   dot: { position: 'absolute', top: 9, width: 2, height: 2, borderRadius: 1, backgroundColor: colors.ruler },
   clipTrack: { height: 56, justifyContent: 'center' },
   clip: { position: 'absolute', top: 6, height: 44, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.cardHigh },
+  clipSelected: { borderWidth: 2, borderColor: '#FFFFFF' },
+  selectedTint: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.12)' },
   frame: { position: 'absolute', top: 0, width: FRAME_W, height: 44, borderRightWidth: 1, borderRightColor: 'rgba(0,0,0,0.35)' },
   framePlaceholder: { backgroundColor: '#2A2733' },
   handle: {

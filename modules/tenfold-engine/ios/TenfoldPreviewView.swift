@@ -9,6 +9,7 @@ class TenfoldPreviewView: ExpoView {
   let onReady = EventDispatcher()
   let onEnd = EventDispatcher()
   let onError = EventDispatcher()
+  let onPlayingChange = EventDispatcher()
 
   private let player = AVPlayer()
   private let playerLayer = AVPlayerLayer()
@@ -22,6 +23,10 @@ class TenfoldPreviewView: ExpoView {
   private var timeObserver: Any?
   private var endObserver: NSObjectProtocol?
   private var rebuildTask: Task<Void, Never>?
+  private var statusObservation: NSKeyValueObservation?
+  /// Item swaps briefly pause the player; don't report those as the user's pause.
+  private var quietUntil: CFTimeInterval = 0
+  private var reportedPlaying = false
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -34,11 +39,24 @@ class TenfoldPreviewView: ExpoView {
     timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 30), queue: .main) { [weak self] t in
       self?.onTime(["time": t.seconds])
     }
+    // Tell JS whenever the player really starts or stops (end of clip, interruptions), so its play button never lies.
+    statusObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
+      DispatchQueue.main.async { self?.reconcilePlaying() }
+    }
+  }
+
+  private func reconcilePlaying() {
+    let playing = player.timeControlStatus != .paused
+    guard CACurrentMediaTime() >= quietUntil, playing != reportedPlaying else { return }
+    reportedPlaying = playing
+    if !playing { wantsPlaying = false }
+    onPlayingChange(["playing": playing])
   }
 
   deinit {
     if let timeObserver { player.removeTimeObserver(timeObserver) }
     if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+    statusObservation?.invalidate()
     rebuildTask?.cancel()
   }
 
@@ -85,6 +103,7 @@ class TenfoldPreviewView: ExpoView {
       player.play()
     } else {
       player.pause()
+      player.rate = 0
     }
   }
 
@@ -128,6 +147,7 @@ class TenfoldPreviewView: ExpoView {
       let built = try await CompositionBuilder.build(source: source, media: meta.media, plan: plan, doc: doc, faces: analysis.faces, quality: .preview)
       guard !Task.isCancelled else { return }
 
+      quietUntil = CACurrentMediaTime() + 0.5
       let resumeAt = player.currentTime()
       let item = AVPlayerItem(asset: built.composition)
       item.videoComposition = built.videoComposition
@@ -154,6 +174,7 @@ class TenfoldPreviewView: ExpoView {
         seek(min(resumeAt.seconds, limit))
       }
       if wantsPlaying { player.play() }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.reconcilePlaying() }
       lastBuiltJSON = json
       onReady(["duration": plan.compDuration, "width": built.renderSize.width, "height": built.renderSize.height])
     } catch {

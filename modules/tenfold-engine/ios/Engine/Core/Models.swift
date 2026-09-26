@@ -228,8 +228,25 @@ public struct ZoomSettings: Codable, Sendable, Equatable {
 }
 
 public struct CropSettings: Codable, Sendable, Equatable {
+  /// Legacy switch, used when `aspect` is absent (documents saved before aspect ratios existed).
   public var auto916: Bool
-  public init(auto916: Bool = true) { self.auto916 = auto916 }
+  /// "original", "9:16", "1:1", "4:5" or "16:9".
+  public var aspect: String?
+  public init(auto916: Bool = true, aspect: String? = nil) {
+    self.auto916 = auto916
+    self.aspect = aspect
+  }
+
+  /// Output width / height, or nil to keep the source's shape.
+  public var ratio: Double? {
+    switch aspect ?? (auto916 ? "9:16" : "original") {
+    case "9:16": return 9.0 / 16
+    case "1:1": return 1
+    case "4:5": return 4.0 / 5
+    case "16:9": return 16.0 / 9
+    default: return nil
+    }
+  }
 }
 
 public struct AudioSettings: Codable, Sendable, Equatable {

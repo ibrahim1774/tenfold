@@ -217,6 +217,18 @@ struct CoreTests {
       check(back.contains("\"compDuration\":3"), "plan encodes")
     }
 
+    test("crop aspect ratios decode, with the legacy switch as fallback") {
+      let r = { (j: String) throws -> Double? in try decodeJSON(CropSettings.self, j).ratio }
+      let legacyOn = try r(#"{"auto916":true}"#), legacyOff = try r(#"{"auto916":false}"#)
+      let wide = try r(#"{"auto916":true,"aspect":"16:9"}"#), square = try r(#"{"auto916":false,"aspect":"1:1"}"#)
+      let original = try r(#"{"auto916":true,"aspect":"original"}"#)
+      check(legacyOn == 9.0 / 16, "legacy on → 9:16")
+      check(legacyOff == nil, "legacy off → original")
+      check(wide == 16.0 / 9, "aspect wins")
+      check(square == 1, "square")
+      check(original == nil, "original")
+    }
+
     print("\n\(passes) passed, \(failures) failed")
     exit(failures == 0 ? 0 : 1)
   }

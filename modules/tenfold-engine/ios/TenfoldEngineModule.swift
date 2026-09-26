@@ -169,7 +169,7 @@ public class TenfoldEngineModule: Module {
     // MARK: Preview view
 
     View(TenfoldPreviewView.self) {
-      Events("onTime", "onReady", "onEnd", "onError")
+      Events("onTime", "onReady", "onEnd", "onError", "onPlayingChange")
 
       Prop("projectId") { (view: TenfoldPreviewView, id: String) in
         view.setProject(id)
