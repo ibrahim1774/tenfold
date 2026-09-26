@@ -232,10 +232,22 @@ public struct CropSettings: Codable, Sendable, Equatable {
   public var auto916: Bool
   /// "original", "9:16", "1:1", "4:5" or "16:9".
   public var aspect: String?
-  public init(auto916: Bool = true, aspect: String? = nil) {
+  /// Manual placement on the canvas: 1 = Fit (whole video visible). Absent = automatic framing
+  /// (fill the canvas and follow the speaker's face).
+  public var scale: Double?
+  /// Video centre offset from the canvas centre, in fractions of the canvas width / height.
+  public var offsetX: Double?
+  public var offsetY: Double?
+
+  public init(auto916: Bool = true, aspect: String? = nil, scale: Double? = nil, offsetX: Double? = nil, offsetY: Double? = nil) {
     self.auto916 = auto916
     self.aspect = aspect
+    self.scale = scale
+    self.offsetX = offsetX
+    self.offsetY = offsetY
   }
+
+  public var isManual: Bool { scale != nil }
 
   /// Output width / height, or nil to keep the source's shape.
   public var ratio: Double? {

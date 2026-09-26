@@ -8,6 +8,8 @@ import { AppText, Chip, GradientButton, IconButton, OptionLabel, PressableScale,
 import { colors, fonts, radii, spacing } from '@/design/tokens';
 import { Engine, type CaptionFont, type CaptionSettings, type CaptionStyleId } from '@/engine';
 import { useEntitlements } from '@/state/entitlements';
+import { editsOf } from '@/batch/edits';
+import { setEdit } from '@/state/batchSetup';
 import { commitDoc } from '@/state/history';
 import { useLibrary } from '@/state/library';
 
@@ -33,7 +35,9 @@ export default function CaptionStyleSheet() {
   const [posY, setPosY] = useState(initial.position.y);
   const [uppercase, setUppercase] = useState(initial.uppercase);
   const [maxWords, setMaxWords] = useState(initial.maxWords);
-  const [enabled, setEnabled] = useState(doc ? doc.captions.enabled : !batch?.captionsOff);
+  const [enabled, setEnabled] = useState(
+    doc ? doc.captions.enabled : batch ? batch.projectIds.some((id) => editsOf(useLibrary.getState().projects[id] ?? {}, batch).captions) : true,
+  );
   const [sample, setSample] = useState('three tips that work');
 
   useEffect(() => {
@@ -70,7 +74,10 @@ export default function CaptionStyleSheet() {
       enabled,
     };
     if (projectId && doc) commitDoc(projectId, { ...doc, captions: next });
-    if (batchId && batch) updateBatch(batchId, { captionsOff: !enabled, preset: { ...batch.preset, presetId: 'custom', captions: next } });
+    if (batchId && batch) {
+      updateBatch(batchId, { preset: { ...batch.preset, presetId: 'custom', captions: next } });
+      setEdit(batchId, 'captions', enabled);
+    }
     router.back();
   };
 

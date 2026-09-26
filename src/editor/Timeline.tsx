@@ -3,7 +3,7 @@ import { SymbolView } from 'expo-symbols';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
-import { AppText, IconButton } from '@/design/components';
+import { AppText } from '@/design/components';
 import { colors, fonts } from '@/design/tokens';
 import type { CaptionCard, CompSegment, Thumbnail } from '@/engine/types';
 
@@ -28,8 +28,6 @@ export type TimelineProps = {
   onScrub: (compTime: number) => void;
   onScrubEnd: (compTime: number) => void;
   onSelect: (region: Region | null) => void;
-  onSplit: () => void;
-  onToggleMute: () => void;
 };
 
 export function toSource(segs: CompSegment[], comp: number) {
@@ -63,8 +61,6 @@ export function Timeline({
   onScrub,
   onScrubEnd,
   onSelect,
-  onSplit,
-  onToggleMute,
 }: TimelineProps) {
   const scroll = useRef<ScrollView>(null);
   const [viewW, setViewW] = useState(0);
@@ -101,21 +97,6 @@ export function Timeline({
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.side}>
-        <View style={styles.rulerSpacer} />
-        <View style={styles.sideButtons}>
-          <IconButton icon="scissors" label="Split at the playhead" tone="ghost" size={40} iconScale={0.5} onPress={onSplit} />
-          <IconButton
-            icon={muted ? 'speaker.slash' : 'speaker.wave.2'}
-            label={muted ? 'Unmute' : 'Mute'}
-            tone="ghost"
-            size={40}
-            iconScale={0.5}
-            onPress={onToggleMute}
-          />
-        </View>
-      </View>
-
       <View style={styles.flex} onLayout={(e) => setViewW(e.nativeEvent.layout.width)}>
         {viewW > 0 && (
           <ScrollView
@@ -299,9 +280,6 @@ const TimelineTracks = memo(function TimelineTracks({
 const styles = StyleSheet.create({
   wrap: { flexDirection: 'row' },
   flex: { flex: 1 },
-  side: { width: 92, paddingLeft: 8 },
-  rulerSpacer: { height: 24 },
-  sideButtons: { flexDirection: 'row', alignItems: 'center', height: 56, gap: 4 },
   ruler: { height: 24 },
   tick: { position: 'absolute', top: 2 },
   tickText: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, color: colors.ruler },

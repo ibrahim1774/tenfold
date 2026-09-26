@@ -1,6 +1,8 @@
 import { calls, control, running } from './mockEngine';
 import { AppState } from './rnMock';
 import { cancelBatch, queueExports, retryProject, setPaused, startBatch, startQueue, useQueueUI } from '@/batch/queue';
+import { clampPlacement, fillUserScale, fitScale, MAX_SCALE, MIN_SCALE } from '@/editor/frame';
+import { setAllEdits, setEdit } from '@/state/batchSetup';
 import { useEntitlements } from '@/state/entitlements';
 import { projectsOf, useLibrary } from '@/state/library';
 import { batchPreset } from '@/state/presets';
@@ -148,6 +150,42 @@ async function main() {
   check(statuses(b).includes('cancelled'), `some cancelled (${statuses(b)})`);
   startBatch(b);
   check(await until(() => statuses(b).every((s) => s === 'ready')), `all ready after resume (${statuses(b)})`);
+
+  console.log('• per-video edits decide what the analysis and the edit do');
+  b = newBatch(3);
+  const [e1, e2, e3] = lib().batches[b].projectIds;
+  setEdit(b, 'pauses', false, [e1]);
+  setEdit(b, 'captions', false, [e1]);
+  setEdit(b, 'reframe', false, [e2]);
+  setEdit(b, 'zoom', false);
+  startBatch(b);
+  check(await until(() => statuses(b).every((s) => s === 'ready')), 'ready');
+  const opts = (id: string) => calls.filter((c) => c.fn === 'analyze' && c.id === id).at(-1)?.opts;
+  check(opts(e1)?.silence === 'off' && opts(e1)?.fillers !== 'off', `pauses off → no silence detection (${JSON.stringify(opts(e1))})`);
+  check(opts(e2)?.silence !== 'off', 'others keep pause cutting');
+  check(lib().docs[e1].captions.enabled === false && lib().docs[e2].captions.enabled === true, 'captions follow the checks');
+  check(lib().docs[e1].levels?.silence === 'off' && lib().docs[e2].levels?.silence !== 'off', 'levels match what ran');
+  check(lib().docs[e2].crop.aspect === 'original' && lib().docs[e3].crop.aspect === '9:16', 'reframe follows the checks');
+  check([e1, e2, e3].every((id) => lib().docs[id].zoom.mode === 'off'), 'zoom off for all');
+  check(lib().docs[e3].crop.scale === undefined, 'reframed videos use automatic framing');
+
+  console.log('• clear all → nothing applied');
+  b = newBatch(2);
+  setAllEdits(b, false);
+  startBatch(b);
+  check(await until(() => statuses(b).every((s) => s === 'ready')), 'ready');
+  const d = lib().docs[lib().batches[b].projectIds[0]];
+  check(!d.captions.enabled && d.zoom.mode === 'off' && d.crop.aspect === 'original' && d.levels?.fillers === 'off', 'untouched edit');
+
+  console.log('• framing math matches the engine (same numbers as CoreTests)');
+  const near = (a: number, b: number, e = 1e-6) => Math.abs(a - b) < e;
+  check(near(fitScale(1920, 1080, 1080, 1920), 0.5625), 'fit scale');
+  check(near(fillUserScale(1920, 1080, 1080, 1920), 3.160493827), 'fill user scale');
+  const c1 = clampPlacement({ scale: 1, offsetX: 0.9, offsetY: -0.9 }, 1920, 1080, 1080, 1920);
+  check(near(c1.offsetX, 0.5) && near(c1.offsetY, -0.5), 'fit offsets clamp to ±0.5');
+  check(near(clampPlacement({ scale: 3, offsetX: 0, offsetY: 9 }, 1920, 1080, 1080, 1920).offsetY, 1.5), 'zoomed pan limit');
+  check(clampPlacement({ scale: 9, offsetX: 0, offsetY: 0 }, 1920, 1080, 1080, 1920).scale === MAX_SCALE, 'scale capped');
+  check(clampPlacement({ scale: 0.2, offsetX: 0, offsetY: 0 }, 1920, 1080, 1080, 1920).scale === MIN_SCALE, 'scale floored');
 
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);

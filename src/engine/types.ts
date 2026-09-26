@@ -92,7 +92,7 @@ export type EditDocument = {
   captions: CaptionSettings;
   zoom: { mode: ZoomMode; intensity: 1 | 2 | 3; faceFollow: boolean };
   /** `aspect` wins; `auto916` is the legacy switch for documents saved before aspect ratios existed. */
-  crop: { auto916: boolean; aspect?: AspectRatio };
+  crop: CropSettings;
   audio: { mode: AudioMode };
   /** Split points (source seconds) the user added on the timeline. UI only: the engine ignores them. */
   splits?: number[];
@@ -101,6 +101,18 @@ export type EditDocument = {
 };
 
 export type AspectRatio = 'original' | '9:16' | '1:1' | '4:5' | '16:9';
+
+/**
+ * Output frame. `scale` present = the user placed the video (1 = Fit, black where it doesn't reach);
+ * absent = automatic framing (fill the canvas, follow the speaker). Offsets are fractions of the canvas.
+ */
+export type CropSettings = {
+  auto916: boolean;
+  aspect?: AspectRatio;
+  scale?: number;
+  offsetX?: number;
+  offsetY?: number;
+};
 
 export type AnalysisOptions = { silence: SilenceLevel; fillers: FillerLevel; language: string };
 
@@ -178,8 +190,13 @@ export type Project = {
   exportUri?: string;
   exportedAt?: number;
   savedToPhotos?: boolean;
+  /** Which edits Tenfold applies to this video. Absent = the batch defaults (see src/batch/edits.ts). */
+  edits?: EditSelection;
   createdAt: number;
 };
+
+export type EditKey = 'captions' | 'fillers' | 'pauses' | 'zoom' | 'reframe';
+export type EditSelection = Record<EditKey, boolean>;
 
 export type BatchStatus = 'setup' | 'processing' | 'ready' | 'exported';
 

@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-import type { Analysis, Batch, BatchPreset, BatchStatus, EditDocument, ImportedAsset, Project } from '../engine/types';
+import type { Analysis, Batch, BatchPreset, BatchStatus, EditDocument, EditSelection, ImportedAsset, Project } from '../engine/types';
+import { batchAspect, defaultEdits, effectiveLevels, effectiveZoom } from '../batch/edits';
 import { persistStorage } from './storage';
 
 // Batches, projects and edit documents. Heavy per-project data (source video, transcript,
@@ -137,15 +138,19 @@ export function batchStatus(batch: Batch, projects: Record<string, Project>): Ba
 }
 
 /** Initial edit document from the analysis's suggested cuts and the batch preset. */
-export function docFromAnalysis(analysis: Analysis, batch: Batch): EditDocument {
+/** The edit document Tenfold generates for a video: its analysis, the batch style, and its edit selection. */
+export function docFromAnalysis(analysis: Analysis, batch: Batch, edits: EditSelection = defaultEdits(batch)): EditDocument {
+  const aspect = batchAspect(batch.preset);
   return {
     version: 1,
     cuts: analysis.cuts,
     wordOverrides: [],
-    captions: { ...batch.preset.captions, enabled: !batch.captionsOff && !!analysis.transcript?.words.length },
-    zoom: batch.preset.zoom,
-    crop: batch.preset.crop,
+    captions: { ...batch.preset.captions, enabled: edits.captions && !!analysis.transcript?.words.length },
+    zoom: { ...batch.preset.zoom, mode: effectiveZoom(batch.preset, edits) },
+    // Reframe = automatic framing (fill + follow the speaker) in the batch ratio; off = the clip's own shape.
+    crop: edits.reframe ? { auto916: aspect === '9:16', aspect } : { auto916: false, aspect: 'original' },
     audio: batch.preset.audio,
+    levels: effectiveLevels(batch.preset, edits),
   };
 }
 

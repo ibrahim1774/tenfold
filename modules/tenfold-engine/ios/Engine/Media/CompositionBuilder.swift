@@ -85,9 +85,23 @@ public enum CompositionBuilder {
       return orient.concatenating(CGAffineTransform(scaleX: s, y: s)).concatenating(CGAffineTransform(translationX: tx, y: ty))
     }
 
-    // Keyframes: zoom events + (when the frame is reframed) face-follow pans every second.
-    let needsPan = abs(display.width / display.height - render.width / render.height) > 0.02
-    let follow = doc.zoom.faceFollow && !faces.isEmpty
+    // Manual placement (the user pinched / dragged, or picked a ratio): the video sits where they put it,
+    // black shows where it doesn't reach, and punch-ins scale about their anchor. No automatic panning.
+    let manual = doc.crop.isManual
+    let placed = Framing.place(crop: doc.crop, canvasW: Double(render.width), canvasH: Double(render.height),
+                               videoW: Double(display.width), videoH: Double(display.height))
+    func manualTransform(zoom: Double, anchorX: Double, anchorY: Double) -> CGAffineTransform {
+      let px = placed.originX + anchorX * placed.videoW
+      let py = placed.originY + anchorY * placed.videoH
+      let s = CGFloat(placed.pixelScale * zoom)
+      let tx = CGFloat(px + zoom * (placed.originX - px))
+      let ty = CGFloat(py + zoom * (placed.originY - py))
+      return orient.concatenating(CGAffineTransform(scaleX: s, y: s)).concatenating(CGAffineTransform(translationX: tx, y: ty))
+    }
+
+    // Keyframes: zoom events + (when the frame is reframed automatically) face-follow pans every second.
+    let needsPan = !manual && abs(display.width / display.height - render.width / render.height) > 0.02
+    let follow = !manual && doc.zoom.faceFollow && !faces.isEmpty
     struct Key { var t: Double; var ramp: Double }
     var keys = plan.zoom.map { Key(t: $0.at, ramp: $0.ramp) }
     if follow && needsPan {
@@ -99,6 +113,10 @@ public enum CompositionBuilder {
 
     func state(_ t: Double) -> CGAffineTransform {
       let z = plan.zoom.last(where: { $0.at <= t + 1e-6 })?.scale ?? 1
+      if manual {
+        let e = plan.zoom.last(where: { $0.at <= t + 1e-6 })
+        return manualTransform(zoom: z, anchorX: z > 1 ? (e?.anchorX ?? 0.5) : 0.5, anchorY: z > 1 ? (e?.anchorY ?? 0.5) : 0.5)
+      }
       var fx = 0.5, fy = needsPan ? 0.42 : 0.5
       if follow, let f = FaceTrackSmoother.face(at: sourceTime(plan.segments, t), in: faces) {
         fx = f.x

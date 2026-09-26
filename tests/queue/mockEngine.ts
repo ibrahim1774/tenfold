@@ -1,7 +1,7 @@
 // Simulated native engine for exercising the JS batch queue on Node.
 type Listener = (e: any) => void;
 const listeners: Record<string, Listener[]> = {};
-export const calls: { fn: string; id?: string; t: number }[] = [];
+export const calls: { fn: string; id?: string; t: number; opts?: any }[] = [];
 export const running = { analyze: 0, export: 0, maxAnalyze: 0, maxExport: 0 };
 export const control = {
   failAnalyze: new Set<string>(),
@@ -16,8 +16,8 @@ export const control = {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export const Engine = {
-  async analyze(id: string, _o: any) {
-    calls.push({ fn: 'analyze', id, t: Date.now() });
+  async analyze(id: string, o: any) {
+    calls.push({ fn: 'analyze', id, t: Date.now(), opts: o });
     running.analyze++;
     running.maxAnalyze = Math.max(running.maxAnalyze, running.analyze);
     try {

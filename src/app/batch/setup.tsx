@@ -1,12 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CAPTION_COLORS, CAPTION_FONTS, CAPTION_FORMATS, CAPTION_PRESETS } from '@/captions/presets';
 import {
-  ActionCard,
   AppText,
   Background,
   Card,
@@ -32,7 +30,8 @@ import { setCaptionStyle as setStyle, setPresetId as setPreset, updatePreset } f
 import { exportsLeft as freeExportsLeft, FREE_LIMITS, maxBatchSize, useEntitlements } from '@/state/entitlements';
 import { formatDuration, projectsOf, useLibrary } from '@/state/library';
 import { PRESET_OPTIONS } from '@/state/presets';
-import { aspectOf } from '@/editor/aspect';
+import { batchAspect } from '@/batch/edits';
+import { EditsChecklist } from '@/batch/EditsChecklist';
 
 const SILENCE: { v: SilenceLevel; l: string }[] = [
   { v: 'light', l: 'Light' },
@@ -58,6 +57,7 @@ const POSITIONS = [
   { y: 0.66, l: 'Lower' },
 ];
 const SAMPLE = 'three tips that work';
+const FRAMES = ['9:16', '4:5', '1:1', '16:9'] as const;
 
 export default function BatchSetupScreen() {
   const insets = useSafeAreaInsets();
@@ -82,7 +82,6 @@ export default function BatchSetupScreen() {
   }
 
   const preset = batch.preset;
-  const captionsOff = batch.captionsOff;
   const clips = projectsOf(batch, projects);
   const total = clips.reduce((s, c) => s + (c.media?.durationSec ?? 0), 0);
   const a = preset.analysis;
@@ -181,12 +180,15 @@ export default function BatchSetupScreen() {
               </View>
             )}
           </Card>
+        </View>
 
-          {/* Presets */}
-          <View style={styles.rowHead}>
-            <SymbolView name="wand.and.stars" size={20} tintColor={colors.textPrimary} weight="light" />
-            <AppText variant="section">Quick presets</AppText>
-          </View>
+        <View style={[styles.gutter, styles.block]}>
+          <EditsChecklist batch={batch} clips={clips} />
+        </View>
+
+        {/* Style: how the checked edits look. */}
+        <View style={[styles.gutter, styles.block]}>
+          <AppText variant="section">Style</AppText>
           <ChipGroup>
             {PRESET_OPTIONS.filter((p) => p.id !== 'custom').map((p) => (
               <Chip key={p.id} label={p.name} selected={preset.presetId === p.id} onPress={() => setPresetId(p.id)} />
@@ -195,15 +197,14 @@ export default function BatchSetupScreen() {
           </ChipGroup>
         </View>
 
-        {/* Caption style tiles */}
         <View style={[styles.gutter, styles.sectionHead]}>
-          <AppText variant="section">Choose a style</AppText>
+          <AppText variant="bodyStrong">Captions</AppText>
           <PressableScale
             haptic={false}
             onPress={() => router.push({ pathname: '/editor/captions', params: { batchId } })}
             accessibilityRole="link">
             <AppText variant="label" color={colors.textSecondary}>
-              View all
+              All options
             </AppText>
           </PressableScale>
         </View>
@@ -211,77 +212,43 @@ export default function BatchSetupScreen() {
           {CAPTION_PRESETS.map((p, i) => {
             const locked = !isPro && !p.free;
             return (
-              <Animated.View key={p.id} entering={FadeInDown.delay(40 * i).duration(350)}>
-                <StyleTile
-                  name={p.name}
-                  seed={i + 3}
-                  sample={SAMPLE}
-                  highlight={p.colors.active}
-                  animation={p.animation}
-                  fontFamily={CAPTION_FONTS.find((f) => f.id === p.font)?.family}
-                  uppercase={p.uppercase}
-                  maxWords={p.maxWords}
-                  locked={locked}
-                  selected={!captionsOff && preset.captions.styleId === p.id}
-                  onPress={() => (locked ? router.push('/paywall') : setCaptionStyle(p.id))}
-                />
-              </Animated.View>
+              <StyleTile
+                key={p.id}
+                name={p.name}
+                seed={i + 3}
+                sample={SAMPLE}
+                highlight={p.colors.active}
+                animation={p.animation}
+                fontFamily={CAPTION_FONTS.find((f) => f.id === p.font)?.family}
+                uppercase={p.uppercase}
+                maxWords={p.maxWords}
+                locked={locked}
+                selected={preset.captions.styleId === p.id}
+                onPress={() => (locked ? router.push('/paywall') : setCaptionStyle(p.id))}
+              />
             );
           })}
         </ScrollView>
 
         <View style={[styles.gutter, styles.stack]}>
-          <AppText variant="section">Auto actions</AppText>
-          <View style={styles.cardRow}>
-            <ActionCard
-              icon="scissors"
-              title="Cut pauses"
-              subtitle="Remove dead air"
-              value={a.silence !== 'off'}
-              onChange={(v) => update((p) => ({ ...p, analysis: { ...p.analysis, silence: v ? 'medium' : 'off' } }))}
-            />
-            <ActionCard
-              icon="text.badge.minus"
-              title="Cut ums"
-              subtitle="Filler words"
-              value={a.fillers !== 'off'}
-              onChange={(v) => update((p) => ({ ...p, analysis: { ...p.analysis, fillers: v ? 'standard' : 'off' } }))}
-            />
-            <ActionCard
-              icon="plus.magnifyingglass"
-              title="Zooms"
-              subtitle="Hide jump cuts"
-              value={preset.zoom.mode !== 'off'}
-              onChange={(v) => update((p) => ({ ...p, zoom: { ...p.zoom, mode: v ? 'subtle' : 'off' } }))}
-            />
-          </View>
-          <View style={styles.cardRow}>
-            <ActionCard
-              icon="captions.bubble"
-              title="Captions"
-              subtitle="Word by word"
-              value={!captionsOff}
-              onChange={(v) => setCaptionStyle(v ? preset.captions.styleId : 'off')}
-            />
-            <ActionCard
-              icon="crop"
-              title="9:16 crop"
-              subtitle="Reframe for Reels"
-              value={aspectOf(preset.crop) === '9:16'}
-              onChange={(v) => update((p) => ({ ...p, crop: { auto916: v, aspect: v ? '9:16' : 'original' } }))}
-            />
-            <ActionCard
-              icon="face.smiling"
-              title="Face follow"
-              subtitle="Track speaker"
-              value={preset.zoom.faceFollow}
-              onChange={(v) => update((p) => ({ ...p, zoom: { ...p.zoom, faceFollow: v } }))}
-            />
+          <View style={styles.frameBlock}>
+            <AppText variant="bodyStrong">Frame</AppText>
+            <AppText variant="caption" color={colors.textMuted}>
+              Used by Reframe. Tenfold fills the frame and keeps the speaker in view.
+            </AppText>
+            <ChipGroup>
+              {FRAMES.map((f) => (
+                <Chip
+                  key={f}
+                  label={f}
+                  selected={batchAspect(preset) === f}
+                  onPress={() => update((p) => ({ ...p, crop: { auto916: f === '9:16', aspect: f } }))}
+                />
+              ))}
+            </ChipGroup>
           </View>
 
           <CollapsibleSection title="Fine-tune" summary="Strength, font, colour, position, audio">
-            {a.silence !== 'off' && (
-              <>
                 <OptionLabel>Pause cutting</OptionLabel>
                 <ChipGroup>
                   {SILENCE.map((o) => (
@@ -293,10 +260,6 @@ export default function BatchSetupScreen() {
                     />
                   ))}
                 </ChipGroup>
-              </>
-            )}
-            {a.fillers !== 'off' && (
-              <>
                 <OptionLabel>Filler words</OptionLabel>
                 <ChipGroup>
                   {FILLERS.map((o) => (
@@ -308,10 +271,6 @@ export default function BatchSetupScreen() {
                     />
                   ))}
                 </ChipGroup>
-              </>
-            )}
-            {preset.zoom.mode !== 'off' && (
-              <>
                 <OptionLabel>Zoom</OptionLabel>
                 <ChipGroup>
                   {ZOOM.map((o) => (
@@ -323,10 +282,6 @@ export default function BatchSetupScreen() {
                     />
                   ))}
                 </ChipGroup>
-              </>
-            )}
-            {!captionsOff && (
-              <>
                 <OptionLabel>Words on screen</OptionLabel>
                 <ChipGroup>
                   {CAPTION_FORMATS.map((f) => (
@@ -377,8 +332,6 @@ export default function BatchSetupScreen() {
                     />
                   ))}
                 </ChipGroup>
-              </>
-            )}
             <OptionLabel>Audio</OptionLabel>
             <ChipGroup>
               {AUDIO.map((o) => (
@@ -412,7 +365,7 @@ export default function BatchSetupScreen() {
           </AppText>
         )}
         <GradientButton
-          title={importing ? 'Adding clips…' : `Edit all ${clips.length} ${clips.length === 1 ? 'video' : 'videos'}`}
+          title={importing ? 'Adding clips…' : `Generate ${clips.length} ${clips.length === 1 ? 'video' : 'videos'}`}
           shape="pill"
           trailingArrow
           disabled={clips.length === 0 || importing}
@@ -427,6 +380,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   gutter: { paddingHorizontal: spacing.gutter },
   stack: { gap: spacing.lg },
+  block: { gap: spacing.md, marginTop: spacing.xxl },
+  frameBlock: { gap: 8 },
   drop: { paddingVertical: spacing.xl, paddingHorizontal: spacing.lg },
   dropEmpty: { alignItems: 'center', gap: spacing.sm },
   dim: { opacity: 0.5 },

@@ -5,6 +5,7 @@ import { Engine, EngineEvents, type Project } from '../engine';
 import { exportsLeft, useEntitlements } from '../state/entitlements';
 import { docFromAnalysis, projectsOf, useLibrary } from '../state/library';
 import { useSettings } from '../state/settings';
+import { editsOf, effectiveLevels } from './edits';
 
 // JS-side orchestration (spec §4.13): two serial lanes. Analysis of project N+1 runs while
 // project N exports; the native engine serialises the heavy work per lane.
@@ -108,9 +109,10 @@ async function analyzeOne(p: Project) {
   if (!batch) return;
   lib().updateProject(p.id, { status: 'analyzing', stage: 'extractingAudio', progress: 0, error: undefined });
   try {
-    const analysis = await Engine.analyze(p.id, { ...batch.preset.analysis, language: useSettings.getState().language });
+    const edits = editsOf(p, batch);
+    const analysis = await Engine.analyze(p.id, { ...effectiveLevels(batch.preset, edits), language: useSettings.getState().language });
     if (lib().projects[p.id]?.status !== 'analyzing') return; // cancelled meanwhile
-    lib().setDoc(p.id, docFromAnalysis(analysis, batch));
+    lib().setDoc(p.id, docFromAnalysis(analysis, batch, edits));
     // Out of free exports: leave it ready instead of queueing an export that would only bounce to the paywall.
     const autoExport = batch.preset.autoExport && exportsLeft(useEntitlements.getState()) > 0;
     lib().updateProject(p.id, {

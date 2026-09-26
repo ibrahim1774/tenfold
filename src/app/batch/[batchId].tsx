@@ -2,7 +2,6 @@ import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { cancelBatch, queueExports, retryProject, setPaused, STAGE_LABELS, startBatch, useQueueUI } from '@/batch/queue';
@@ -12,15 +11,15 @@ import {
   GradientButton,
   OutlineButton,
   PressableScale,
-  ProgressBar,
   ProgressRing,
   ScreenHeader,
   Thumb,
   seedOf,
 } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
-import { Engine, type Project } from '@/engine';
+import { Engine, type Batch, type Project } from '@/engine';
 import { exportsLeft, useEntitlements } from '@/state/entitlements';
+import { editsOf, editsSummary } from '@/batch/edits';
 import { formatDuration, projectsOf, useLibrary } from '@/state/library';
 
 export default function ProcessingScreen() {
@@ -187,11 +186,10 @@ export default function ProcessingScreen() {
           ) : null}
         </View>
 
-        <View style={[styles.gutter, styles.list]}>
-          {projects.map((p, i) => (
-            <Animated.View key={p.id} entering={FadeInDown.delay(40 * i).duration(350)}>
-              <ProjectRow project={p} />
-            </Animated.View>
+        {/* Results: every video, tap one to review, adjust and export it. */}
+        <View style={[styles.gutter, styles.grid]}>
+          {projects.map((p) => (
+            <ResultCard key={p.id} project={p} batch={batch} saved={savedSec(p)} />
           ))}
         </View>
       </ScrollView>
@@ -222,51 +220,77 @@ export default function ProcessingScreen() {
   );
 }
 
-function ProjectRow({ project: p }: { project: Project }) {
+/** Seconds removed by the applied cuts (overlaps merged), for the "1:12 → 0:58" line. */
+function savedSec(p: Project): number {
+  const doc = useLibrary.getState().docs[p.id];
+  const dur = p.media?.durationSec ?? 0;
+  if (!doc) return 0;
+  const cuts = doc.cuts
+    .filter((c) => c.accepted)
+    .map((c) => [Math.max(0, c.start), Math.min(dur, c.end)] as const)
+    .filter(([a, b]) => b > a)
+    .sort((a, b) => a[0] - b[0]);
+  let total = 0;
+  let end = -1;
+  for (const [a, b] of cuts) {
+    if (a > end) {
+      total += b - a;
+      end = b;
+    } else if (b > end) {
+      total += b - end;
+      end = b;
+    }
+  }
+  return total;
+}
+
+function ResultCard({ project: p, batch, saved }: { project: Project; batch: Batch; saved: number }) {
   const openable = ['ready', 'exportQueued', 'exporting', 'done'].includes(p.status);
+  const retryable = p.status === 'failed' || p.status === 'cancelled';
+  const busy = ['queued', 'analyzing', 'exportQueued', 'exporting'].includes(p.status);
   const label = statusLabel(p);
-  const color =
-    p.status === 'done' ? colors.success : p.status === 'failed' ? colors.danger : p.status === 'ready' ? colors.textPrimary : '#C9B6FF';
-  const busy = ['analyzing', 'exporting'].includes(p.status);
+  const dur = p.media?.durationSec ?? 0;
 
   return (
     <PressableScale
       scaleTo={0.97}
-      disabled={!openable && p.status !== 'failed' && p.status !== 'cancelled'}
+      disabled={!openable && !retryable}
       accessibilityLabel={`${p.title}, ${label}`}
-      onPress={() =>
-        p.status === 'failed' || p.status === 'cancelled' ? retryProject(p.id) : router.push({ pathname: '/editor/[projectId]', params: { projectId: p.id } })
-      }
-      style={styles.row}>
-      <Thumb seed={seedOf(p.id)} uri={p.posterUri} style={styles.thumb} />
-      <View style={styles.rowText}>
-        <AppText variant="bodyStrong" numberOfLines={1}>
-          {p.title}
-        </AppText>
-        <View style={styles.meta}>
-          <AppText variant="label" color={color} numberOfLines={2} style={styles.flex}>
-            {label}
-          </AppText>
-          <AppText variant="label" color={colors.textMuted}>
-            {formatDuration(p.media?.durationSec ?? 0)}
+      onPress={() => (retryable ? retryProject(p.id) : router.push({ pathname: '/editor/[projectId]', params: { projectId: p.id } }))}
+      style={styles.card}>
+      <Thumb seed={seedOf(p.id)} uri={p.posterUri} style={styles.poster}>
+        {busy && (
+          <View style={styles.posterCenter}>
+            <ProgressRing progress={p.progress} size={44} stroke={3} />
+          </View>
+        )}
+        {retryable && (
+          <View style={styles.posterCenter}>
+            <View style={styles.posterBadge}>
+              <SymbolView name="arrow.clockwise" size={16} tintColor="#FFFFFF" />
+            </View>
+          </View>
+        )}
+        {p.status === 'done' && (
+          <View style={styles.doneBadge}>
+            <SymbolView name="checkmark" size={11} weight="bold" tintColor={colors.textInverse} />
+          </View>
+        )}
+        <View style={styles.durationBadge}>
+          <AppText variant="caption" style={styles.tabular}>
+            {openable && saved > 0.5 ? `${formatDuration(dur)} → ${formatDuration(dur - saved)}` : formatDuration(dur)}
           </AppText>
         </View>
-        {busy || p.status === 'queued' || p.status === 'exportQueued' ? <ProgressBar progress={p.progress} height={4} /> : null}
-        {p.error && p.status !== 'failed' ? (
-          <AppText variant="caption" color={colors.orange} numberOfLines={2}>
-            {p.error}
-          </AppText>
-        ) : p.warnings?.length && p.status === 'ready' ? (
-          <AppText variant="caption" color={colors.textMuted} numberOfLines={2}>
-            {p.warnings[0]}
-          </AppText>
-        ) : null}
-      </View>
-      {p.status === 'failed' || p.status === 'cancelled' ? (
-        <SymbolView name="arrow.clockwise" size={16} tintColor={colors.textSecondary} />
-      ) : openable ? (
-        <SymbolView name="chevron.right" size={14} tintColor={colors.textMuted} />
-      ) : null}
+      </Thumb>
+      <AppText variant="chip" numberOfLines={1}>
+        {p.title}
+      </AppText>
+      <AppText
+        variant="caption"
+        numberOfLines={2}
+        color={p.status === 'failed' ? colors.danger : p.error ? colors.orange : colors.textMuted}>
+        {openable && !p.error ? (p.status === 'done' ? label : editsSummary(editsOf(p, batch))) : (p.error && p.status !== 'failed' ? p.error : label)}
+      </AppText>
     </PressableScale>
   );
 }
@@ -305,21 +329,32 @@ const styles = StyleSheet.create({
   summaryText: { alignItems: 'center', gap: 4 },
   onDevice: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   actions: { flexDirection: 'row', gap: spacing.md, alignSelf: 'stretch' },
-  list: { gap: 10 },
-  row: {
-    flexDirection: 'row',
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  card: { width: '48%', flexGrow: 1, maxWidth: '50%', gap: 6 },
+  poster: { width: '100%', aspectRatio: 9 / 13, borderRadius: radii.tile, borderCurve: 'continuous' },
+  posterCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,9,14,0.35)' },
+  posterBadge: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,9,14,0.7)' },
+  doneBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
-    gap: 14,
-    padding: 10,
-    borderRadius: radii.tile,
-    borderCurve: 'continuous',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    justifyContent: 'center',
+    backgroundColor: colors.success,
   },
-  thumb: { width: 52, height: 76, borderRadius: 12 },
-  rowText: { flex: 1, gap: 6 },
-  meta: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  durationBadge: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(10,9,14,0.7)',
+  },
+  tabular: { fontVariant: ['tabular-nums'] },
   footer: {
     position: 'absolute',
     left: 0,

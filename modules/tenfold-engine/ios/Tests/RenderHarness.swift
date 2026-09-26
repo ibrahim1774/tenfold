@@ -192,6 +192,42 @@ func orientationSuite(outDir: URL, check: (Bool, String) -> Void) async throws {
     ProjectStore.delete(id)
   }
 
+  // Manual framing: a 9:16 clip placed at Fit on a 16:9 canvas → black bars left and right, video centred.
+  for (name, crop, expectBars) in [
+    ("fit-16x9", CropSettings(auto916: false, aspect: "16:9", scale: 1, offsetX: 0, offsetY: 0), true),
+    ("fill-16x9", CropSettings(auto916: false, aspect: "16:9", scale: Framing.fillUserScale(canvasW: 1920, canvasH: 1080, videoW: 720, videoH: 1280), offsetX: 0, offsetY: 0), false),
+    ("fit-1x1-moved-right", CropSettings(auto916: false, aspect: "1:1", scale: 1, offsetX: 0.3, offsetY: 0), true),
+  ] {
+    print("• manual \(name)")
+    let id = "harness-manual-\(name)-\(Int(Date().timeIntervalSince1970))"
+    let src = ProjectStore.dir(id).appendingPathComponent("source.mov")
+    try await makeClip(src, seconds: 2, size: CGSize(width: 720, height: 1280))
+    let media = try await AnalysisEngine.probe(src)
+    var doc = EditDocument(cuts: [])
+    doc.crop = crop
+    doc.zoom = ZoomSettings(mode: .off)
+    doc.captions.enabled = false
+    let analysis = Analysis(media: media, transcript: nil, envelopeDb: [], noiseFloorDb: -60, speechThresholdDb: -38, speechCoverage: 0, noSpeech: true, cuts: [], faces: [], warnings: [])
+    let plan = EditPlanner.plan(doc: doc, analysis: analysis)
+    let built = try await CompositionBuilder.build(source: src, media: media, plan: plan, doc: doc, faces: [], quality: .hd)
+    let out = outDir.appendingPathComponent("harness-manual-\(name).mp4")
+    try await Exporter.export(built: built, plan: plan, captions: doc.captions, options: ExportOptions(quality: .hd, watermark: false, saveToPhotos: false), to: out) { _ in }
+    let img = try await frame(out, at: 1)
+    try ThumbnailGenerator.writeJPEG(img, to: outDir.appendingPathComponent("harness-manual-\(name).jpg"))
+    let left = isBlack(meanColor(img, CGRect(x: 0, y: 0.4, width: 0.04, height: 0.2)))
+    let right = isBlack(meanColor(img, CGRect(x: 0.96, y: 0.4, width: 0.04, height: 0.2)))
+    if name == "fit-16x9" {
+      check(left && right, "\(name): black bars on both sides")
+      check(!isBlack(meanColor(img, CGRect(x: 0.45, y: 0.4, width: 0.1, height: 0.2))), "\(name): video in the middle")
+    } else if name == "fill-16x9" {
+      check(!left && !right, "\(name): canvas covered edge to edge")
+    } else {
+      check(left && !right, "\(name): moved right leaves black on the left only")
+    }
+    _ = expectBars
+    ProjectStore.delete(id)
+  }
+
   // Caption layer build time for ~150 words (a 60 s talking clip).
   var words: [Word] = []
   var t = 0.0

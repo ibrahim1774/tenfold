@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,7 +22,10 @@ import {
   ToolButton,
 } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
+import { editsOf } from '@/batch/edits';
 import { ASPECTS, aspectOf, aspectRatioValue } from '@/editor/aspect';
+import { fillUserScale, type Placement } from '@/editor/frame';
+import { FrameCanvas } from '@/editor/FrameCanvas';
 import { regionsOf, Timeline, toSource, type Region } from '@/editor/Timeline';
 import {
   Engine,
@@ -38,7 +41,7 @@ import {
   type ZoomMode,
 } from '@/engine';
 import { commitDoc, redoDoc, undoDoc, useEditHistory } from '@/state/history';
-import { formatDuration, useLibrary } from '@/state/library';
+import { docFromAnalysis, formatDuration, useLibrary } from '@/state/library';
 
 type Tool = 'cuts' | 'words' | 'zoom' | 'crop' | 'audio' | null;
 
@@ -82,6 +85,8 @@ export default function EditorScreen() {
   // Shape reported by the native preview, remembered with the aspect setting that produced it.
   const [rendered, setRendered] = useState<{ aspect: string; value: number; size: string } | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  // Bumped each time the native preview finishes rendering a document (resets the live pinch transform).
+  const [renderTick, setRenderTick] = useState(0);
   const levelsRequest = useRef(0);
   const preview = useRef<TenfoldPreviewViewRef>(null);
   const { width: screenW, height: screenH } = useWindowDimensions();
@@ -294,6 +299,40 @@ export default function EditorScreen() {
     Alert.alert(project?.title ?? 'Video info', lines.join('\n'));
   };
 
+  // Back to the untouched clip: no cuts, captions, zoom or reframing. One undoable step.
+  const revertToOriginal = () => {
+    if (!doc) return;
+    commit({
+      ...doc,
+      cuts: [],
+      captions: { ...doc.captions, enabled: false },
+      zoom: { ...doc.zoom, mode: 'off' },
+      crop: { auto916: false, aspect: 'original', scale: 1, offsetX: 0, offsetY: 0 },
+      audio: { mode: 'original' },
+      splits: [],
+      levels: { silence: 'off', fillers: 'off' },
+    });
+  };
+
+  // Tenfold's edit for this video again, from its analysis and the edits checked for it.
+  const reapplyEdit = () => {
+    if (!doc || !analysis || !batch || !project) return;
+    commit({ ...docFromAnalysis(analysis, batch, editsOf(project, batch)), wordOverrides: doc.wordOverrides });
+  };
+
+  const openMenu = () => {
+    setPlaying(false);
+    const options = ['Revert to original', 'Re-apply Tenfold’s edit', 'Video info', 'Cancel'];
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options, cancelButtonIndex: 3, title: project?.title, message: 'Undo reverses either change.' },
+      (i) => {
+        if (i === 0) revertToOriginal();
+        else if (i === 1) reapplyEdit();
+        else if (i === 2) showInfo();
+      },
+    );
+  };
+
   if (!project) {
     return (
       <View style={[styles.flex, styles.center]}>
@@ -339,8 +378,36 @@ export default function EditorScreen() {
   const frameAspect = rendered && rendered.aspect === aspect ? rendered.value : aspectRatioValue(aspect, project.media ?? undefined);
   const maxW = screenW - spacing.gutter * 2;
   const maxH = Math.min(460, screenH * 0.46);
-  const frameW = Math.min(maxW, maxH * frameAspect);
-  const frameH = frameW / frameAspect;
+  const frameW = Math.round(Math.min(maxW, maxH * frameAspect));
+  const frameH = Math.round(frameW / frameAspect);
+  // Manual placement on the canvas (see src/editor/frame.ts). Automatic framing reads as Fill.
+  const media = project.media;
+  const vW = media?.width || 9;
+  const vH = media?.height || 16;
+  const outRatio = aspectRatioValue(aspect, media ?? undefined);
+  const fillScale = fillUserScale(outRatio, 1, vW, vH);
+  const manual = doc.crop.scale != null;
+  const placement: Placement = manual
+    ? { scale: doc.crop.scale ?? 1, offsetX: doc.crop.offsetX ?? 0, offsetY: doc.crop.offsetY ?? 0 }
+    : { scale: fillScale, offsetX: 0, offsetY: 0 };
+  const centred = Math.abs(placement.offsetX) < 1e-3 && Math.abs(placement.offsetY) < 1e-3;
+  const frameMode = !manual ? 'auto' : centred && Math.abs(placement.scale - 1) < 1e-3 ? 'fit' : centred && Math.abs(placement.scale - fillScale) < 1e-3 ? 'fill' : 'custom';
+  const setFrame = (mode: 'fit' | 'fill' | 'auto') =>
+    commit({
+      ...doc,
+      crop:
+        mode === 'auto'
+          ? { auto916: aspect === '9:16', aspect }
+          : { auto916: aspect === '9:16', aspect, scale: mode === 'fit' ? 1 : fillScale, offsetX: 0, offsetY: 0 },
+      zoom: mode === 'auto' ? { ...doc.zoom, faceFollow: true } : doc.zoom,
+    });
+  const commitPlacement = (p: Placement) => {
+    const c = doc.crop;
+    if (c.scale === p.scale && (c.offsetX ?? 0) === p.offsetX && (c.offsetY ?? 0) === p.offsetY) return;
+    commit({ ...doc, crop: { auto916: aspect === '9:16', aspect, scale: p.scale, offsetX: p.offsetX, offsetY: p.offsetY } });
+  };
+  const sourceDuration = project.media?.durationSec ?? total;
+  const untouched = !doc.cuts.some((c) => c.accepted) && !doc.captions.enabled && doc.zoom.mode === 'off' && aspect === 'original';
   const currentLevels = doc.levels ?? {
     silence: batch?.preset.analysis.silence ?? 'medium',
     fillers: batch?.preset.analysis.fillers ?? 'standard',
@@ -356,7 +423,7 @@ export default function EditorScreen() {
             title="Tenfold Editor"
             right={
               <>
-                <IconButton icon="ellipsis" label="Video info" size={40} iconScale={0.5} onPress={showInfo} />
+                <IconButton icon="ellipsis" label="More: revert to original, video info" size={40} iconScale={0.5} onPress={openMenu} />
                 <OutlineButton
                   title="Export"
                   height={40}
@@ -370,67 +437,70 @@ export default function EditorScreen() {
           />
         </View>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
-          <View style={styles.gutter}>
-            <View style={[styles.previewSlot, { height: frameH }]}>
-            <View style={[styles.preview, { width: frameW, height: frameH }]}>
-              <TenfoldPreviewView
-                ref={preview}
-                projectId={projectId}
-                document={previewJSON}
-                playing={playing}
-                muted={muted}
-                style={StyleSheet.absoluteFill}
-                // Only playback drives the clock; scrubs and taps set the time themselves.
-                onTime={(e) => {
-                  if (playing) setTime(e.nativeEvent.time);
-                }}
-                onReady={(e) => {
-                  setPreviewReady(true);
-                  setPreviewError(null);
-                  const { width, height } = e.nativeEvent;
-                  if (!(width > 0 && height > 0)) return;
-                  // An older installed build ignores the aspect setting and keeps rendering the clip's own shape.
-                  // Say so, instead of silently snapping the frame back.
-                  if (aspect !== 'original' && Math.abs(width / height - aspectRatioValue(aspect)) > 0.02) {
-                    setPreviewError('This installed build of Tenfold can’t change the frame. Install the latest build.');
-                    return;
-                  }
-                  setRendered({ aspect, value: width / height, size: `${Math.round(width)}×${Math.round(height)}` });
-                }}
-                onEnd={() => setPlaying(false)}
-                onPlayingChange={(e) => setPlaying(e.nativeEvent.playing)}
-                onError={(e) => setPreviewError(e.nativeEvent.message)}
-              />
-              {/* Tap the video to play or pause. */}
-              <Pressable
-                style={StyleSheet.absoluteFill}
-                onPress={() => setPlaying((p) => !p)}
-                accessibilityRole="button"
-                accessibilityLabel={playing ? 'Pause' : 'Play'}>
-                {!playing && previewReady && (
-                  <View style={styles.bigPlay} pointerEvents="none">
-                    <SymbolView name="play.fill" size={26} tintColor="#FFFFFF" />
-                  </View>
-                )}
-              </Pressable>
-              {previewError && (
-                <View style={styles.previewErrorBox} pointerEvents="none">
-                  <AppText variant="caption">Preview couldn’t update: {previewError}</AppText>
-                </View>
-              )}
-              {!previewReady && (
-                <View style={styles.previewLoading} pointerEvents="none">
-                  <ActivityIndicator color="#FFFFFF" />
-                </View>
-              )}
-              <View style={styles.badge} pointerEvents="none">
-                <SymbolView name="sparkles" size={14} tintColor={colors.textPrimary} />
-                <AppText variant="label">Auto-edited</AppText>
+        {/* Preview and transport stay put (like CapCut); only the tools below scroll. */}
+        <View style={[styles.gutter, styles.previewSlot, { height: maxH }]}>
+          <FrameCanvas
+            width={frameW}
+            height={frameH}
+            videoW={vW}
+            videoH={vH}
+            placement={placement}
+            renderTick={renderTick}
+            onCommit={commitPlacement}
+            onTap={() => setPlaying((p) => !p)}
+            onDoubleTap={() => setFrame(frameMode === 'fit' ? 'fill' : 'fit')}>
+            <TenfoldPreviewView
+              ref={preview}
+              projectId={projectId}
+              document={previewJSON}
+              playing={playing}
+              muted={muted}
+              style={StyleSheet.absoluteFill}
+              // Only playback drives the clock; scrubs and taps set the time themselves.
+              onTime={(e) => {
+                if (playing) setTime(e.nativeEvent.time);
+              }}
+              onReady={(e) => {
+                setPreviewReady(true);
+                setPreviewError(null);
+                setRenderTick((t) => t + 1);
+                const { width, height } = e.nativeEvent;
+                if (!(width > 0 && height > 0)) return;
+                // An older installed build ignores the aspect setting and keeps rendering the clip's own shape.
+                if (aspect !== 'original' && Math.abs(width / height - aspectRatioValue(aspect)) > 0.02) {
+                  setPreviewError('This installed build of Tenfold can’t change the frame. Install the latest build.');
+                  return;
+                }
+                setRendered({ aspect, value: width / height, size: `${Math.round(width)}×${Math.round(height)}` });
+              }}
+              onEnd={() => setPlaying(false)}
+              onPlayingChange={(e) => setPlaying(e.nativeEvent.playing)}
+              onError={(e) => setPreviewError(e.nativeEvent.message)}
+            />
+          </FrameCanvas>
+          <View style={[styles.overlay, { width: frameW, height: frameH }]} pointerEvents="none">
+            {!playing && previewReady && (
+              <View style={styles.bigPlay}>
+                <SymbolView name="play.fill" size={26} tintColor="#FFFFFF" />
               </View>
-            </View>
+            )}
+            {previewError && (
+              <View style={styles.previewErrorBox}>
+                <AppText variant="caption">Preview couldn’t update: {previewError}</AppText>
+              </View>
+            )}
+            {!previewReady && (
+              <View style={styles.previewLoading}>
+                <ActivityIndicator color="#FFFFFF" />
+              </View>
+            )}
+            <View style={styles.badge}>
+              <AppText variant="caption" style={styles.tabular}>
+                {untouched ? 'Original' : `${formatDuration(sourceDuration)} → ${formatDuration(total)}`}
+              </AppText>
             </View>
           </View>
+        </View>
 
           <View style={[styles.gutter, styles.transport]}>
             <View style={styles.transportSide}>
@@ -452,6 +522,7 @@ export default function EditorScreen() {
             </View>
           </View>
 
+        <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
           <View style={[styles.gutter, styles.tools]}>
             <ToolButton icon="scissors" label="Cuts" active={tool === 'cuts'} onPress={() => setTool(tool === 'cuts' ? null : 'cuts')} />
             <ToolButton icon="text.quote" label="Words" active={tool === 'words'} onPress={() => setTool(tool === 'words' ? null : 'words')} />
@@ -464,7 +535,7 @@ export default function EditorScreen() {
               }}
             />
             <ToolButton icon="plus.magnifyingglass" label="Zoom" active={tool === 'zoom'} onPress={() => setTool(tool === 'zoom' ? null : 'zoom')} />
-            <ToolButton icon="crop" label="Crop" active={tool === 'crop'} onPress={() => setTool(tool === 'crop' ? null : 'crop')} />
+            <ToolButton icon="crop" label="Frame" active={tool === 'crop'} onPress={() => setTool(tool === 'crop' ? null : 'crop')} />
             <ToolButton icon="waveform" label="Audio" active={tool === 'audio'} onPress={() => setTool(tool === 'audio' ? null : 'audio')} />
           </View>
 
@@ -483,8 +554,6 @@ export default function EditorScreen() {
               onScrub={onScrub}
               onScrubEnd={onScrubEnd}
               onSelect={onSelect}
-              onSplit={splitAtPlayhead}
-              onToggleMute={() => commit({ ...doc, audio: { mode: muted ? 'original' : 'mute' } })}
             />
           )}
 
@@ -650,7 +719,7 @@ export default function EditorScreen() {
             {tool === 'crop' && (
               <Animated.View entering={FadeIn.duration(200)}>
                 <Card style={styles.panelCard}>
-                  <OptionLabel>Aspect ratio</OptionLabel>
+                  <OptionLabel>Canvas</OptionLabel>
                   <View style={styles.aspects}>
                     {ASPECTS.map((a) => {
                       const on = aspect === a.id;
@@ -661,7 +730,9 @@ export default function EditorScreen() {
                           key={a.id}
                           scaleTo={0.94}
                           onPress={() => {
-                            commit({ ...doc, crop: { auto916: a.id === '9:16', aspect: a.id } });
+                            if (on) return;
+                            // A new canvas starts with the whole video visible (Fit); pinch in to fill.
+                            commit({ ...doc, crop: { auto916: a.id === '9:16', aspect: a.id, scale: 1, offsetX: 0, offsetY: 0 } });
                           }}
                           accessibilityRole="button"
                           accessibilityState={{ selected: on }}
@@ -677,15 +748,40 @@ export default function EditorScreen() {
                       );
                     })}
                   </View>
+                  <OptionLabel>Video</OptionLabel>
+                  <View style={styles.segment}>
+                    {(
+                      [
+                        { id: 'fit', label: 'Fit', hint: 'Whole video' },
+                        { id: 'fill', label: 'Fill', hint: 'No bars' },
+                        { id: 'auto', label: 'Auto', hint: 'Follows speaker' },
+                      ] as const
+                    ).map((m) => {
+                      const on = frameMode === m.id;
+                      return (
+                        <PressableScale
+                          key={m.id}
+                          scaleTo={0.96}
+                          onPress={() => !on && setFrame(m.id)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: on }}
+                          accessibilityLabel={`${m.label}: ${m.hint}`}
+                          style={[styles.segmentItem, on && styles.segmentOn]}>
+                          <AppText variant="chip" color={on ? colors.textInverse : colors.textPrimary}>
+                            {m.label}
+                          </AppText>
+                          <AppText variant="caption" color={on ? 'rgba(10,9,14,0.6)' : colors.textMuted}>
+                            {m.hint}
+                          </AppText>
+                        </PressableScale>
+                      );
+                    })}
+                  </View>
                   <AppText variant="caption" color={colors.textMuted}>
-                    {ASPECTS.find((a) => a.id === aspect)?.hint}. Tenfold crops automatically and keeps the speaker in frame.
+                    {frameMode === 'custom'
+                      ? `Placed by hand · ${Math.round(placement.scale * 100)}%. Double-tap the video for Fit or Fill.`
+                      : 'Pinch the video to zoom, drag to move. Double-tap for Fit or Fill.'}
                   </AppText>
-                  <ToggleRow
-                    title="Follow face"
-                    subtitle={analysis.faces.length ? 'Keep the speaker centred' : 'No face found in this clip'}
-                    value={doc.zoom.faceFollow}
-                    onChange={(v) => commit({ ...doc, zoom: { ...doc.zoom, faceFollow: v } })}
-                  />
                 </Card>
               </Animated.View>
             )}
@@ -741,6 +837,17 @@ const styles = StyleSheet.create({
   centerText: { textAlign: 'center' },
   gutter: { paddingHorizontal: spacing.gutter },
   previewSlot: { alignItems: 'center', justifyContent: 'center' },
+  overlay: { position: 'absolute', alignSelf: 'center' },
+  tabular: { fontVariant: ['tabular-nums'] },
+  segment: { flexDirection: 'row', gap: 8 },
+  segmentItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: colors.chipFill,
+  },
+  segmentOn: { backgroundColor: '#FFFFFF' },
   preview: {
     borderRadius: radii.card,
     borderCurve: 'continuous',

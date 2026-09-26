@@ -229,6 +229,29 @@ struct CoreTests {
       check(original == nil, "original")
     }
 
+    test("manual framing: fit, fill, clamp (same numbers as src/editor/frame.ts tests)") {
+      // 9:16 video (1080×1920) on a 16:9 canvas (1920×1080).
+      let fit = Framing.fitScale(canvasW: 1920, canvasH: 1080, videoW: 1080, videoH: 1920)
+      check(near(fit, 0.5625, 1e-9), "fit scale \(fit)")
+      let fill = Framing.fillUserScale(canvasW: 1920, canvasH: 1080, videoW: 1080, videoH: 1920)
+      check(near(fill, 3.160493827, 1e-6), "fill user scale \(fill)")
+      let p = Framing.place(crop: CropSettings(aspect: "16:9", scale: 1, offsetX: 0, offsetY: 0), canvasW: 1920, canvasH: 1080, videoW: 1080, videoH: 1920)
+      check(near(p.videoW, 607.5, 1e-6) && near(p.videoH, 1080, 1e-6), "fit size \(p.videoW)×\(p.videoH)")
+      check(near(p.originX, 656.25, 1e-6) && near(p.originY, 0, 1e-6), "centred with bars \(p.originX),\(p.originY)")
+      // Offsets clamp: at Fit the centre stays on the canvas.
+      let c1 = Framing.clamp(scale: 1, offsetX: 0.9, offsetY: -0.9, canvasW: 1920, canvasH: 1080, videoW: 1080, videoH: 1920)
+      check(near(c1.offsetX, 0.5, 1e-9) && near(c1.offsetY, -0.5, 1e-9), "fit offsets clamp to ±0.5")
+      // Zoomed 3×: the video is 1822.5×3240, so vertical pan reaches 1.5 (edge to canvas centre).
+      let c2 = Framing.clamp(scale: 3, offsetX: 0, offsetY: 9, canvasW: 1920, canvasH: 1080, videoW: 1080, videoH: 1920)
+      check(near(c2.offsetY, 1.5, 1e-9), "zoomed pan limit \(c2.offsetY)")
+      let c3 = Framing.clamp(scale: 9, offsetX: 0, offsetY: 0, canvasW: 1920, canvasH: 1080, videoW: 1080, videoH: 1920)
+      check(c3.scale == Framing.maxScale, "scale capped")
+      let c4 = Framing.clamp(scale: 0.2, offsetX: 0, offsetY: 0, canvasW: 1920, canvasH: 1080, videoW: 1080, videoH: 1920)
+      check(c4.scale == Framing.minScale, "scale floored at Fit")
+      let legacy = try decodeJSON(CropSettings.self, #"{"auto916":true,"aspect":"9:16"}"#)
+      check(!legacy.isManual, "documents without scale stay on automatic framing")
+    }
+
     print("\n\(passes) passed, \(failures) failed")
     exit(failures == 0 ? 0 : 1)
   }
