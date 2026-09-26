@@ -47,7 +47,8 @@ public enum CaptionGrouper {
 
     for (k, w) in visible.enumerated() {
       if let last = cur.last {
-        let chars = cur.map(\.text.count).reduce(0, +) + cur.count + w.text.count
+        var chars: Int = cur.count + w.text.count
+        for c in cur { chars += c.text.count }
         let gap = w.start - last.end
         let tooLong = w.end - (cur.first?.start ?? w.start) > maxCardSec
         if cur.count >= limitWords || chars > maxChars || gap >= gapBreak || tooLong { flush() }

@@ -65,7 +65,12 @@ public enum CaptionLayerBuilder {
         }
       }
       // Shrink while the card needs too many lines or a single word is wider than the frame allows.
-      let widest = lines.map { l in l.map(\.1).reduce(0, +) + space * CGFloat(max(0, l.count - 1)) }.max() ?? 0
+      var widest: CGFloat = 0
+      for line in lines {
+        var lw: CGFloat = space * CGFloat(max(0, line.count - 1))
+        for item in line { lw += item.1 }
+        widest = max(widest, lw)
+      }
       let fits = lines.count <= CaptionGrouper.maxLines && widest <= maxWidth
       let lastTry = attempt == 7 || size <= 12
       let lh = lineHeight(emph)
