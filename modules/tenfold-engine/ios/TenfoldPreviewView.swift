@@ -120,8 +120,26 @@ class TenfoldPreviewView: ExpoView {
     player.isMuted = muted
   }
 
+  // Seek chasing: while a seek is in flight only the newest target is kept, so fast scrubbing never
+  // cancels every seek before a frame is shown.
+  private var seekInFlight = false
+  private var pendingSeek: Double?
+
   func seek(_ time: Double) {
-    player.seek(to: CMTime(seconds: max(0, time), preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+    pendingSeek = max(0, time)
+    if !seekInFlight { startNextSeek() }
+  }
+
+  private func startNextSeek() {
+    guard let target = pendingSeek else { return }
+    pendingSeek = nil
+    seekInFlight = true
+    player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+      DispatchQueue.main.async {
+        self?.seekInFlight = false
+        self?.startNextSeek()
+      }
+    }
   }
 
   // MARK: Rebuild

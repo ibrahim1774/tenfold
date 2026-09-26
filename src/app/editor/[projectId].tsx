@@ -82,7 +82,6 @@ export default function EditorScreen() {
   const [selection, setSelection] = useState<{ region: Region; key: string } | null>(null);
   const [renderAspect, setRenderAspect] = useState<number | null>(null);
   const preview = useRef<TenfoldPreviewViewRef>(null);
-  const scrubSeekAt = useRef(0);
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   // Load the analysis (transcript, envelope) and filmstrip frames from the native project folder.
@@ -196,15 +195,11 @@ export default function EditorScreen() {
   const srcTime = sourceAt(time);
   const activeWord = words.findIndex((w) => srcTime >= w.start && srcTime <= w.end);
 
-  // Scrubbing: move the playhead every frame, seek the player at most ~20 times a second, then exactly at the end.
+  // Scrubbing: the native view keeps only the newest seek target while one is in flight, so send every move.
   const onScrubStart = useCallback(() => setPlaying(false), []);
   const onScrub = useCallback((t: number) => {
     setTime(t);
-    const now = Date.now();
-    if (now - scrubSeekAt.current > 50) {
-      scrubSeekAt.current = now;
-      preview.current?.seek(t).catch(() => {});
-    }
+    preview.current?.seek(t).catch(() => {});
   }, []);
   const onScrubEnd = useCallback((t: number) => {
     setTime(t);
