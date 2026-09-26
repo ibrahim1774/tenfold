@@ -1,28 +1,75 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CAPTION_COLORS, CAPTION_FONTS, CAPTION_PRESETS } from '@/captions/presets';
-import { AppText, Chip, GradientButton, IconButton, OptionLabel, PressableScale, StyleTile, Thumb } from '@/design/components';
+import { CAPTION_COLORS, CAPTION_FONTS, CAPTION_PRESETS, captionSettingsFromPreset, presetById } from '@/captions/presets';
+import { AppText, Chip, GradientButton, IconButton, OptionLabel, PressableScale, StyleTile, Thumb, ToggleRow } from '@/design/components';
 import { colors, fonts, radii, spacing } from '@/design/tokens';
-import type { CaptionFont, CaptionStyleId } from '@/engine/types';
+import { Engine, type CaptionFont, type CaptionSettings, type CaptionStyleId } from '@/engine';
 import { useEntitlements } from '@/state/entitlements';
+import { useLibrary } from '@/state/library';
 
-// M0 illustrative tiles. In M2 each tile is a still rendered by the native CaptionLayerBuilder
-// from the project's own words, so what you see here matches export.
+// Edits the captions of one video (`projectId`) or the preset of a batch (`batchId`).
+// Tiles are illustrations; the live preview in the editor shows the real, export-identical render.
 export default function CaptionStyleSheet() {
   const insets = useSafeAreaInsets();
+  const { projectId, batchId } = useLocalSearchParams<{ projectId?: string; batchId?: string }>();
   const isPro = useEntitlements((s) => s.isPro);
-  const [styleId, setStyleId] = useState<CaptionStyleId>('pop');
-  const [font, setFont] = useState<CaptionFont>('poppins');
-  const [color, setColor] = useState(CAPTION_COLORS[0]);
-  const [size, setSize] = useState(1);
-  const [posY, setPosY] = useState(0.66);
+  const doc = useLibrary((s) => (projectId ? s.docs[projectId] : undefined));
+  const batch = useLibrary((s) => (batchId ? s.batches[batchId] : undefined));
+  const setDoc = useLibrary((s) => s.setDoc);
+  const updateBatch = useLibrary((s) => s.updateBatch);
+  const initial: CaptionSettings = doc?.captions ?? batch?.preset.captions ?? captionSettingsFromPreset('pop');
+  const [styleId, setStyleId] = useState<CaptionStyleId>(initial.styleId);
+  const [font, setFont] = useState<CaptionFont>(initial.font);
+  const [color, setColor] = useState(initial.colors.active);
+  const [size, setSize] = useState(initial.sizeScale);
+  const [posY, setPosY] = useState(initial.position.y);
+  const [uppercase, setUppercase] = useState(initial.uppercase);
+  const [enabled, setEnabled] = useState(doc ? doc.captions.enabled : !batch?.captionsOff);
+  const [sample, setSample] = useState('three tips that work');
+
+  useEffect(() => {
+    if (!projectId) return;
+    Engine.getAnalysis(projectId)
+      .then((a) => {
+        const w = a.transcript?.words.slice(0, 4).map((x) => x.text.replace(/[.,!?]/g, '')) ?? [];
+        if (w.length >= 2) setSample(w.join(' '));
+      })
+      .catch(() => {});
+  }, [projectId]);
+
+  const pickStyle = (id: CaptionStyleId) => {
+    const p = presetById(id);
+    setStyleId(id);
+    setFont(p.font);
+    setUppercase(p.uppercase);
+    setPosY(p.positionY);
+    if (p.animation === 'pop' || p.animation === 'karaoke' || p.animation === 'underline') setColor(p.colors.active);
+  };
+
+  const apply = () => {
+    const p = presetById(styleId);
+    const next: CaptionSettings = {
+      styleId,
+      font,
+      sizeScale: size,
+      colors: { ...p.colors, active: color },
+      position: { y: posY },
+      uppercase,
+      maxWords: p.maxWords,
+      enabled,
+    };
+    if (projectId && doc) setDoc(projectId, { ...doc, captions: next });
+    if (batchId && batch) updateBatch(batchId, { captionsOff: !enabled, preset: { ...batch.preset, presetId: 'custom', captions: next } });
+    router.back();
+  };
 
   return (
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
       <AppText variant="title">Caption style</AppText>
+      <ToggleRow title="Captions" subtitle="Word-by-word, synced to speech" value={enabled} onChange={setEnabled} />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tiles}>
         {CAPTION_PRESETS.map((p, i) => {
@@ -32,14 +79,14 @@ export default function CaptionStyleSheet() {
               key={p.id}
               name={p.name}
               seed={i + 3}
-              sample="three tips that work"
+              sample={sample}
               highlight={p.animation === 'pop' || p.animation === 'karaoke' ? color : '#FFFFFF'}
               uppercase={p.uppercase}
               boxed={p.animation === 'box'}
               locked={locked}
               selected={styleId === p.id}
               width={104}
-              onPress={() => (locked ? router.push('/paywall') : setStyleId(p.id))}
+              onPress={() => (locked ? router.push('/paywall') : pickStyle(p.id))}
             />
           );
         })}
@@ -90,7 +137,8 @@ export default function CaptionStyleSheet() {
         </View>
       </View>
 
-      <GradientButton title="Apply" icon={false} shape="pill" onPress={() => router.back()} />
+      <ToggleRow title="All caps" value={uppercase} onChange={setUppercase} />
+      <GradientButton title="Apply" icon={false} shape="pill" onPress={apply} />
     </ScrollView>
   );
 }

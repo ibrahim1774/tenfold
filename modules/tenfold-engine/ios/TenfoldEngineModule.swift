@@ -80,6 +80,16 @@ public class TenfoldEngineModule: Module {
       return try encodeJSON(EditPlanner.plan(doc: doc, analysis: try AnalysisCache.shared.get(projectId)))
     }
 
+    /// Recomputes silence/filler suggestions at a new strength from the stored analysis (no re-transcription).
+    AsyncFunction("suggestCuts") { (projectId: String, optionsJSON: String) async throws -> String in
+      let options = try decodeJSON(AnalysisOptions.self, optionsJSON)
+      let a = try AnalysisCache.shared.get(projectId)
+      let r = AnalysisPlanner.detect(
+        envelope: a.envelopeDb, words: a.transcript?.words ?? [], wordTimingIsExact: a.transcript?.wordTimingIsExact ?? true,
+        language: a.transcript?.language ?? options.language, options: options)
+      return try encodeJSON(a.noSpeech ? [] : r.cuts)
+    }
+
     AsyncFunction("thumbnails") { (projectId: String, count: Int) async throws -> String in
       let meta = try ProjectStore.meta(projectId)
       let source = ProjectStore.dir(projectId).appendingPathComponent(meta.sourceFile)

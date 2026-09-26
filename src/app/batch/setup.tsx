@@ -1,6 +1,6 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,12 +21,16 @@ import {
   StyleTile,
   Thumb,
   ToggleRow,
+  seedOf,
 } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
 import type { AudioMode, FillerLevel, SilenceLevel, ZoomMode } from '@/engine/types';
-import { formatDuration, mockProjects } from '@/mock/data';
-import { useBatchSetup } from '@/state/batchSetup';
-import { FREE_LIMITS, maxBatchSize, useEntitlements } from '@/state/entitlements';
+import { importIntoBatch } from '@/batch/importClips';
+import { startBatch } from '@/batch/queue';
+import { Engine } from '@/engine';
+import { setCaptionStyle as setStyle, setPresetId as setPreset, updatePreset } from '@/state/batchSetup';
+import { exportsLeft as freeExportsLeft, FREE_LIMITS, maxBatchSize, useEntitlements } from '@/state/entitlements';
+import { formatDuration, projectsOf, useLibrary } from '@/state/library';
 import { PRESET_OPTIONS } from '@/state/presets';
 
 const SILENCE: { v: SilenceLevel; l: string }[] = [
@@ -56,16 +60,48 @@ const SAMPLE = 'three tips that work';
 
 export default function BatchSetupScreen() {
   const insets = useSafeAreaInsets();
-  const { clipIds, preset, captionsOff, setPresetId, update, setCaptionStyle, removeClip } = useBatchSetup();
-  const { isPro, exportsUsedThisMonth } = useEntitlements();
-  const clips = clipIds.map((id) => mockProjects.find((p) => p.id === id)!).filter(Boolean);
-  const total = clips.reduce((s, c) => s + c.durationSec, 0);
-  const exportsLeft = FREE_LIMITS.exportsPerMonth - exportsUsedThisMonth;
+  const { batchId } = useLocalSearchParams<{ batchId: string }>();
+  const batch = useLibrary((s) => s.batches[batchId]);
+  const projects = useLibrary((s) => s.projects);
+  const removeProject = useLibrary((s) => s.removeProject);
+  const ent = useEntitlements();
+  const isPro = ent.isPro;
+  const exportsLeft = freeExportsLeft(ent);
+
+  if (!batch) {
+    return (
+      <View style={[styles.flex, styles.missing]}>
+        <Background />
+        <AppText variant="bodyStrong">This batch no longer exists.</AppText>
+        <OutlineButton title="Go back" height={44} onPress={() => router.back()} />
+      </View>
+    );
+  }
+
+  const preset = batch.preset;
+  const captionsOff = batch.captionsOff;
+  const clips = projectsOf(batch, projects);
+  const total = clips.reduce((s, c) => s + (c.media?.durationSec ?? 0), 0);
   const a = preset.analysis;
+  const update = (patch: Parameters<typeof updatePreset>[1]) => updatePreset(batchId, patch);
+  const setPresetId = (id: Parameters<typeof setPreset>[1]) => setPreset(batchId, id);
+  const setCaptionStyle = (id: Parameters<typeof setStyle>[1]) => setStyle(batchId, id);
+  const removeClip = (id: string) =>
+    Alert.alert('Remove this clip?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          removeProject(id);
+          Engine.deleteProject(id).catch(() => {});
+        },
+      },
+    ]);
 
   const start = () => {
-    // M4: create batch + projects in SQLite, then TenfoldEngine.enqueueAnalysis(ids, preset.analysis).
-    router.replace({ pathname: '/batch/[batchId]', params: { batchId: 'b1' } });
+    startBatch(batchId);
+    router.replace({ pathname: '/batch/[batchId]', params: { batchId } });
   };
 
   return (
@@ -93,7 +129,7 @@ export default function BatchSetupScreen() {
                   </AppText>
                   <View style={styles.orLine} />
                 </View>
-                <OutlineButton title="Add" icon="plus" height={38} onPress={() => router.push('/import')} />
+                <OutlineButton title="Add" icon="plus" height={38} onPress={() => importIntoBatch(batchId)} />
                 <AppText variant="label" color={colors.textSecondary}>
                   Up to {maxBatchSize(isPro)} clips
                 </AppText>
@@ -113,16 +149,16 @@ export default function BatchSetupScreen() {
                     <PressableScale
                       key={c.id}
                       onLongPress={() => removeClip(c.id)}
-                      accessibilityLabel={`${c.title}, ${formatDuration(c.durationSec)}. Long press to remove.`}>
-                      <Thumb seed={c.thumbSeed} style={styles.thumb}>
+                      accessibilityLabel={`${c.title}, ${formatDuration(c.media?.durationSec ?? 0)}. Long press to remove.`}>
+                      <Thumb seed={seedOf(c.id)} uri={c.posterUri} style={styles.thumb}>
                         <View style={styles.duration}>
-                          <AppText variant="caption">{formatDuration(c.durationSec)}</AppText>
+                          <AppText variant="caption">{formatDuration(c.media?.durationSec ?? 0)}</AppText>
                         </View>
                       </Thumb>
                     </PressableScale>
                   ))}
                   {clips.length < maxBatchSize(isPro) && (
-                    <PressableScale onPress={() => router.push('/import')} style={styles.addThumb} accessibilityLabel="Add clips">
+                    <PressableScale onPress={() => importIntoBatch(batchId)} style={styles.addThumb} accessibilityLabel="Add clips">
                       <SymbolView name="plus" size={22} tintColor={colors.textPrimary} />
                     </PressableScale>
                   )}
@@ -147,7 +183,10 @@ export default function BatchSetupScreen() {
         {/* Caption style tiles */}
         <View style={[styles.gutter, styles.sectionHead]}>
           <AppText variant="section">Choose a style</AppText>
-          <PressableScale haptic={false} onPress={() => router.push('/editor/captions')} accessibilityRole="link">
+          <PressableScale
+            haptic={false}
+            onPress={() => router.push({ pathname: '/editor/captions', params: { batchId } })}
+            accessibilityRole="link">
             <AppText variant="label" color={colors.textSecondary}>
               View all
             </AppText>
@@ -341,7 +380,7 @@ export default function BatchSetupScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + 8 }]}>
         {!isPro && (
           <AppText variant="caption" color={colors.textSecondary} style={styles.centerText}>
-            {exportsLeft} of {FREE_LIMITS.exportsPerMonth} free exports left this month
+            {exportsLeft} of {FREE_LIMITS.exportsPerMonth} free exports left this month · editing is unlimited
           </AppText>
         )}
         <GradientButton
@@ -412,4 +451,5 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   centerText: { textAlign: 'center' },
+  missing: { alignItems: 'center', justifyContent: 'center', gap: 16 },
 });

@@ -17,10 +17,10 @@ import {
 } from '@/design/components';
 import { colors, gradients, spacing } from '@/design/tokens';
 import { BatchCard } from '@/library/BatchCard';
-import { mockBatches } from '@/mock/data';
 import { useEntitlements } from '@/state/entitlements';
-import { startModelDownload } from '@/state/modelDownload';
+import { useLibrary } from '@/state/library';
 import { useSettings } from '@/state/settings';
+import { prepareSpeech } from '@/state/speech';
 
 function greeting() {
   const h = new Date().getHours();
@@ -34,8 +34,9 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarSpace();
   const isPro = useEntitlements((s) => s.isPro);
-  const { speechModel, modelProgress } = useSettings();
-  const batches = mockBatches;
+  const { speech, speechProgress } = useSettings();
+  const batchMap = useLibrary((s) => s.batches);
+  const batches = Object.values(batchMap).sort((a, b) => b.createdAt - a.createdAt);
   const recent = batches.slice(0, 4);
 
   return (
@@ -82,11 +83,11 @@ export default function HomeScreen() {
 
         <Animated.View entering={FadeInDown.delay(120).duration(450)} style={styles.ctaRow}>
           <GradientButton title="Edit a batch" onPress={() => router.push('/import')} style={styles.flex} height={58} />
-          <OutlineButton title="One video" icon="plus" onPress={() => router.push('/import')} style={styles.flex} height={58} />
+          <OutlineButton title="Library" icon="film.stack" onPress={() => router.push('/library')} style={styles.flex} height={58} />
         </Animated.View>
 
-        {/* Speech model status */}
-        {speechModel !== 'installed' && (
+        {/* On-device speech status (Apple manages the language assets) */}
+        {(speech === 'supported' || speech === 'downloading') && (
           <Animated.View entering={FadeInDown.delay(160).duration(450)}>
             <Card style={styles.modelCard} padded={false}>
               <View style={styles.modelRow}>
@@ -94,22 +95,25 @@ export default function HomeScreen() {
                   <SymbolView name="waveform" size={18} tintColor="#C9B6FF" />
                 </View>
                 <View style={styles.flex}>
-                  <AppText variant="bodyStrong">
-                    {speechModel === 'downloading' ? 'Setting up word-perfect captions' : 'Get word-perfect captions'}
-                  </AppText>
+                  <AppText variant="bodyStrong">{speech === 'downloading' ? 'Setting up captions' : 'Turn on captions'}</AppText>
                   <AppText variant="caption" color={colors.textSecondary}>
-                    {speechModel === 'downloading'
-                      ? `${Math.round(modelProgress * 100)}% · you can keep editing meanwhile`
-                      : 'One-time 600 MB download. Enables filler-word removal.'}
+                    {speech === 'downloading'
+                      ? `${Math.round(speechProgress * 100)}% · you can keep going meanwhile`
+                      : 'iOS downloads its on-device speech model once.'}
                   </AppText>
                 </View>
-                {speechModel === 'notDownloaded' && (
-                  <OutlineButton title="Get" height={36} onPress={startModelDownload} style={styles.getBtn} />
-                )}
+                {speech === 'supported' && <OutlineButton title="Set up" height={36} onPress={prepareSpeech} style={styles.getBtn} />}
               </View>
-              {speechModel === 'downloading' && <ProgressBar progress={modelProgress} height={4} />}
+              {speech === 'downloading' && <ProgressBar progress={speechProgress} height={4} />}
             </Card>
           </Animated.View>
+        )}
+        {speech === 'unsupported' && (
+          <Card style={styles.modelCard}>
+            <AppText variant="label" color={colors.textSecondary}>
+              On-device speech isn’t available for your language on this iPhone, so captions are off. Cuts and zooms still work.
+            </AppText>
+          </Card>
         )}
 
         {/* Recent */}

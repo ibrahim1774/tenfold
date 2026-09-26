@@ -24,7 +24,7 @@ import { AppText, Background, Card, GradientButton, IconButton, OutlineButton, P
 import type { SFSymbol } from '@/design/symbols';
 import { colors, fonts, motion, radii, spacing } from '@/design/tokens';
 import { batchPreset, PRESET_OPTIONS } from '@/state/presets';
-import { startModelDownload } from '@/state/modelDownload';
+import { prepareSpeech, refreshSpeechStatus } from '@/state/speech';
 import { presetForContent, useSettings, type ContentType, type Platform } from '@/state/settings';
 
 const STEPS = 6;
@@ -343,7 +343,10 @@ function PlatformStep({ value, onChange }: { value: Platform[]; onChange: (v: Pl
 /* ---------- Step 4: privacy + on-device model ---------- */
 
 function Privacy() {
-  const { speechModel, modelProgress } = useSettings();
+  const { speech, speechProgress } = useSettings();
+  useEffect(() => {
+    refreshSpeechStatus();
+  }, []);
   const rows: { icon: SFSymbol; title: string; body: string }[] = [
     { icon: 'icloud.slash', title: 'No uploads', body: 'Your clips are edited on this iPhone.' },
     { icon: 'person.crop.circle.badge.xmark', title: 'No account', body: 'Nothing to sign up for.' },
@@ -370,33 +373,33 @@ function Privacy() {
           </Animated.View>
         ))}
       </View>
-      <Card style={styles.modelCard}>
-        <View style={styles.modelHead}>
-          <SymbolView name="waveform" size={20} tintColor="#C9B6FF" />
-          <View style={styles.flex}>
-            <AppText variant="bodyStrong">On-device speech model</AppText>
-            <AppText variant="label" color={colors.textSecondary}>
-              {speechModel === 'installed'
-                ? 'Installed. Word-perfect captions are on.'
-                : speechModel === 'downloading'
-                  ? `Downloading ${Math.round(modelProgress * 100)}%. Keep going, it finishes in the background.`
-                  : '600 MB, once. Best on Wi-Fi. Without it, captions use Apple speech.'}
-            </AppText>
+      {speech !== 'unsupported' && speech !== 'unknown' && (
+        <Card style={styles.modelCard}>
+          <View style={styles.modelHead}>
+            <SymbolView name="waveform" size={20} tintColor="#C9B6FF" />
+            <View style={styles.flex}>
+              <AppText variant="bodyStrong">On-device speech</AppText>
+              <AppText variant="label" color={colors.textSecondary}>
+                {speech === 'installed'
+                  ? 'Ready. Captions and filler-word cuts are on.'
+                  : speech === 'downloading'
+                    ? `Setting up ${Math.round(speechProgress * 100)}%. Keep going, it finishes in the background.`
+                    : 'iOS downloads Apple’s speech model for your language once. Best on Wi-Fi.'}
+              </AppText>
+            </View>
           </View>
-        </View>
-        {speechModel === 'downloading' && <ProgressBar progress={modelProgress} height={4} />}
-        {speechModel === 'notDownloaded' && (
-          <OutlineButton title="Download now" icon="arrow.down.circle" height={44} onPress={startModelDownload} />
-        )}
-        {speechModel === 'installed' && (
-          <Animated.View entering={FadeIn} style={styles.installed}>
-            <SymbolView name="checkmark.circle.fill" size={18} tintColor={colors.success} />
-            <AppText variant="label" color={colors.success}>
-              Ready
-            </AppText>
-          </Animated.View>
-        )}
-      </Card>
+          {speech === 'downloading' && <ProgressBar progress={speechProgress} height={4} />}
+          {speech === 'supported' && <OutlineButton title="Set up now" icon="arrow.down.circle" height={44} onPress={prepareSpeech} />}
+          {speech === 'installed' && (
+            <Animated.View entering={FadeIn} style={styles.installed}>
+              <SymbolView name="checkmark.circle.fill" size={18} tintColor={colors.success} />
+              <AppText variant="label" color={colors.success}>
+                Ready
+              </AppText>
+            </Animated.View>
+          )}
+        </Card>
+      )}
     </View>
   );
 }

@@ -1,0 +1,238 @@
+import { create } from 'zustand';
+
+import { Engine, EngineEvents, type Project } from '../engine';
+import { exportsLeft, useEntitlements } from '../state/entitlements';
+import { docFromAnalysis, projectsOf, useLibrary } from '../state/library';
+import { useSettings } from '../state/settings';
+
+// JS-side orchestration (spec §4.13): two serial lanes. Analysis of project N+1 runs while
+// project N exports; the native engine serialises the heavy work per lane.
+
+export const STAGE_LABELS: Record<string, string> = {
+  extractingAudio: 'Reading audio',
+  transcribing: 'Transcribing',
+  detecting: 'Finding the speaker',
+  planning: 'Planning cuts',
+  rendering: 'Preparing export',
+  exporting: 'Exporting',
+  saving: 'Saving to Photos',
+  cooling: 'Cooling down',
+};
+
+// Overall progress weight of each analysis stage.
+const STAGE_SPAN: Record<string, [number, number]> = {
+  extractingAudio: [0, 0.12],
+  transcribing: [0.12, 0.72],
+  detecting: [0.72, 0.95],
+  planning: [0.95, 1],
+  rendering: [0, 0.05],
+  exporting: [0.05, 0.95],
+  saving: [0.95, 1],
+};
+
+type QueueUI = { limitReached: boolean; setLimitReached: (v: boolean) => void };
+export const useQueueUI = create<QueueUI>((set) => ({ limitReached: false, setLimitReached: (limitReached) => set({ limitReached }) }));
+
+let analysisBusy = false;
+let exportBusy = false;
+let started = false;
+const lastUpdate: Record<string, number> = {};
+
+const lib = () => useLibrary.getState();
+
+function nextProject(status: Project['status']): Project | undefined {
+  const { batches, projects } = lib();
+  const ordered = Object.values(batches)
+    .filter((b) => b.startedAt && !b.paused)
+    .sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
+  for (const b of ordered) {
+    const p = projectsOf(b, projects).find((x) => x.status === status);
+    if (p) return p;
+  }
+  return undefined;
+}
+
+function keepAwake() {
+  Engine.setKeepAwake(analysisBusy || exportBusy).catch(() => {});
+}
+
+/** Call once at app start: resumes work interrupted by a kill and listens for native progress. */
+export function startQueue() {
+  if (started) return;
+  started = true;
+  const { projects, updateProject } = lib();
+  for (const p of Object.values(projects)) {
+    if (p.status === 'analyzing') updateProject(p.id, { status: 'queued', progress: 0, stage: undefined });
+    if (p.status === 'exporting') updateProject(p.id, { status: 'exportQueued', progress: 0, stage: undefined });
+    if (p.status === 'importing') updateProject(p.id, { status: 'failed', error: 'Import was interrupted.' });
+  }
+  EngineEvents.onJobProgress(({ projectId, stage, fraction }) => {
+    const now = Date.now();
+    if (fraction < 1 && now - (lastUpdate[projectId] ?? 0) < 100) return;
+    lastUpdate[projectId] = now;
+    const [a, b] = STAGE_SPAN[stage] ?? [0, 1];
+    useLibrary.getState().updateProject(projectId, { stage, progress: a + (b - a) * Math.max(0, Math.min(1, fraction)) });
+  });
+  pump();
+}
+
+export function pump() {
+  void runAnalysisLane();
+  void runExportLane();
+}
+
+async function runAnalysisLane() {
+  if (analysisBusy) return;
+  analysisBusy = true;
+  keepAwake();
+  try {
+    for (let p = nextProject('queued'); p; p = nextProject('queued')) {
+      await analyzeOne(p);
+    }
+  } finally {
+    analysisBusy = false;
+    keepAwake();
+  }
+}
+
+async function analyzeOne(p: Project) {
+  const batch = lib().batches[p.batchId];
+  if (!batch) return;
+  lib().updateProject(p.id, { status: 'analyzing', stage: 'extractingAudio', progress: 0, error: undefined });
+  try {
+    const analysis = await Engine.analyze(p.id, { ...batch.preset.analysis, language: useSettings.getState().language });
+    if (lib().projects[p.id]?.status !== 'analyzing') return; // cancelled meanwhile
+    lib().setDoc(p.id, docFromAnalysis(analysis, batch));
+    lib().updateProject(p.id, {
+      status: batch.preset.autoExport ? 'exportQueued' : 'ready',
+      stage: undefined,
+      progress: 1,
+      warnings: analysis.warnings,
+    });
+    if (batch.preset.autoExport) void runExportLane();
+  } catch (e) {
+    if (lib().projects[p.id]?.status !== 'analyzing') return;
+    lib().updateProject(p.id, { status: 'failed', stage: undefined, error: errorText(e) });
+  }
+}
+
+async function runExportLane() {
+  if (exportBusy) return;
+  exportBusy = true;
+  keepAwake();
+  try {
+    for (let p = nextProject('exportQueued'); p; p = nextProject('exportQueued')) {
+      // Thermal pause (spec §7): wait until the phone cools down.
+      while (['serious', 'critical'].includes(Engine.thermalState())) {
+        lib().updateProject(p.id, { stage: 'cooling' });
+        await new Promise((r) => setTimeout(r, 10_000));
+      }
+      if (exportsLeft(useEntitlements.getState()) <= 0) {
+        // Free tier used up: park everything waiting and ask for Pro.
+        for (let q = nextProject('exportQueued'); q; q = nextProject('exportQueued')) {
+          lib().updateProject(q.id, { status: 'ready', stage: undefined, progress: 1 });
+        }
+        useQueueUI.getState().setLimitReached(true);
+        break;
+      }
+      await exportOne(p);
+    }
+  } finally {
+    exportBusy = false;
+    keepAwake();
+  }
+}
+
+async function exportOne(p: Project) {
+  const doc = lib().docs[p.id];
+  if (!doc) {
+    lib().updateProject(p.id, { status: 'failed', error: 'This video hasn’t been analysed yet.' });
+    return;
+  }
+  const { isPro } = useEntitlements.getState();
+  const { exportQuality, keepHDR } = useSettings.getState();
+  lib().updateProject(p.id, { status: 'exporting', stage: 'rendering', progress: 0, error: undefined });
+  try {
+    const result = await Engine.export(p.id, doc, {
+      quality: isPro && exportQuality === 'uhd' ? 'uhd' : 'hd',
+      watermark: !isPro,
+      saveToPhotos: true,
+      keepHDR,
+    });
+    if (lib().projects[p.id]?.status !== 'exporting') return;
+    useEntitlements.getState().recordExport();
+    lib().updateProject(p.id, {
+      status: 'done',
+      stage: undefined,
+      progress: 1,
+      exportUri: result.uri,
+      exportedAt: Date.now(),
+      savedToPhotos: result.savedToPhotos,
+      error: result.photosDenied ? 'Photos access was denied. Use Share to save it.' : undefined,
+    });
+  } catch (e) {
+    if (lib().projects[p.id]?.status !== 'exporting') return;
+    lib().updateProject(p.id, { status: 'ready', stage: undefined, progress: 1, error: errorText(e) });
+  }
+}
+
+// MARK: - Actions used by screens
+
+export function startBatch(batchId: string) {
+  const { batches, projects, updateBatch, updateProject } = lib();
+  const batch = batches[batchId];
+  if (!batch) return;
+  updateBatch(batchId, { startedAt: Date.now(), paused: false });
+  projectsOf(batch, projects)
+    .filter((p) => p.status === 'pending' || p.status === 'failed' || p.status === 'cancelled')
+    .forEach((p) => updateProject(p.id, { status: 'queued', progress: 0, error: undefined }));
+  pump();
+}
+
+export function setPaused(batchId: string, paused: boolean) {
+  lib().updateBatch(batchId, { paused });
+  if (!paused) pump();
+}
+
+export async function cancelBatch(batchId: string) {
+  const { batches, projects, updateProject } = lib();
+  const batch = batches[batchId];
+  if (!batch) return;
+  for (const p of projectsOf(batch, projects)) {
+    if (p.status === 'queued' || p.status === 'analyzing') {
+      updateProject(p.id, { status: 'cancelled', stage: undefined, progress: 0 });
+      if (p.status === 'analyzing') await Engine.cancel(p.id).catch(() => {});
+    }
+    if (p.status === 'exportQueued' || p.status === 'exporting') {
+      updateProject(p.id, { status: 'ready', stage: undefined, progress: 1 });
+      if (p.status === 'exporting') await Engine.cancel(p.id).catch(() => {});
+    }
+  }
+}
+
+/** Queue exports for the given projects (only analysed ones). Returns how many were queued. */
+export function queueExports(projectIds: string[]): number {
+  const { projects, updateProject } = lib();
+  let n = 0;
+  for (const id of projectIds) {
+    const p = projects[id];
+    if (p && (p.status === 'ready' || p.status === 'done')) {
+      updateProject(id, { status: 'exportQueued', progress: 0, error: undefined });
+      n++;
+    }
+  }
+  if (n > 0) void runExportLane();
+  return n;
+}
+
+export function retryProject(projectId: string) {
+  const p = lib().projects[projectId];
+  if (!p) return;
+  lib().updateProject(projectId, { status: lib().docs[projectId] ? 'exportQueued' : 'queued', error: undefined, progress: 0 });
+  pump();
+}
+
+export function errorText(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  return msg.replace(/^.*?Error: /, '').slice(0, 200);
+}

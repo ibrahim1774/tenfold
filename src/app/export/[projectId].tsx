@@ -1,95 +1,129 @@
 import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { queueExports, STAGE_LABELS } from '@/batch/queue';
 import { AppText, Background, Card, Chip, ChipGroup, GradientButton, OutlineButton, PressableScale, ProgressRing } from '@/design/components';
 import { colors, spacing } from '@/design/tokens';
-import { mockProjects } from '@/mock/data';
-import { useEntitlements } from '@/state/entitlements';
-
-type Phase = 'options' | 'exporting' | 'saved';
+import { exportsLeft, useEntitlements } from '@/state/entitlements';
+import { useLibrary } from '@/state/library';
+import { useSettings } from '@/state/settings';
 
 export default function ExportScreen() {
   const insets = useSafeAreaInsets();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const project = mockProjects.find((p) => p.id === projectId) ?? mockProjects[0];
-  const isPro = useEntitlements((s) => s.isPro);
-  const [quality, setQuality] = useState<'1080p' | '4K'>('1080p');
-  const [phase, setPhase] = useState<Phase>('options');
-  const [progress, setProgress] = useState(0);
+  const project = useLibrary((s) => s.projects[projectId]);
+  const ent = useEntitlements();
+  const { exportQuality, setExportQuality } = useSettings();
+  // When this screen started an export (0 = not yet), to tell a fresh export from an older one.
+  const [startedAt, setStartedAt] = useState(0);
+  const started = startedAt > 0;
 
-  // M0: simulated export. M3 calls TenfoldEngine.enqueueExport and listens to onJobProgress.
+  const busy = project?.status === 'exportQueued' || project?.status === 'exporting';
+  const finished = started && project?.status === 'done' && (project.exportedAt ?? 0) >= startedAt;
+  const failed = started && !busy && !finished && !!project?.error;
+  const can4K = (project?.media ? Math.min(project.media.width, project.media.height) : 0) >= 2160;
+
   useEffect(() => {
-    if (phase !== 'exporting') return;
-    const id = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 1) {
-          clearInterval(id);
-          setPhase('saved');
-          return 1;
-        }
-        return p + 0.05;
-      });
-    }, 100);
-    return () => clearInterval(id);
-  }, [phase]);
+    if (failed && project?.error) Alert.alert('Export failed', project.error);
+  }, [failed, project?.error]);
+
+  if (!project) return null;
+
+  const start = () => {
+    if (exportsLeft(ent) <= 0) {
+      router.push('/paywall');
+      return;
+    }
+    setStartedAt(Date.now());
+    queueExports([projectId]);
+  };
+
+  const share = async () => {
+    if (!project.exportUri) return;
+    if (!(await Sharing.isAvailableAsync())) return;
+    await Sharing.shareAsync(project.exportUri, { mimeType: 'video/mp4', UTI: 'public.mpeg-4' });
+  };
 
   const openTikTok = async () => {
-    // Needs LSApplicationQueriesSchemes "tiktok" in M3; falls back to Photos.
     const can = await Linking.canOpenURL('tiktok://').catch(() => false);
     await Linking.openURL(can ? 'tiktok://' : 'photos-redirect://');
   };
+
+  const left = exportsLeft(ent);
 
   return (
     <View style={[styles.flex, { paddingTop: spacing.xxl, paddingBottom: insets.bottom + 16 }]}>
       <Background />
       <AppText variant="title" style={styles.center}>
-        {phase === 'saved' ? 'Saved to Photos' : 'Export'}
+        {finished ? (project.savedToPhotos ? 'Saved to Photos' : 'Exported') : 'Export'}
       </AppText>
       <AppText variant="body" color={colors.textSecondary} style={styles.center} numberOfLines={1}>
         {project.title}
       </AppText>
 
       <View style={styles.middle}>
-        {phase === 'options' ? (
+        {!started || failed ? (
           <Card style={styles.options}>
             <AppText variant="bodyStrong">Quality</AppText>
             <ChipGroup>
-              <Chip label="1080p" selected={quality === '1080p'} onPress={() => setQuality('1080p')} />
+              <Chip label="1080p" selected={exportQuality === 'hd' || !ent.isPro} onPress={() => setExportQuality('hd')} />
               <Chip
                 label="4K"
-                locked={!isPro}
-                selected={quality === '4K'}
-                onPress={() => (isPro ? setQuality('4K') : router.push('/paywall'))}
+                locked={!ent.isPro}
+                disabled={ent.isPro && !can4K}
+                selected={ent.isPro && exportQuality === 'uhd'}
+                onPress={() => (ent.isPro ? setExportQuality('uhd') : router.push('/paywall'))}
               />
             </ChipGroup>
-            {!isPro && (
+            {ent.isPro && !can4K && (
+              <AppText variant="caption" color={colors.textMuted}>
+                4K needs a 4K source clip.
+              </AppText>
+            )}
+            {!ent.isPro && (
               <PressableScale onPress={() => router.push('/paywall')} style={styles.notice}>
                 <SymbolView name="info.circle" size={18} tintColor={colors.textPrimary} />
                 <AppText variant="caption" style={styles.flexText}>
-                  Free exports include a small Tenfold watermark. Go Pro to remove it.
+                  Free exports include a small Tenfold watermark · {Number.isFinite(left) ? `${left} left this month` : ''}. Go Pro to remove it.
                 </AppText>
               </PressableScale>
             )}
           </Card>
         ) : (
           <View style={styles.ring}>
-            <ProgressRing progress={progress} size={180} label={phase === 'saved' ? 'Done' : undefined} />
+            <ProgressRing
+              progress={finished ? 1 : project.progress}
+              size={180}
+              label={finished ? 'Done' : undefined}
+            />
+            {!finished && (
+              <AppText variant="label" color={colors.textSecondary}>
+                {project.status === 'exportQueued' ? 'Waiting for the current export…' : (STAGE_LABELS[project.stage ?? ''] ?? 'Exporting')}
+              </AppText>
+            )}
+            {finished && project.error ? (
+              <AppText variant="label" color={colors.orange} style={styles.center}>
+                {project.error}
+              </AppText>
+            ) : null}
           </View>
         )}
       </View>
 
-      {phase === 'options' && (
-        <GradientButton title="Save to Photos" icon="square.and.arrow.down" shape="pill" onPress={() => setPhase('exporting')} />
+      {(!started || failed) && (
+        <GradientButton title="Save to Photos" icon="square.and.arrow.down" shape="pill" onPress={start} />
       )}
-      {phase === 'saved' && (
+      {started && busy && <OutlineButton title="Hide" height={50} onPress={() => router.back()} />}
+      {finished && (
         <View style={styles.saved}>
           <GradientButton title="Open TikTok" icon="arrow.up.right" shape="pill" onPress={openTikTok} />
           <View style={styles.savedRow}>
-            <OutlineButton title="Share" icon="square.and.arrow.up" height={50} style={styles.flexOne} />
+            <OutlineButton title="Share" icon="square.and.arrow.up" height={50} style={styles.flexOne} onPress={share} />
             <OutlineButton title="Done" height={50} style={styles.flexOne} onPress={() => router.back()} />
           </View>
         </View>
@@ -106,7 +140,7 @@ const styles = StyleSheet.create({
   options: { gap: spacing.md },
   notice: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: spacing.sm },
   flexText: { flex: 1 },
-  ring: { alignItems: 'center' },
+  ring: { alignItems: 'center', gap: spacing.md },
   saved: { gap: spacing.md },
   savedRow: { flexDirection: 'row', gap: spacing.md },
 });

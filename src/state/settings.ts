@@ -4,20 +4,25 @@ import { persist } from 'zustand/middleware';
 import type { PresetId } from '../engine/types';
 import { persistStorage } from './storage';
 
-export type SpeechModelState = 'notDownloaded' | 'downloading' | 'installed';
+export type SpeechState = 'unknown' | 'unsupported' | 'supported' | 'downloading' | 'installed';
 export type ContentType = 'talking' | 'podcast' | 'tutorial' | 'vlog' | 'ads';
 export type Platform = 'tiktok' | 'reels' | 'shorts' | 'youtube' | 'linkedin';
 
 type SettingsState = {
   onboarded: boolean;
-  speechModel: SpeechModelState;
-  modelProgress: number;
+  speech: SpeechState;
+  speechProgress: number;
+  speechLocale: string;
+  language: string;
+  exportQuality: 'hd' | 'uhd';
   defaultPreset: PresetId;
   keepHDR: boolean;
   contentTypes: ContentType[];
   platforms: Platform[];
   setOnboarded: (v: boolean) => void;
-  setSpeechModel: (s: SpeechModelState, progress?: number) => void;
+  setSpeech: (s: SpeechState, progress?: number, locale?: string) => void;
+  setLanguage: (v: string) => void;
+  setExportQuality: (v: 'hd' | 'uhd') => void;
   setDefaultPreset: (id: PresetId) => void;
   setKeepHDR: (v: boolean) => void;
   setContentTypes: (v: ContentType[]) => void;
@@ -28,14 +33,20 @@ export const useSettings = create<SettingsState>()(
   persist(
     (set) => ({
       onboarded: false,
-      speechModel: 'notDownloaded',
-      modelProgress: 0,
+      speech: 'unknown',
+      speechProgress: 0,
+      speechLocale: '',
+      language: 'auto',
+      exportQuality: 'hd',
       defaultPreset: 'cleanTalk',
       keepHDR: false,
       contentTypes: [],
       platforms: [],
       setOnboarded: (onboarded) => set({ onboarded }),
-      setSpeechModel: (speechModel, modelProgress = 0) => set({ speechModel, modelProgress }),
+      setSpeech: (speech, speechProgress = 0, speechLocale) =>
+        set((s) => ({ speech, speechProgress, speechLocale: speechLocale ?? s.speechLocale })),
+      setLanguage: (language) => set({ language }),
+      setExportQuality: (exportQuality) => set({ exportQuality }),
       setDefaultPreset: (defaultPreset) => set({ defaultPreset }),
       setKeepHDR: (keepHDR) => set({ keepHDR }),
       setContentTypes: (contentTypes) => set({ contentTypes }),
@@ -44,11 +55,8 @@ export const useSettings = create<SettingsState>()(
     {
       name: 'tenfold.settings',
       storage: persistStorage,
-      // A download in flight can't survive a relaunch; M1 resumes it natively.
-      partialize: ({ modelProgress: _p, ...rest }) => ({
-        ...rest,
-        speechModel: rest.speechModel === 'downloading' ? 'notDownloaded' : rest.speechModel,
-      }),
+      // Speech status is re-read from iOS on launch.
+      partialize: ({ speechProgress: _p, speech: _s, ...rest }) => rest,
     },
   ),
 );

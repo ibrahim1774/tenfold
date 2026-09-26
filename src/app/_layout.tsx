@@ -5,8 +5,10 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { startQueue } from '@/batch/queue';
 import { colors } from '@/design/tokens';
 import { useSettings } from '@/state/settings';
+import { refreshSpeechStatus } from '@/state/speech';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -21,6 +23,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     SplashScreen.hideAsync();
+    // Resume any batch interrupted by the app being closed, and read iOS speech status.
+    startQueue();
+    refreshSpeechStatus();
   }, []);
 
   return (

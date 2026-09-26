@@ -1,7 +1,7 @@
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useState, type ReactNode } from 'react';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -16,18 +16,46 @@ import {
 } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
 import { colors, radii, spacing } from '@/design/tokens';
-import { pingEngine } from '@/engine';
-import { useEntitlements } from '@/state/entitlements';
-import { deleteModel, startModelDownload } from '@/state/modelDownload';
+import { Engine, engineAvailable } from '@/engine';
+import { exportsLeft, useEntitlements } from '@/state/entitlements';
 import { PRESET_OPTIONS } from '@/state/presets';
 import { useSettings } from '@/state/settings';
+import { prepareSpeech, refreshSpeechStatus } from '@/state/speech';
+
+function formatBytes(n: number) {
+  if (n < 1e6) return `${Math.round(n / 1e3)} KB`;
+  if (n < 1e9) return `${(n / 1e6).toFixed(0)} MB`;
+  return `${(n / 1e9).toFixed(1)} GB`;
+}
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarSpace();
-  const { speechModel, modelProgress, defaultPreset, keepHDR, setDefaultPreset, setKeepHDR, setOnboarded } = useSettings();
-  const isPro = useEntitlements((s) => s.isPro);
-  const engine = pingEngine();
+  const { speech, speechProgress, speechLocale, defaultPreset, keepHDR, setDefaultPreset, setKeepHDR, setOnboarded } = useSettings();
+  const ent = useEntitlements();
+  const isPro = ent.isPro;
+  const engine = engineAvailable();
+  const [storage, setStorage] = useState<number | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshSpeechStatus();
+      if (engine) Engine.storageBytes().then(setStorage).catch(() => {});
+    }, [engine]),
+  );
+
+  const clearExports = () =>
+    Alert.alert('Clear exported files?', 'Videos already saved to Photos stay there. Your edits are kept.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: async () => {
+          await Engine.clearExports().catch(() => {});
+          Engine.storageBytes().then(setStorage).catch(() => {});
+        },
+      },
+    ]);
 
   return (
     <View style={styles.flex}>
@@ -55,22 +83,27 @@ export default function SettingsScreen() {
         <Group title="Speech">
           <Row
             icon="waveform"
-            title="Speech model"
-            value={speechModel === 'installed' ? 'Installed' : speechModel === 'downloading' ? `${Math.round(modelProgress * 100)}%` : '600 MB'}
+            title="On-device speech"
+            value={
+              speech === 'installed'
+                ? 'Ready'
+                : speech === 'downloading'
+                  ? `${Math.round(speechProgress * 100)}%`
+                  : speech === 'supported'
+                    ? 'Not set up'
+                    : speech === 'unsupported'
+                      ? 'Unavailable'
+                      : '…'
+            }
           />
-          {speechModel === 'downloading' && (
+          {speech === 'downloading' && (
             <View style={styles.inset}>
-              <ProgressBar progress={modelProgress} height={4} />
+              <ProgressBar progress={speechProgress} height={4} />
             </View>
           )}
-          <Row icon="cpu" title="Engine in use" value={speechModel === 'installed' ? 'Parakeet' : 'Apple Speech'} />
-          <Row
-            icon={speechModel === 'installed' ? 'trash' : 'arrow.down.circle'}
-            title={speechModel === 'installed' ? 'Delete model' : 'Download model'}
-            danger={speechModel === 'installed'}
-            onPress={speechModel === 'installed' ? deleteModel : speechModel === 'notDownloaded' ? startModelDownload : undefined}
-            last
-          />
+          <Row icon="globe" title="Language" value={speechLocale || 'Automatic'} />
+          <Row icon="cpu" title="Engine" value="Apple SpeechAnalyzer" last={speech !== 'supported'} />
+          {speech === 'supported' && <Row icon="arrow.down.circle" title="Set up speech" onPress={prepareSpeech} last />}
         </Group>
 
         <Group title="Editing">
@@ -94,13 +127,13 @@ export default function SettingsScreen() {
         </Group>
 
         <Group title="Storage">
-          <Row icon="internaldrive" title="Projects and exports" value="0 MB" />
-          <Row icon="trash" title="Clear exported files" onPress={() => {}} last />
+          <Row icon="internaldrive" title="Projects and exports" value={storage == null ? '…' : formatBytes(storage)} />
+          <Row icon="trash" title="Clear exported files" onPress={clearExports} last />
         </Group>
 
         <Group title="Subscription">
-          <Row icon="crown" title="Plan" value={isPro ? 'Pro' : 'Free'} />
-          <Row icon="arrow.clockwise" title="Restore purchases" onPress={() => {}} />
+          <Row icon="crown" title="Plan" value={isPro ? 'Pro' : `Free · ${exportsLeft(ent)} exports left`} />
+          <Row icon="arrow.clockwise" title="Restore purchases" onPress={() => Alert.alert('Coming soon', 'Purchases arrive with the Superwall integration.')} />
           <Row icon="creditcard" title="Manage subscription" onPress={() => router.push('/paywall')} last />
         </Group>
 
@@ -114,7 +147,7 @@ export default function SettingsScreen() {
         </Group>
 
         <Group title="About">
-          <Row icon="bolt.horizontal" title="Native engine" value={engine === 'pong' ? 'Connected' : 'Not in this build'} />
+          <Row icon="bolt.horizontal" title="Video engine" value={engine ? 'Connected' : 'Update the app'} />
           <Row icon="arrow.counterclockwise" title="Replay onboarding" onPress={() => setOnboarded(false)} last />
         </Group>
       </ScrollView>

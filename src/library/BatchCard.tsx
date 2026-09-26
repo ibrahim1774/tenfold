@@ -2,32 +2,52 @@ import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { StyleSheet, View } from 'react-native';
 
-import { AppText, PressableScale, ProgressRing, Thumb } from '@/design/components';
+import { AppText, PressableScale, ProgressRing, Thumb, seedOf } from '@/design/components';
 import { colors, radii } from '@/design/tokens';
 import type { Batch } from '@/engine/types';
-import { projectsForBatch, timeAgo } from '@/mock/data';
+import { batchStatus, projectsOf, timeAgo, useLibrary } from '@/state/library';
 
 /** Project card from the reference Home grid: thumbnail, count badge, status glyph, title, age. */
 export function BatchCard({ batch }: { batch: Batch }) {
-  const projects = projectsForBatch(batch);
-  const ready = projects.filter((p) => p.status === 'ready' || p.status === 'done').length;
-  const progress = batch.status === 'exported' ? 1 : projects.length ? ready / projects.length : 0;
-  const status =
-    batch.status === 'processing' ? `Editing ${ready}/${projects.length}` : batch.status === 'ready' ? 'Ready to export' : 'Exported';
+  const all = useLibrary((s) => s.projects);
+  const projects = projectsOf(batch, all);
+  const status = batchStatus(batch, all);
+  const ready = projects.filter((p) => ['ready', 'exportQueued', 'exporting', 'done'].includes(p.status)).length;
+  const done = projects.filter((p) => p.status === 'done').length;
+  const progress = status === 'exported' ? 1 : projects.length ? (ready + done) / (2 * projects.length) : 0;
+  const subtitle =
+    status === 'setup'
+      ? 'Not started'
+      : status === 'processing'
+        ? batch.paused
+          ? 'Paused'
+          : `Editing ${ready}/${projects.length}`
+        : status === 'ready'
+          ? done > 0
+            ? `${done}/${projects.length} exported`
+            : 'Ready to export'
+          : `Exported ${timeAgo(batch.createdAt)}`;
+  const first = projects[0];
 
   return (
     <PressableScale
       style={styles.card}
       scaleTo={0.96}
-      accessibilityLabel={`${batch.title}, ${projects.length} videos, ${status}`}
-      onPress={() => router.push({ pathname: '/batch/[batchId]', params: { batchId: batch.id } })}>
-      <Thumb seed={projects[0]?.thumbSeed ?? 0} style={styles.thumb}>
+      accessibilityLabel={`${batch.title}, ${projects.length} videos, ${subtitle}`}
+      onPress={() =>
+        router.push(
+          status === 'setup'
+            ? { pathname: '/batch/setup', params: { batchId: batch.id } }
+            : { pathname: '/batch/[batchId]', params: { batchId: batch.id } },
+        )
+      }>
+      <Thumb seed={seedOf(batch.id)} uri={first?.posterUri} style={styles.thumb}>
         <View style={styles.status}>
-          {batch.status === 'processing' ? (
+          {status === 'processing' ? (
             <ProgressRing progress={progress} size={26} stroke={3} showLabel={false} />
           ) : (
             <SymbolView
-              name={batch.status === 'exported' ? 'checkmark' : 'play.fill'}
+              name={status === 'exported' ? 'checkmark' : status === 'setup' ? 'slider.horizontal.3' : 'play.fill'}
               size={13}
               tintColor={colors.textPrimary}
               weight="semibold"
@@ -35,7 +55,9 @@ export function BatchCard({ batch }: { batch: Batch }) {
           )}
         </View>
         <View style={styles.badge}>
-          <AppText variant="caption">{projects.length} videos</AppText>
+          <AppText variant="caption">
+            {projects.length} {projects.length === 1 ? 'video' : 'videos'}
+          </AppText>
         </View>
       </Thumb>
       <View style={styles.text}>
@@ -43,7 +65,7 @@ export function BatchCard({ batch }: { batch: Batch }) {
           {batch.title}
         </AppText>
         <AppText variant="label" color={colors.textMuted} numberOfLines={1}>
-          {batch.status === 'processing' ? status : timeAgo(batch.createdAt)}
+          {subtitle}
         </AppText>
       </View>
     </PressableScale>

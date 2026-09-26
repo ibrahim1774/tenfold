@@ -1,10 +1,11 @@
 import { requireNativeView } from 'expo';
-import * as React from 'react';
+import type { ComponentType, Ref } from 'react';
 
-import { TenfoldPreviewViewProps } from './TenfoldEngine.types';
+import type { TenfoldPreviewViewProps, TenfoldPreviewViewRef } from './TenfoldEngine.types';
 
-const NativeView: React.ComponentType<TenfoldPreviewViewProps> = requireNativeView('TenfoldEngine');
+// Exported directly (not wrapped) so refs reach the native view functions (`seek`).
+const TenfoldPreviewView = requireNativeView('TenfoldEngine') as ComponentType<
+  TenfoldPreviewViewProps & { ref?: Ref<TenfoldPreviewViewRef> }
+>;
 
-export default function TenfoldPreviewView(props: TenfoldPreviewViewProps) {
-  return <NativeView {...props} />;
-}
+export default TenfoldPreviewView;

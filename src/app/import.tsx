@@ -1,25 +1,38 @@
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Background, Card, GradientButton, IconButton, Thumb } from '@/design/components';
+import { importNewBatch } from '@/batch/importClips';
+import { AppText, Background, Card, GradientButton, IconButton, ProgressBar, Thumb } from '@/design/components';
 import { colors, spacing } from '@/design/tokens';
-import { useBatchSetup } from '@/state/batchSetup';
+import { EngineEvents, engineAvailable } from '@/engine';
 import { maxBatchSize, useEntitlements } from '@/state/entitlements';
 
 export default function ImportScreen() {
   const insets = useSafeAreaInsets();
   const isPro = useEntitlements((s) => s.isPro);
-  const reset = useBatchSetup((s) => s.reset);
   const limit = maxBatchSize(isPro);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ index: number; total: number } | null>(null);
+  const available = engineAvailable();
 
-  // M1: TenfoldEngine.pickVideos(limit) presents PHPickerViewController. M0 uses mock clips.
-  const pick = () => {
-    reset();
-    router.dismiss();
-    router.push('/batch/setup');
+  useEffect(() => {
+    const sub = EngineEvents.onImportProgress(setProgress);
+    return () => sub.remove();
+  }, []);
+
+  const pick = async () => {
+    setBusy(true);
+    const batchId = await importNewBatch();
+    setBusy(false);
+    setProgress(null);
+    if (batchId) {
+      router.dismiss();
+      router.push({ pathname: '/batch/setup', params: { batchId } });
+    }
   };
 
   return (
@@ -27,7 +40,7 @@ export default function ImportScreen() {
       <Background />
       <View style={styles.top}>
         <View style={styles.grabber} />
-        <IconButton icon="xmark" label="Close" size={36} onPress={() => router.back()} />
+        <IconButton icon="xmark" label="Close" size={36} onPress={() => router.back()} disabled={busy} />
       </View>
 
       <View style={styles.center}>
@@ -47,23 +60,39 @@ export default function ImportScreen() {
         <AppText variant="body" color={colors.textSecondary} style={styles.text}>
           Choose up to {limit} talking videos. Tenfold only sees the clips you pick, and nothing is uploaded.
         </AppText>
-        <Card style={styles.tips}>
-          {[
-            'Works best with one person talking to camera',
-            'Up to 10 minutes per clip',
-            'iCloud videos download first, so give them a moment',
-          ].map((t) => (
-            <View key={t} style={styles.tipRow}>
-              <SymbolView name="checkmark" size={14} tintColor={colors.success} />
-              <AppText variant="label" color={colors.textSecondary} style={styles.flex}>
-                {t}
+        {busy && progress && progress.total > 0 ? (
+          <Animated.View entering={FadeIn}>
+            <Card style={styles.tips}>
+              <AppText variant="bodyStrong">
+                Copying {Math.min(progress.index + 1, progress.total)} of {progress.total}
               </AppText>
-            </View>
-          ))}
-        </Card>
+              <ProgressBar progress={progress.index / progress.total} height={4} />
+              <AppText variant="caption" color={colors.textMuted}>
+                iCloud videos download first, so this can take a moment.
+              </AppText>
+            </Card>
+          </Animated.View>
+        ) : (
+          <Card style={styles.tips}>
+            {['Works best with one person talking to camera', 'Up to 10 minutes per clip', 'iCloud videos download first'].map((t) => (
+              <View key={t} style={styles.tipRow}>
+                <SymbolView name="checkmark" size={14} tintColor={colors.success} />
+                <AppText variant="label" color={colors.textSecondary} style={styles.flex}>
+                  {t}
+                </AppText>
+              </View>
+            ))}
+          </Card>
+        )}
       </View>
       <View style={styles.footer}>
-        <GradientButton title="Choose from Photos" icon="photo.on.rectangle" shape="pill" onPress={pick} />
+        <GradientButton
+          title={busy ? 'Importing…' : available ? 'Choose from Photos' : 'Update the app to import'}
+          icon="photo.on.rectangle"
+          shape="pill"
+          disabled={busy || !available}
+          onPress={pick}
+        />
         {!isPro && (
           <AppText variant="caption" color={colors.textMuted} style={styles.text}>
             Free: 5 clips per batch. Pro: 20.
@@ -80,7 +109,6 @@ const styles = StyleSheet.create({
   grabber: {
     position: 'absolute',
     top: 8,
-    alignSelf: 'center',
     left: '50%',
     marginLeft: -18,
     width: 36,

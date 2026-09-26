@@ -5,15 +5,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Background, Chip, ChipGroup, GradientButton, useTabBarSpace } from '@/design/components';
 import { colors, spacing } from '@/design/tokens';
-import type { Batch } from '@/engine/types';
+import type { BatchStatus } from '@/engine/types';
 import { BatchCard } from '@/library/BatchCard';
-import { mockBatches } from '@/mock/data';
+import { batchStatus, useLibrary } from '@/state/library';
 import { router } from 'expo-router';
 
-type Filter = 'all' | Batch['status'];
+type Filter = 'all' | BatchStatus;
 
 const FILTERS: { v: Filter; l: string }[] = [
   { v: 'all', l: 'All' },
+  { v: 'setup', l: 'Not started' },
   { v: 'processing', l: 'Editing' },
   { v: 'ready', l: 'Ready' },
   { v: 'exported', l: 'Exported' },
@@ -23,7 +24,15 @@ export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarSpace();
   const [filter, setFilter] = useState<Filter>('all');
-  const batches = useMemo(() => mockBatches.filter((b) => filter === 'all' || b.status === filter), [filter]);
+  const batchMap = useLibrary((s) => s.batches);
+  const projects = useLibrary((s) => s.projects);
+  const batches = useMemo(
+    () =>
+      Object.values(batchMap)
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .filter((b) => filter === 'all' || batchStatus(b, projects) === filter),
+    [batchMap, projects, filter],
+  );
 
   return (
     <View style={styles.flex}>
