@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "Tenfold",
+    "slug": "tenfold-editor",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "tenfold",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.ibrahim.tenfold",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSPhotoLibraryAddUsageDescription": "Tenfold saves your finished videos to Photos.",
+        "NSSpeechRecognitionUsageDescription": "Tenfold transcribes your videos on your iPhone to add captions and cut silences.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0F1222",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "26.0"
+          }
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Poppins_400Regular.ttf",
+            "./assets/fonts/Poppins_500Medium.ttf",
+            "./assets/fonts/Poppins_600SemiBold.ttf",
+            "./assets/fonts/Poppins_700Bold.ttf"
+          ]
+        }
+      ],
+      "expo-sqlite",
+      "expo-sharing"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6f7be037-75f7-4a9b-9d47-a7f4f5773004"
+      }
+    }
+  }
+}
