@@ -11,7 +11,7 @@ import { useSettings } from '@/state/settings';
 
 type Plan = 'monthly' | 'yearly';
 
-// M5: offerings, prices and trial eligibility come from RevenueCat. These strings are
+// M5: products, prices and trial eligibility come from Superwall. These strings are
 // placeholders replaced by the store's localized price strings; never ship them hardcoded.
 const MOCK_OFFERING: Record<Plan, { price: string; period: string; note: string }> = {
   monthly: { price: '$9.99', period: '/month', note: 'Billed monthly. Cancel anytime.' },

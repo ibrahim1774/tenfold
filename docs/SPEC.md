@@ -40,7 +40,7 @@ Positioning versus competitors (do not copy their names into the UI): CapCut and
 | Silence detection | Own RMS energy detector on 16 kHz mono PCM (no third-party) | 30 lines of Swift, fully controllable |
 | Face awareness | Vision `VNDetectFaceRectanglesRequest` on 1 frame every 2 s | Zoom anchor follows the face; auto-crop keeps the face |
 | State | `zustand` + `expo-sqlite` (projects, transcripts, edits) | Simple, offline |
-| Purchases | RevenueCat `react-native-purchases` + `react-native-purchases-ui` paywall | Handles receipts, trials, restore |
+| Purchases | **Superwall** (`expo-superwall`), the owner's existing account; replaces RevenueCat | Remote paywalls, StoreKit 2 purchases, trials, restore |
 | UI libs | `react-native-reanimated`, `react-native-gesture-handler`, `expo-blur`, `expo-linear-gradient`, `expo-haptics`, `@shopify/flash-list`, `expo-font` (Poppins), `expo-image` | Match the reference design |
 | Analytics | None in v1. Privacy label: "Data Not Collected" | Selling point |
 
@@ -272,7 +272,7 @@ Two actors: `AnalysisQueue` (serial) and `ExportQueue` (serial). A batch = list 
 6. **Editor** (`editor/[id]`, mirrors reference screen 1): `TenfoldPreviewView` top (60 % height), transport (play, −1 s, +1 s, time), **transcript strip** under it (words as chips; removed words struck through in red, filler candidates dashed; tap toggles cut; long-press edits text; fixes propagate to captions), **timeline** filmstrip with cut markers, then four round tools: **Cuts** (sheet: silence/filler sliders, "restore all"), **Captions** (style sheet), **Zoom** (mode + intensity), **Export** (quality, watermark notice, save/share). Undo/redo in the header. Changes call `applyEdits` (debounced) and re-render preview.
 7. **Caption style sheet**: live preview thumbnail of each preset using the project's own words, font row, colour row, size stepper, position drag handle over a mini frame.
 8. **Export/Share**: progress, then "Saved to Photos" with buttons: Open in TikTok (uses `tiktok://` URL scheme if installed, otherwise Photos), Share sheet (`expo-sharing`), Done.
-9. **Paywall** (mirrors reference screen 3): title **"Edit Without Limits"**, subtitle "Batch edit unlimited videos on your iPhone. No credits. No uploads.", Monthly | Yearly (save 58 %) pill, feature rows with icons: **Unlimited exports** (no credits, ever), **Batches of 20** (free: 5), **No watermark**, **4K export**, **All caption styles**. Price block "$49.99/year", "Billed annually. Cancel anytime." Gradient button "Start 7-day free trial". Small links: Restore, Terms, Privacy. Driven by RevenueCat offerings; never hardcode prices in UI text.
+9. **Paywall** (mirrors reference screen 3): title **"Edit Without Limits"**, subtitle "Batch edit unlimited videos on your iPhone. No credits. No uploads.", Monthly | Yearly (save 58 %) pill, feature rows with icons: **Unlimited exports** (no credits, ever), **Batches of 20** (free: 5), **No watermark**, **4K export**, **All caption styles**. Price block "$49.99/year", "Billed annually. Cancel anytime." Gradient button "Start 7-day free trial". Small links: Restore, Terms, Privacy. Driven by Superwall (paywall configured in the Superwall dashboard, matching this design); never hardcode prices in UI text.
 10. **Settings**: speech model (installed / download / delete), engine in use, default preset, keep HDR toggle, storage used + clear exports, Manage subscription, Privacy ("Nothing leaves your phone").
 
 ### 5.3 Free vs Pro (enforced in JS, checked in native before export)
@@ -342,7 +342,7 @@ Info.plist: `NSPhotoLibraryAddUsageDescription` ("Tenfold saves your finished vi
 
 **M4 Batch queue (week 4):** Analysis + export actors, processing screen with live progress, resume after kill, thermal pause, "Export all". Acceptance: 10 fixture clips complete unattended.
 
-**M5 Monetization + polish (week 5):** RevenueCat, paywall, free limits, onboarding, settings, empty states, haptics, accessibility labels, App Store screenshots, EAS Build to TestFlight.
+**M5 Monetization + polish (week 5):** Superwall, paywall, free limits, onboarding, settings, empty states, haptics, accessibility labels, App Store screenshots, EAS Build to TestFlight.
 
 ---
 
@@ -360,5 +360,6 @@ Info.plist: `NSPhotoLibraryAddUsageDescription` ("Tenfold saves your finished vi
 ## 12. Assumptions you may change only by asking
 
 - English + Spanish filler lexicons in v1; other languages captions only.
-- Parakeet TDT v3 via FluidAudio is the primary engine; if its licence or size turns out unacceptable, WhisperKit (`whisperkit` Swift package, `DecodingOptions(wordTimestamps: true)`, `large-v3-turbo` or `base` model) is the drop-in replacement behind the same `Transcriber` protocol.
+- Speech engine order is under review (2026-09-26): the owner prefers Apple's built-in `SpeechTranscriber` (no 600 MB download). M1 builds the Apple engine first and measures word-timing accuracy and filler retention on the owner's fixture clips; Parakeet is added only if Apple falls short.
+- Parakeet TDT v3 via FluidAudio was the planned primary engine; if its licence or size turns out unacceptable, WhisperKit (`whisperkit` Swift package, `DecodingOptions(wordTimestamps: true)`, `large-v3-turbo` or `base` model) is the drop-in replacement behind the same `Transcriber` protocol.
 - Apple's `SpeechTranscriber` gives phrase-level `audioTimeRange` on iOS 26; if a later iOS exposes true per-word ranges, set `wordTimingIsExact = true` for it and re-enable filler removal on that engine.

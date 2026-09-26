@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-// Free vs Pro (spec §5.3). M5 replaces the mock with RevenueCat.
+// Free vs Pro (spec §5.3). M5 replaces the mock with Superwall subscription status.
 export const FREE_LIMITS = {
   exportsPerMonth: 3,
   batchSize: 5,
