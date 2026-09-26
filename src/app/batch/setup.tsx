@@ -4,7 +4,7 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CAPTION_COLORS, CAPTION_FONTS, CAPTION_PRESETS } from '@/captions/presets';
+import { CAPTION_COLORS, CAPTION_FONTS, CAPTION_FORMATS, CAPTION_PRESETS } from '@/captions/presets';
 import {
   ActionCard,
   AppText,
@@ -201,9 +201,11 @@ export default function BatchSetupScreen() {
                   name={p.name}
                   seed={i + 3}
                   sample={SAMPLE}
-                  highlight={p.animation === 'none' || p.animation === 'box' || p.animation === 'underline' ? '#FFFFFF' : p.colors.active}
+                  highlight={p.colors.active}
+                  animation={p.animation}
+                  fontFamily={CAPTION_FONTS.find((f) => f.id === p.font)?.family}
                   uppercase={p.uppercase}
-                  boxed={p.animation === 'box'}
+                  maxWords={p.maxWords}
                   locked={locked}
                   selected={!captionsOff && preset.captions.styleId === p.id}
                   onPress={() => (locked ? router.push('/paywall') : setCaptionStyle(p.id))}
@@ -310,6 +312,17 @@ export default function BatchSetupScreen() {
             )}
             {!captionsOff && (
               <>
+                <OptionLabel>Words on screen</OptionLabel>
+                <ChipGroup>
+                  {CAPTION_FORMATS.map((f) => (
+                    <Chip
+                      key={f.maxWords}
+                      label={f.name}
+                      selected={preset.captions.maxWords === f.maxWords}
+                      onPress={() => update((p) => ({ ...p, captions: { ...p.captions, maxWords: f.maxWords } }))}
+                    />
+                  ))}
+                </ChipGroup>
                 <OptionLabel>Caption font</OptionLabel>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hRow}>
                   {CAPTION_FONTS.map((f) => (

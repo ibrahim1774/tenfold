@@ -8,21 +8,18 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeOut,
-  SlideInRight,
-  SlideOutLeft,
+  FadeInRight,
+  FadeOutLeft,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
-  withRepeat,
-  withSequence,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Background, Card, GradientButton, IconButton, OutlineButton, PressableScale, ProgressBar, Thumb } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
-import { colors, fonts, motion, radii, spacing } from '@/design/tokens';
+import { colors, fonts, radii, spacing } from '@/design/tokens';
 import { batchPreset, PRESET_OPTIONS } from '@/state/presets';
 import { prepareSpeech, refreshSpeechStatus } from '@/state/speech';
 import { presetForContent, useSettings, type ContentType, type Platform } from '@/state/settings';
@@ -64,8 +61,8 @@ export default function OnboardingScreen() {
       <View style={styles.flex}>
         <Animated.View
           key={step}
-          entering={SlideInRight.springify().damping(20)}
-          exiting={SlideOutLeft.duration(180)}
+          entering={FadeInRight.duration(220)}
+          exiting={FadeOutLeft.duration(140)}
           style={StyleSheet.absoluteFill}>
           {step === 0 && <Welcome />}
           {step === 1 && <Demo />}
@@ -107,6 +104,11 @@ export default function OnboardingScreen() {
 /* ---------- Step 0: welcome with a fan of ten clips ---------- */
 
 function Welcome() {
+  const stats: { value: string; label: string }[] = [
+    { value: '10', label: 'clips edited at once' },
+    { value: '~1 min', label: 'per clip, hands-off' },
+    { value: '0', label: 'uploads or credits' },
+  ];
   return (
     <View style={styles.welcome}>
       <View style={styles.fan}>
@@ -114,13 +116,23 @@ function Welcome() {
           <FanCard key={i} i={i} />
         ))}
       </View>
-      <Animated.View entering={FadeInDown.delay(500).duration(500)} style={styles.welcomeText}>
+      <Animated.View entering={FadeInDown.delay(250).duration(300)} style={styles.welcomeText}>
         <AppText variant="hero" style={styles.center}>
           Ten clips in.{'\n'}Ten videos out.
         </AppText>
         <AppText variant="body" color={colors.textSecondary} style={styles.center}>
-          Tenfold edits your talking videos in batches. Silences cut, captions added, ready to post.
+          Pick your clips and tap once. Tenfold cuts the pauses and “ums”, adds captions and zooms, and saves every video to Photos.
         </AppText>
+      </Animated.View>
+      <Animated.View entering={FadeInDown.delay(350).duration(300)} style={styles.stats}>
+        {stats.map((st) => (
+          <View key={st.label} style={styles.stat}>
+            <AppText style={styles.statValue}>{st.value}</AppText>
+            <AppText variant="caption" color={colors.textSecondary} style={styles.center}>
+              {st.label}
+            </AppText>
+          </View>
+        ))}
       </Animated.View>
     </View>
   );
@@ -129,20 +141,16 @@ function Welcome() {
 function FanCard({ i }: { i: number }) {
   const off = i - 4.5;
   const p = useSharedValue(0);
-  const float = useSharedValue(0);
 
   useEffect(() => {
-    p.set(withDelay(i * 45, withSpring(1, { damping: 14, stiffness: 120 })));
-    float.set(
-      withDelay(900 + i * 80, withRepeat(withSequence(withTiming(1, { duration: 1600, easing: Easing.inOut(Easing.sin) }), withTiming(0, { duration: 1600, easing: Easing.inOut(Easing.sin) })), -1)),
-    );
-  }, [i, p, float]);
+    p.set(withDelay(i * 22, withTiming(1, { duration: 320, easing: Easing.out(Easing.cubic) })));
+  }, [i, p]);
 
   const style = useAnimatedStyle(() => ({
     opacity: p.value,
     transform: [
       { translateX: off * 27 * p.value },
-      { translateY: (1 - p.value) * 160 + Math.abs(off) * Math.abs(off) * 3 - float.value * 6 },
+      { translateY: (1 - p.value) * 60 + Math.abs(off) * Math.abs(off) * 3 },
       { rotate: `${off * 6 * p.value}deg` },
     ],
   }));
@@ -161,80 +169,69 @@ function FanCard({ i }: { i: number }) {
 
 /* ---------- Step 1: animated demo of what an edit does ---------- */
 
-const DEMO = [
-  { t: 'So', filler: false },
-  { t: 'um', filler: true },
-  { t: 'here', filler: false },
-  { t: 'are', filler: false },
-  { t: 'three', filler: false },
-  { t: 'editing', filler: false },
-  { t: 'tips', filler: false },
-  { t: 'that', filler: false },
-  { t: 'like', filler: true },
-  { t: 'actually', filler: false },
-  { t: 'work', filler: false },
+
+const BENEFITS: { icon: SFSymbol; title: string; body: string }[] = [
+  { icon: 'scissors', title: 'Pauses and “ums” cut', body: 'Dead air and filler words, gone automatically.' },
+  { icon: 'captions.bubble', title: 'Word-by-word captions', body: '12 styles, including TikTok’s own fonts.' },
+  { icon: 'plus.magnifyingglass', title: 'Zooms hide every cut', body: 'No jumpy jump cuts.' },
+  { icon: 'rectangle.portrait', title: 'Ready for TikTok and Reels', body: '9:16, framed on your face.' },
 ];
 
 function Demo() {
-  const [idx, setIdx] = useState(0);
-  const zoom = useSharedValue(1);
-  const spoken = DEMO.filter((w) => !w.filler);
-
+  const shrink = useSharedValue(0);
   useEffect(() => {
-    const id = setInterval(() => setIdx((i) => (i + 1) % spoken.length), 420);
-    return () => clearInterval(id);
-  }, [spoken.length]);
-
-  useEffect(() => {
-    // Punch-in at every "cut" (after each removed filler) and at the loop start.
-    if (idx === 0 || idx === 1 || idx === 6) {
-      zoom.set(withSequence(withTiming(1.12, { duration: 140 }), withDelay(900, withSpring(1, motion.spring))));
-    }
-  }, [idx, zoom]);
-
-  const zoomStyle = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
-  const card = spoken.slice(Math.floor(idx / 3) * 3, Math.floor(idx / 3) * 3 + 3);
-  const active = idx % 3;
+    shrink.set(withDelay(250, withTiming(1, { duration: 650, easing: Easing.inOut(Easing.cubic) })));
+  }, [shrink]);
+  const bar = useAnimatedStyle(() => ({ width: `${100 - shrink.value * 25}%` }));
+  const cut = useAnimatedStyle(() => ({ opacity: 1 - shrink.value }));
 
   return (
     <View style={styles.stepPad}>
-      <View style={styles.phone}>
-        <Animated.View style={[StyleSheet.absoluteFill, zoomStyle]}>
-          <Thumb seed={0} style={StyleSheet.absoluteFill}>
-            <View style={styles.person}>
-              <SymbolView name="person.fill" size={120} tintColor="rgba(0,0,0,0.35)" />
-            </View>
-          </Thumb>
-        </Animated.View>
-        {/* Illustration only. In the real editor, captions are drawn natively so preview matches export. */}
-        <View style={styles.demoCaption}>
-          <AppText style={styles.demoText}>
-            {card.map((w, i) => (
-              <AppText key={`${w.t}-${i}`} style={[styles.demoText, i === active && styles.demoActive]}>
-                {w.t}{' '}
-              </AppText>
-            ))}
+      <View style={styles.qHead}>
+        <AppText variant="display">Hours of editing, done in minutes</AppText>
+        <AppText variant="body" color={colors.textSecondary}>
+          A batch of 10 clips takes about 10 minutes on your iPhone, while you do something else.
+        </AppText>
+      </View>
+
+      <Card style={styles.beforeAfter}>
+        <View style={styles.baRow}>
+          <AppText variant="label" color={colors.textSecondary}>
+            Your raw clip
+          </AppText>
+          <AppText variant="label" color={colors.textSecondary}>
+            1:12
           </AppText>
         </View>
-      </View>
+        <View style={styles.baTrack}>
+          <Animated.View style={[styles.baFill, bar]}>
+            <Animated.View style={[styles.baCut, { left: '18%' }, cut]} />
+            <Animated.View style={[styles.baCut, { left: '47%' }, cut]} />
+            <Animated.View style={[styles.baCut, { left: '71%' }, cut]} />
+          </Animated.View>
+        </View>
+        <View style={styles.baRow}>
+          <AppText variant="bodyStrong">After Tenfold</AppText>
+          <AppText variant="bodyStrong" color={colors.success}>
+            0:54 · 18 s of dead air removed
+          </AppText>
+        </View>
+      </Card>
 
-      <View style={styles.transcript}>
-        {DEMO.map((w, i) => (
-          <View key={i} style={[styles.word, w.filler && styles.wordCut]}>
-            <AppText variant="chip" color={w.filler ? colors.danger : colors.chipText} style={w.filler && styles.strike}>
-              {w.t}
-            </AppText>
-          </View>
+      <View style={styles.options}>
+        {BENEFITS.map((b, i) => (
+          <Animated.View key={b.title} entering={FadeInDown.delay(60 * i).duration(260)} style={styles.benefit}>
+            <View style={styles.benefitIcon}>
+              <SymbolView name={b.icon} size={18} tintColor={colors.textPrimary} weight="regular" />
+            </View>
+            <View style={styles.flex}>
+              <AppText variant="bodyStrong">{b.title}</AppText>
+              <AppText variant="label" color={colors.textSecondary}>
+                {b.body}
+              </AppText>
+            </View>
+          </Animated.View>
         ))}
-      </View>
-
-      <View style={styles.stepText}>
-        <AppText variant="display" style={styles.center}>
-          Dead air and ums, gone.
-        </AppText>
-        <AppText variant="body" color={colors.textSecondary} style={styles.center}>
-          Pauses and filler words are cut, every jump cut is hidden with a zoom, and captions follow each word.
-        </AppText>
       </View>
     </View>
   );
@@ -267,7 +264,7 @@ function ContentStep({ value, onChange }: { value: ContentType[]; onChange: (v: 
         {CONTENT.map((c, i) => {
           const on = value.includes(c.v);
           return (
-            <Animated.View key={c.v} entering={FadeInDown.delay(60 * i).duration(350)}>
+            <Animated.View key={c.v} entering={FadeInDown.delay(40 * i).duration(240)}>
               <PressableScale
                 haptic={false}
                 onPress={() => onChange(toggle(value, c.v))}
@@ -320,7 +317,7 @@ function PlatformStep({ value, onChange }: { value: Platform[]; onChange: (v: Pl
         {PLATFORMS.map((p, i) => {
           const on = value.includes(p.v);
           return (
-            <Animated.View key={p.v} entering={FadeInDown.delay(50 * i).duration(350)} style={styles.tileWrap}>
+            <Animated.View key={p.v} entering={FadeInDown.delay(35 * i).duration(240)} style={styles.tileWrap}>
               <PressableScale
                 haptic={false}
                 onPress={() => onChange(toggle(value, p.v))}
@@ -362,7 +359,7 @@ function Privacy() {
       </View>
       <View style={styles.options}>
         {rows.map((r, i) => (
-          <Animated.View key={r.title} entering={FadeInDown.delay(80 * i).duration(350)} style={styles.privacyRow}>
+          <Animated.View key={r.title} entering={FadeInDown.delay(50 * i).duration(240)} style={styles.privacyRow}>
             <SymbolView name={r.icon} size={22} tintColor={colors.textPrimary} weight="light" />
             <View style={styles.flex}>
               <AppText variant="bodyStrong">{r.title}</AppText>
@@ -428,7 +425,7 @@ function Ready() {
       </View>
       <Card style={styles.summary}>
         {rows.map((r, i) => (
-          <Animated.View key={r.label} entering={FadeInDown.delay(120 * i).duration(380)} style={styles.summaryRow}>
+          <Animated.View key={r.label} entering={FadeInDown.delay(60 * i).duration(260)} style={styles.summaryRow}>
             <SymbolView name="checkmark.circle.fill" size={20} tintColor={colors.success} />
             <AppText variant="body" color={colors.textSecondary} style={styles.flex}>
               {r.label}
@@ -437,7 +434,7 @@ function Ready() {
           </Animated.View>
         ))}
       </Card>
-      <Animated.View entering={FadeIn.delay(700)} exiting={FadeOut}>
+      <Animated.View entering={FadeIn.delay(350)} exiting={FadeOut}>
         <AppText variant="label" color={colors.textMuted} style={styles.center}>
           Tip: record in good light and leave a second of silence at the start.
         </AppText>
@@ -455,7 +452,36 @@ const styles = StyleSheet.create({
   segmentOn: { backgroundColor: '#FFFFFF' },
   footer: { paddingHorizontal: spacing.gutter, gap: spacing.md },
 
-  welcome: { flex: 1, justifyContent: 'center', gap: 56, paddingHorizontal: spacing.gutter },
+  welcome: { flex: 1, justifyContent: 'center', gap: 36, paddingHorizontal: spacing.gutter },
+  stats: { flexDirection: 'row', gap: 10 },
+  stat: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    borderRadius: radii.tile,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 2,
+  },
+  statValue: { fontFamily: fonts.semiBold, fontSize: 22, lineHeight: 28, color: '#FFFFFF' },
+  beforeAfter: { gap: 10 },
+  baRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  baTrack: { height: 34, borderRadius: 10, backgroundColor: colors.cardHigh, overflow: 'hidden' },
+  baFill: { height: '100%', borderRadius: 10, backgroundColor: '#3A2E5C' },
+  baCut: { position: 'absolute', top: 0, bottom: 0, width: '7%', backgroundColor: colors.danger },
+  benefit: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  benefitIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.cardHigh,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   fan: { height: 200, alignItems: 'center', justifyContent: 'center' },
   fanCard: { position: 'absolute' },
   fanThumb: {
@@ -473,32 +499,6 @@ const styles = StyleSheet.create({
 
   stepPad: { flex: 1, paddingHorizontal: spacing.gutter, gap: spacing.xl },
   stepText: { gap: spacing.sm },
-  phone: {
-    alignSelf: 'center',
-    width: 200,
-    height: 330,
-    borderRadius: 30,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: colors.borderStrong,
-  },
-  person: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
-  demoCaption: { position: 'absolute', left: 12, right: 12, top: '58%', alignItems: 'center' },
-  demoText: {
-    fontFamily: fonts.bold,
-    fontSize: 19,
-    lineHeight: 24,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    textShadowColor: 'rgba(0,0,0,0.9)',
-    textShadowRadius: 4,
-  },
-  demoActive: { color: '#FFE14D' },
-  transcript: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
-  word: { height: 30, paddingHorizontal: 10, borderRadius: 15, justifyContent: 'center', backgroundColor: colors.chipFill },
-  wordCut: { backgroundColor: colors.dangerSoft },
-  strike: { textDecorationLine: 'line-through' },
 
   qHead: { gap: spacing.sm, marginTop: spacing.sm },
   options: { gap: 10 },

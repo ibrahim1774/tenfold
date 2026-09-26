@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CAPTION_COLORS, CAPTION_FONTS, CAPTION_PRESETS, captionSettingsFromPreset, presetById } from '@/captions/presets';
+import { CAPTION_COLORS, CAPTION_FONTS, CAPTION_FORMATS, CAPTION_PRESETS, captionSettingsFromPreset, presetById } from '@/captions/presets';
 import { AppText, Chip, GradientButton, IconButton, OptionLabel, PressableScale, StyleTile, Thumb, ToggleRow } from '@/design/components';
 import { colors, fonts, radii, spacing } from '@/design/tokens';
 import { Engine, type CaptionFont, type CaptionSettings, type CaptionStyleId } from '@/engine';
@@ -27,6 +27,7 @@ export default function CaptionStyleSheet() {
   const [size, setSize] = useState(initial.sizeScale);
   const [posY, setPosY] = useState(initial.position.y);
   const [uppercase, setUppercase] = useState(initial.uppercase);
+  const [maxWords, setMaxWords] = useState(initial.maxWords);
   const [enabled, setEnabled] = useState(doc ? doc.captions.enabled : !batch?.captionsOff);
   const [sample, setSample] = useState('three tips that work');
 
@@ -46,7 +47,8 @@ export default function CaptionStyleSheet() {
     setFont(p.font);
     setUppercase(p.uppercase);
     setPosY(p.positionY);
-    if (p.animation === 'pop' || p.animation === 'karaoke' || p.animation === 'underline') setColor(p.colors.active);
+    setMaxWords(p.maxWords);
+    setColor(p.colors.active);
   };
 
   const apply = () => {
@@ -58,7 +60,7 @@ export default function CaptionStyleSheet() {
       colors: { ...p.colors, active: color },
       position: { y: posY },
       uppercase,
-      maxWords: p.maxWords,
+      maxWords,
       enabled,
     };
     if (projectId && doc) setDoc(projectId, { ...doc, captions: next });
@@ -80,9 +82,11 @@ export default function CaptionStyleSheet() {
               name={p.name}
               seed={i + 3}
               sample={sample}
-              highlight={p.animation === 'pop' || p.animation === 'karaoke' ? color : '#FFFFFF'}
+              highlight={styleId === p.id ? color : p.colors.active}
+              animation={p.animation}
+              fontFamily={CAPTION_FONTS.find((f) => f.id === (styleId === p.id ? font : p.font))?.family}
               uppercase={p.uppercase}
-              boxed={p.animation === 'box'}
+              maxWords={styleId === p.id ? maxWords : p.maxWords}
               locked={locked}
               selected={styleId === p.id}
               width={104}
@@ -91,6 +95,13 @@ export default function CaptionStyleSheet() {
           );
         })}
       </ScrollView>
+
+      <OptionLabel>Words on screen</OptionLabel>
+      <View style={styles.row}>
+        {CAPTION_FORMATS.map((f) => (
+          <Chip key={f.maxWords} label={f.name} selected={maxWords === f.maxWords} onPress={() => setMaxWords(f.maxWords)} />
+        ))}
+      </View>
 
       <OptionLabel>Font</OptionLabel>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>

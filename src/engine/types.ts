@@ -4,8 +4,29 @@ export type SilenceLevel = 'off' | 'light' | 'medium' | 'aggressive';
 export type FillerLevel = 'off' | 'standard' | 'aggressive';
 export type ZoomMode = 'off' | 'subtle' | 'dynamic';
 export type AudioMode = 'original' | 'normalize' | 'mute';
-export type CaptionStyleId = 'pop' | 'karaoke' | 'boxed' | 'outline' | 'minimal' | 'subtle';
-export type CaptionFont = 'poppins' | 'inter' | 'bebas' | 'montserrat' | 'sfRounded';
+export type CaptionStyleId =
+  | 'pop'
+  | 'tiktok'
+  | 'highlight'
+  | 'oneword'
+  | 'karaoke'
+  | 'boxed'
+  | 'neon'
+  | 'typewriter'
+  | 'outline'
+  | 'handwritten'
+  | 'minimal'
+  | 'subtle';
+export type CaptionFont =
+  | 'tiktok'
+  | 'typewriter'
+  | 'handwriting'
+  | 'serif'
+  | 'poppins'
+  | 'inter'
+  | 'bebas'
+  | 'montserrat'
+  | 'sfRounded';
 export type PresetId = 'cleanTalk' | 'punchy' | 'podcast' | 'story' | 'custom';
 export type CutReason = 'silence' | 'filler' | 'manual';
 
