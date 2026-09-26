@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name           = 'TenfoldEngine'
-  s.version        = '0.1.0'
+  s.version        = '0.2.0'
   s.summary        = 'On-device video engine for Tenfold'
   s.description    = 'Audio extraction, transcription, cut/zoom planning, caption rendering and export for Tenfold.'
   s.author         = 'Ibrahim'
@@ -12,9 +12,10 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
+  s.frameworks = 'AVFoundation', 'CoreMedia', 'CoreText', 'QuartzCore', 'Vision', 'Speech', 'Photos', 'PhotosUI', 'UniformTypeIdentifiers'
 
   # Swift/Objective-C compatibility
-  # TODO(M1): switch to Swift 6 language mode with strict concurrency once it compiles under Xcode 26.
+  # TODO: switch to Swift 6 language mode once verified on Xcode 26 (core already type-checks in Swift 6).
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
   }

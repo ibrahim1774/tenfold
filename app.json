@@ -14,7 +14,12 @@
       "infoPlist": {
         "NSPhotoLibraryAddUsageDescription": "Tenfold saves your finished videos to Photos.",
         "NSSpeechRecognitionUsageDescription": "Tenfold transcribes your videos on your iPhone to add captions and cut silences.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": [
+          "tiktok",
+          "snssdk1233",
+          "instagram"
+        ]
       }
     },
     "plugins": [
@@ -42,7 +47,10 @@
             "./assets/fonts/Poppins_400Regular.ttf",
             "./assets/fonts/Poppins_500Medium.ttf",
             "./assets/fonts/Poppins_600SemiBold.ttf",
-            "./assets/fonts/Poppins_700Bold.ttf"
+            "./assets/fonts/Poppins_700Bold.ttf",
+            "./assets/fonts/Inter_900Black.ttf",
+            "./assets/fonts/BebasNeue_400Regular.ttf",
+            "./assets/fonts/Montserrat_800ExtraBold.ttf"
           ]
         }
       ],
