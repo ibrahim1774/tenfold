@@ -17,7 +17,7 @@ import {
 } from '@/design/components';
 import { colors, gradients, spacing } from '@/design/tokens';
 import { BatchCard } from '@/library/BatchCard';
-import { useEntitlements } from '@/state/entitlements';
+import { maxBatchSize, useEntitlements } from '@/state/entitlements';
 import { useLibrary } from '@/state/library';
 import { useSettings } from '@/state/settings';
 import { prepareSpeech } from '@/state/speech';
@@ -146,8 +146,9 @@ export default function HomeScreen() {
 }
 
 function HowItWorks() {
+  const isPro = useEntitlements((s) => s.isPro);
   const steps = [
-    { icon: 'photo.stack' as const, title: 'Pick up to 20 clips', body: 'Straight from your camera roll.' },
+    { icon: 'photo.stack' as const, title: `Pick up to ${maxBatchSize(isPro)} clips`, body: 'Straight from your camera roll.' },
     { icon: 'wand.and.stars' as const, title: 'Choose a style', body: 'Captions, cuts and zoom in one preset.' },
     { icon: 'square.and.arrow.down' as const, title: 'Tap Edit all', body: 'Finished videos land in Photos.' },
   ];

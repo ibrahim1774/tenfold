@@ -1,6 +1,7 @@
 import { captionSettingsFromPreset } from '../captions/presets';
 import type { BatchPreset, CaptionStyleId, PresetId } from '../engine/types';
 import { useLibrary } from './library';
+import { useSettings } from './settings';
 import { batchPreset } from './presets';
 
 // Batch setup edits the batch's preset in place (the batch is created at import).
@@ -8,7 +9,7 @@ import { batchPreset } from './presets';
 const lib = () => useLibrary.getState();
 
 export function setPresetId(batchId: string, id: PresetId) {
-  lib().updateBatch(batchId, { preset: batchPreset(id), captionsOff: false });
+  lib().updateBatch(batchId, { preset: batchPreset(id, useSettings.getState().platforms), captionsOff: false });
 }
 
 /** Any manual change turns the preset into "Custom". */

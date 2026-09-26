@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText, Background, Card, GradientButton, IconButton, OutlineButton, PressableScale, ProgressBar, Thumb } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
 import { colors, fonts, radii, spacing } from '@/design/tokens';
+import { useEntitlements } from '@/state/entitlements';
 import { batchPreset, PRESET_OPTIONS } from '@/state/presets';
 import { prepareSpeech, refreshSpeechStatus } from '@/state/speech';
 import { presetForContent, useSettings, type ContentType, type Platform } from '@/state/settings';
@@ -29,12 +30,14 @@ const STEPS = 6;
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
-  const { contentTypes, platforms, setContentTypes, setPlatforms, setDefaultPreset } = useSettings();
+  const { contentTypes, platforms, setContentTypes, setPlatforms, setDefaultPreset, setOnboarded } = useSettings();
+  const isPro = useEntitlements((s) => s.isPro);
 
   const next = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (step === 2) setDefaultPreset(presetForContent(contentTypes));
     if (step < STEPS - 1) setStep(step + 1);
+    else if (isPro) setOnboarded(true); // replaying onboarding: no paywall for subscribers
     else router.push({ pathname: '/paywall', params: { from: 'onboarding' } });
   };
   const back = () => setStep((s) => Math.max(0, s - 1));
@@ -64,6 +67,8 @@ export default function OnboardingScreen() {
           entering={FadeInRight.duration(220)}
           exiting={FadeOutLeft.duration(140)}
           style={StyleSheet.absoluteFill}>
+          {/* Scrolls on small phones and large text sizes instead of running under the button. */}
+          <ScrollView contentContainerStyle={styles.stepScroll} showsVerticalScrollIndicator={false} alwaysBounceVertical={false}>
           {step === 0 && <Welcome />}
           {step === 1 && <Demo />}
           {step === 2 && (
@@ -86,6 +91,7 @@ export default function OnboardingScreen() {
           )}
           {step === 4 && <Privacy />}
           {step === 5 && <Ready />}
+          </ScrollView>
         </Animated.View>
       </View>
 
@@ -310,7 +316,7 @@ function PlatformStep({ value, onChange }: { value: Platform[]; onChange: (v: Pl
       <View style={styles.qHead}>
         <AppText variant="display">Where do you post?</AppText>
         <AppText variant="body" color={colors.textSecondary}>
-          We’ll frame and place captions so the app buttons never cover them.
+          We’ll pick the right frame, and keep captions clear of the app buttons.
         </AppText>
       </View>
       <View style={styles.tiles}>
@@ -405,15 +411,14 @@ function Privacy() {
 
 function Ready() {
   const { defaultPreset, platforms } = useSettings();
-  const preset = batchPreset(defaultPreset);
+  const preset = batchPreset(defaultPreset, platforms);
   const presetName = PRESET_OPTIONS.find((p) => p.id === defaultPreset)?.name ?? 'Clean Talk';
-  const vertical = platforms.some((p) => p !== 'youtube' && p !== 'linkedin') || platforms.length === 0;
   const rows = [
     { label: 'Preset', value: presetName },
     { label: 'Captions', value: preset.captions.styleId[0].toUpperCase() + preset.captions.styleId.slice(1) },
     { label: 'Silences', value: preset.analysis.silence[0].toUpperCase() + preset.analysis.silence.slice(1) },
     { label: 'Zoom', value: preset.zoom.mode === 'off' ? 'Off' : preset.zoom.mode === 'dynamic' ? 'Dynamic' : 'Subtle' },
-    { label: 'Format', value: vertical ? '9:16 vertical' : 'Keep original' },
+    { label: 'Format', value: preset.crop.aspect === 'original' || !preset.crop.auto916 ? 'Keep original' : '9:16 vertical' },
   ];
   return (
     <View style={styles.stepPad}>
@@ -497,6 +502,7 @@ const styles = StyleSheet.create({
   fanLineShort: { width: 28, backgroundColor: '#FFE14D' },
   welcomeText: { gap: spacing.md },
 
+  stepScroll: { flexGrow: 1, paddingBottom: spacing.lg },
   stepPad: { flex: 1, paddingHorizontal: spacing.gutter, gap: spacing.xl },
   stepText: { gap: spacing.sm },
 

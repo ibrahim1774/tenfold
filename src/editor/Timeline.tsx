@@ -205,13 +205,18 @@ const TimelineTracks = memo(function TimelineTracks({
 
   const bars = useMemo(() => {
     const out: { left: number; h: number }[] = [];
-    for (let px = 0; px < total * PPS; px += 4) {
+    // One bar every 4 pt, but never more than ~1,200 views (long clips get wider spacing).
+    const stepPx = Math.max(4, (total * PPS) / 1200);
+    for (let px = 0; px < total * PPS; px += stepPx) {
       const src = toSource(segments, px / PPS);
       const db = envelopeDb[Math.floor(src / ENVELOPE_STEP)] ?? -100;
       out.push({ left: px, h: 2 + Math.max(0, Math.min(1, (db + 60) / 50)) * 34 });
     }
     return out;
   }, [segments, envelopeDb, total]);
+
+  // Filmstrip tiles widen on long clips so the strip stays at ~240 images.
+  const fw = Math.max(FRAME_W, (total * PPS) / 240);
 
   const frameFor = (sourceT: number) => {
     if (!thumbs.length) return undefined;
@@ -237,7 +242,7 @@ const TimelineTracks = memo(function TimelineTracks({
       <View style={styles.clipTrack}>
         {regions.map((r) => {
           const w = Math.max(4, (r.end - r.start) * PPS - 2);
-          const n = Math.max(1, Math.ceil(w / FRAME_W));
+          const n = Math.max(1, Math.ceil(w / fw));
           const isSel = same(selected, r);
           return (
             <Pressable
@@ -248,11 +253,11 @@ const TimelineTracks = memo(function TimelineTracks({
               accessibilityLabel={`Clip from ${r.start.toFixed(1)} to ${r.end.toFixed(1)} seconds`}
               style={[styles.clip, { left: x(r.start) + 1, width: w }, isSel && styles.clipSelected]}>
               {Array.from({ length: n }).map((_, k) => {
-                const uri = frameFor(toSource(segments, r.start + ((k + 0.5) * FRAME_W) / PPS));
+                const uri = frameFor(toSource(segments, r.start + ((k + 0.5) * fw) / PPS));
                 return uri ? (
-                  <Image key={k} source={{ uri }} style={[styles.frame, { left: k * FRAME_W }]} contentFit="cover" />
+                  <Image key={k} source={{ uri }} style={[styles.frame, { left: k * fw, width: fw }]} contentFit="cover" />
                 ) : (
-                  <View key={k} style={[styles.frame, styles.framePlaceholder, { left: k * FRAME_W }]} />
+                  <View key={k} style={[styles.frame, styles.framePlaceholder, { left: k * fw, width: fw }]} />
                 );
               })}
               {isSel && <View pointerEvents="none" style={styles.selectedTint} />}

@@ -37,6 +37,7 @@ import {
   type Thumbnail,
   type ZoomMode,
 } from '@/engine';
+import { commitDoc, redoDoc, undoDoc, useEditHistory } from '@/state/history';
 import { formatDuration, useLibrary } from '@/state/library';
 
 type Tool = 'cuts' | 'words' | 'zoom' | 'crop' | 'audio' | null;
@@ -64,23 +65,24 @@ export default function EditorScreen() {
   const project = useLibrary((s) => s.projects[projectId]);
   const doc = useLibrary((s) => s.docs[projectId]);
   const batch = useLibrary((s) => (project ? s.batches[project.batchId] : undefined));
-  const setDoc = useLibrary((s) => s.setDoc);
 
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [plan, setPlan] = useState<EditPlan | null>(null);
   const [thumbs, setThumbs] = useState<Thumbnail[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [history, setHistory] = useState<EditDocument[]>([]);
-  const [future, setFuture] = useState<EditDocument[]>([]);
+  const canUndo = useEditHistory((h) => (h.past[projectId]?.length ?? 0) > 0);
+  const canRedo = useEditHistory((h) => (h.future[projectId]?.length ?? 0) > 0);
   const [tool, setTool] = useState<Tool>(null);
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [previewReady, setPreviewReady] = useState(false);
   const [suggestionDismissed, setSuggestionDismissed] = useState(false);
-  const [levels, setLevels] = useState<{ silence: SilenceLevel; fillers: FillerLevel } | null>(null);
   // Selection is tied to the document it was made on, so any edit (or undo) clears it.
   const [selection, setSelection] = useState<{ region: Region; key: string } | null>(null);
-  const [renderAspect, setRenderAspect] = useState<number | null>(null);
+  // Shape reported by the native preview, remembered with the aspect setting that produced it.
+  const [rendered, setRendered] = useState<{ aspect: string; value: number } | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const levelsRequest = useRef(0);
   const preview = useRef<TenfoldPreviewViewRef>(null);
   const { width: screenW, height: screenH } = useWindowDimensions();
 
@@ -90,7 +92,8 @@ export default function EditorScreen() {
     Engine.getAnalysis(projectId)
       .then((a) => alive && setAnalysis(a))
       .catch((e) => alive && setLoadError(errorText(e)));
-    Engine.thumbnails(projectId, 16)
+    // About one filmstrip frame per 2 s (16–60), so long clips don't repeat the same few frames.
+    Engine.thumbnails(projectId, Math.round(Math.min(60, Math.max(16, (useLibrary.getState().projects[projectId]?.media?.durationSec ?? 0) / 2))))
       .then((t) => alive && setThumbs(t))
       .catch(() => {});
     return () => {
@@ -114,46 +117,55 @@ export default function EditorScreen() {
   }, [doc, analysis, projectId]);
 
   const docJSON = useMemo(() => (doc ? JSON.stringify(doc) : ''), [doc]);
+  // What the native preview renders: UI-only fields left out, so a split doesn't rebuild the player.
+  const previewJSON = useMemo(() => {
+    if (!doc) return '';
+    const { splits: _splits, levels: _levels, ...rest } = doc;
+    return JSON.stringify(rest);
+  }, [doc]);
 
+  // Editing pauses playback (like CapCut), so the frame under the playhead doesn't jump mid-play.
   const commit = useCallback(
     (next: EditDocument) => {
-      if (!doc) return;
-      setHistory((h) => [...h.slice(-49), doc]);
-      setFuture([]);
-      setDoc(projectId, next);
+      setPlaying(false);
+      commitDoc(projectId, next);
     },
-    [doc, projectId, setDoc],
+    [projectId],
   );
   const undo = () => {
-    const prev = history.at(-1);
-    if (!prev || !doc) return;
-    setFuture((f) => [doc, ...f]);
-    setHistory((h) => h.slice(0, -1));
-    setDoc(projectId, prev);
+    setPlaying(false);
+    undoDoc(projectId);
   };
   const redo = () => {
-    const next = future[0];
-    if (!next || !doc) return;
-    setHistory((h) => [...h, doc]);
-    setFuture((f) => f.slice(1));
-    setDoc(projectId, next);
+    setPlaying(false);
+    redoDoc(projectId);
   };
 
-  const words = analysis?.transcript?.words ?? [];
+  const words = useMemo(() => analysis?.transcript?.words ?? [], [analysis]);
   const overrides = useMemo(() => new Map((doc?.wordOverrides ?? []).map((o) => [o.wordIndex, o.text])), [doc]);
 
-  const cutForWord = (i: number): Cut | undefined => {
-    const w = words[i];
-    if (!doc || !w) return undefined;
-    const mid = (w.start + w.end) / 2;
-    return doc.cuts.find((c) => c.start <= mid && c.end >= mid);
-  };
+  // Word → the cut covering it (an applied cut wins over a suggestion), computed once per edit.
+  const wordCuts = useMemo(() => {
+    const cuts = doc?.cuts ?? [];
+    return words.map((w) => {
+      const mid = (w.start + w.end) / 2;
+      const covering = cuts.filter((c) => c.start <= mid && c.end >= mid);
+      return covering.find((c) => c.accepted) ?? covering[0];
+    });
+  }, [doc?.cuts, words]);
+  const cutForWord = (i: number): Cut | undefined => wordCuts[i];
 
   const toggleWord = (i: number) => {
     if (!doc) return;
     const w = words[i];
     const existing = cutForWord(i);
-    if (existing) {
+    if (existing?.reason === 'manual' && existing.accepted) {
+      // Restoring a word from a manual cut: drop the cut, or (for a deleted clip) open a gap just for this word.
+      const pieces: Cut[] = [];
+      if (w.start - 0.02 - existing.start > 0.05) pieces.push({ ...existing, id: newId('m'), end: w.start - 0.02 });
+      if (existing.end - (w.end + 0.02) > 0.05) pieces.push({ ...existing, id: newId('m'), start: w.end + 0.02 });
+      commit({ ...doc, cuts: [...doc.cuts.filter((c) => c.id !== existing.id), ...pieces] });
+    } else if (existing) {
       commit({ ...doc, cuts: doc.cuts.map((c) => (c.id === existing.id ? { ...c, accepted: !c.accepted } : c)) });
     } else {
       const prevEnd = i > 0 ? words[i - 1].end : 0;
@@ -250,15 +262,17 @@ export default function EditorScreen() {
   };
 
   const applyLevels = async (next: { silence: SilenceLevel; fillers: FillerLevel }) => {
-    if (!doc) return;
-    setLevels(next);
+    // Only the newest tap wins, and it applies to the document as it is when the result arrives.
+    const request = ++levelsRequest.current;
     try {
       const suggested = await Engine.suggestCuts(projectId, {
         silence: next.silence,
         fillers: next.fillers,
         language: analysis?.transcript?.language ?? 'auto',
       });
-      commit({ ...doc, cuts: [...doc.cuts.filter((c) => c.reason === 'manual'), ...suggested] });
+      const latest = useLibrary.getState().docs[projectId];
+      if (request !== levelsRequest.current || !latest) return;
+      commit({ ...latest, levels: next, cuts: [...latest.cuts.filter((c) => c.reason === 'manual'), ...suggested] });
     } catch (e) {
       Alert.alert('Couldn’t update cuts', errorText(e));
     }
@@ -321,12 +335,12 @@ export default function EditorScreen() {
   const muted = doc.audio.mode === 'mute';
   const aspect = aspectOf(doc.crop);
   // Size the preview frame to the output's shape so there are no bars around the video.
-  const frameAspect = renderAspect ?? aspectRatioValue(aspect, project.media ?? undefined);
+  const frameAspect = rendered && rendered.aspect === aspect ? rendered.value : aspectRatioValue(aspect, project.media ?? undefined);
   const maxW = screenW - spacing.gutter * 2;
   const maxH = Math.min(460, screenH * 0.46);
   const frameW = Math.min(maxW, maxH * frameAspect);
   const frameH = frameW / frameAspect;
-  const currentLevels = levels ?? {
+  const currentLevels = doc.levels ?? {
     silence: batch?.preset.analysis.silence ?? 'medium',
     fillers: batch?.preset.analysis.fillers ?? 'standard',
   };
@@ -357,24 +371,28 @@ export default function EditorScreen() {
 
         <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
           <View style={styles.gutter}>
-            <View style={[styles.previewSlot, { height: maxH }]}>
+            <View style={[styles.previewSlot, { height: frameH }]}>
             <View style={[styles.preview, { width: frameW, height: frameH }]}>
               <TenfoldPreviewView
                 ref={preview}
                 projectId={projectId}
-                document={docJSON}
+                document={previewJSON}
                 playing={playing}
                 muted={muted}
                 style={StyleSheet.absoluteFill}
-                onTime={(e) => setTime(e.nativeEvent.time)}
+                // Only playback drives the clock; scrubs and taps set the time themselves.
+                onTime={(e) => {
+                  if (playing) setTime(e.nativeEvent.time);
+                }}
                 onReady={(e) => {
                   setPreviewReady(true);
+                  setPreviewError(null);
                   const { width, height } = e.nativeEvent;
-                  if (width > 0 && height > 0) setRenderAspect(width / height);
+                  if (width > 0 && height > 0) setRendered({ aspect, value: width / height });
                 }}
                 onEnd={() => setPlaying(false)}
                 onPlayingChange={(e) => setPlaying(e.nativeEvent.playing)}
-                onError={(e) => setLoadError(e.nativeEvent.message)}
+                onError={(e) => setPreviewError(e.nativeEvent.message)}
               />
               {/* Tap the video to play or pause. */}
               <Pressable
@@ -388,6 +406,11 @@ export default function EditorScreen() {
                   </View>
                 )}
               </Pressable>
+              {previewError && (
+                <View style={styles.previewErrorBox} pointerEvents="none">
+                  <AppText variant="caption">Preview couldn’t update: {previewError}</AppText>
+                </View>
+              )}
               {!previewReady && (
                 <View style={styles.previewLoading} pointerEvents="none">
                   <ActivityIndicator color="#FFFFFF" />
@@ -403,8 +426,8 @@ export default function EditorScreen() {
 
           <View style={[styles.gutter, styles.transport]}>
             <View style={styles.transportSide}>
-              <IconButton icon="arrow.uturn.backward" label="Undo" tone="ghost" size={36} iconScale={0.6} onPress={undo} disabled={!history.length} />
-              <IconButton icon="arrow.uturn.forward" label="Redo" tone="ghost" size={36} iconScale={0.6} onPress={redo} disabled={!future.length} />
+              <IconButton icon="arrow.uturn.backward" label="Undo" tone="ghost" size={36} iconScale={0.6} onPress={undo} disabled={!canUndo} />
+              <IconButton icon="arrow.uturn.forward" label="Redo" tone="ghost" size={36} iconScale={0.6} onPress={redo} disabled={!canRedo} />
             </View>
             <PressableScale
               onPress={() => setPlaying((p) => !p)}
@@ -424,7 +447,14 @@ export default function EditorScreen() {
           <View style={[styles.gutter, styles.tools]}>
             <ToolButton icon="scissors" label="Cuts" active={tool === 'cuts'} onPress={() => setTool(tool === 'cuts' ? null : 'cuts')} />
             <ToolButton icon="text.quote" label="Words" active={tool === 'words'} onPress={() => setTool(tool === 'words' ? null : 'words')} />
-            <ToolButton icon="captions.bubble" label="Captions" onPress={() => router.push({ pathname: '/editor/captions', params: { projectId } })} />
+            <ToolButton
+              icon="captions.bubble"
+              label="Captions"
+              onPress={() => {
+                setPlaying(false);
+                router.push({ pathname: '/editor/captions', params: { projectId } });
+              }}
+            />
             <ToolButton icon="plus.magnifyingglass" label="Zoom" active={tool === 'zoom'} onPress={() => setTool(tool === 'zoom' ? null : 'zoom')} />
             <ToolButton icon="crop" label="Crop" active={tool === 'crop'} onPress={() => setTool(tool === 'crop' ? null : 'crop')} />
             <ToolButton icon="waveform" label="Audio" active={tool === 'audio'} onPress={() => setTool(tool === 'audio' ? null : 'audio')} />
@@ -502,7 +532,7 @@ export default function EditorScreen() {
                       {words.map((w, i) => {
                         const cut = cutForWord(i);
                         const removed = !!cut?.accepted;
-                        const candidate = !!cut && !cut.accepted;
+                        const candidate = !!cut && !cut.accepted && cut.reason !== 'manual';
                         const text = overrides.get(i) ?? w.text;
                         return (
                           <PressableScale
@@ -623,7 +653,6 @@ export default function EditorScreen() {
                           key={a.id}
                           scaleTo={0.94}
                           onPress={() => {
-                            setRenderAspect(null);
                             commit({ ...doc, crop: { auto916: a.id === '9:16', aspect: a.id } });
                           }}
                           accessibilityRole="button"
@@ -726,6 +755,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(28,27,35,0.75)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.16)',
+  },
+  previewErrorBox: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 10,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(120,20,30,0.85)',
   },
   bigPlay: {
     position: 'absolute',

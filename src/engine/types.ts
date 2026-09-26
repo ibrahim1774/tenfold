@@ -96,6 +96,8 @@ export type EditDocument = {
   audio: { mode: AudioMode };
   /** Split points (source seconds) the user added on the timeline. UI only: the engine ignores them. */
   splits?: number[];
+  /** Pause/filler strength last picked in the editor (UI only). */
+  levels?: { silence: SilenceLevel; fillers: FillerLevel };
 };
 
 export type AspectRatio = 'original' | '9:16' | '1:1' | '4:5' | '16:9';
@@ -137,7 +139,14 @@ export type Thumbnail = { time: number; uri: string };
 
 export type RenderQuality = 'preview' | 'hd' | 'uhd';
 export type ExportOptions = { quality: RenderQuality; watermark: boolean; saveToPhotos: boolean; keepHDR: boolean };
-export type ExportResult = { uri: string; savedToPhotos: boolean; photosDenied: boolean; durationSec: number; elapsedSec: number };
+export type ExportResult = {
+  uri: string;
+  savedToPhotos: boolean;
+  photosDenied: boolean;
+  saveError?: string;
+  durationSec: number;
+  elapsedSec: number;
+};
 
 export type SpeechStatus = { state: 'unsupported' | 'supported' | 'downloading' | 'installed'; locale: string };
 

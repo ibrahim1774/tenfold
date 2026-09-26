@@ -5,7 +5,7 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { cancelBatch, queueExports, retryProject, setPaused, STAGE_LABELS, useQueueUI } from '@/batch/queue';
+import { cancelBatch, queueExports, retryProject, setPaused, STAGE_LABELS, startBatch, useQueueUI } from '@/batch/queue';
 import {
   AppText,
   Background,
@@ -59,16 +59,23 @@ export default function ProcessingScreen() {
   const analysed = projects.filter((p) => ['ready', 'exportQueued', 'exporting', 'done'].includes(p.status)).length;
   const done = projects.filter((p) => p.status === 'done').length;
   const working = projects.some((p) => ['queued', 'analyzing', 'exportQueued', 'exporting'].includes(p.status));
-  const overall =
-    projects.reduce((sum, p) => {
-      if (p.status === 'done') return sum + 1;
-      if (p.status === 'ready' || p.status === 'exportQueued') return sum + 0.5;
-      if (p.status === 'exporting') return sum + 0.5 + p.progress * 0.5;
-      if (p.status === 'analyzing') return sum + p.progress * 0.5;
-      return sum;
-    }, 0) / Math.max(1, projects.length);
+  const cancelled = projects.filter((p) => p.status === 'cancelled').length;
+  // Until anything is exported, the ring shows analysis alone (so "all ready" is a full ring, not half).
+  const exporting = projects.some((p) => ['exportQueued', 'exporting', 'done'].includes(p.status));
+  const overall = exporting
+    ? projects.reduce((sum, p) => {
+        if (p.status === 'done') return sum + 1;
+        if (p.status === 'ready' || p.status === 'exportQueued') return sum + 0.5;
+        if (p.status === 'exporting') return sum + 0.5 + p.progress * 0.5;
+        if (p.status === 'analyzing') return sum + p.progress * 0.5;
+        return sum;
+      }, 0) / Math.max(1, projects.length)
+    : projects.reduce((sum, p) => sum + (p.status === 'ready' ? 1 : p.status === 'analyzing' ? p.progress : 0), 0) /
+      Math.max(1, projects.length);
   const exportable = projects.filter((p) => p.status === 'ready').map((p) => p.id);
-  const left = exportsLeft(ent);
+  const inFlight = projects.filter((p) => p.status === 'exportQueued' || p.status === 'exporting').length;
+  const left = exportsLeft(ent) - inFlight;
+  const allSaved = done === projects.length && projects.every((p) => p.savedToPhotos);
 
   const exportAll = () => {
     if (exportable.length === 0) return;
@@ -134,7 +141,17 @@ export default function ProcessingScreen() {
             <View style={styles.onDevice}>
               <SymbolView name="iphone" size={14} tintColor={colors.textSecondary} />
               <AppText variant="label" color={colors.textSecondary}>
-                {working ? 'Editing on your iPhone. Keep Tenfold open.' : batch.paused ? 'Paused' : 'All done on your iPhone.'}
+                {batch.paused
+                  ? working
+                    ? 'Paused. Finishing the current clip…'
+                    : 'Paused'
+                  : working
+                    ? 'Editing on your iPhone. Keep Tenfold open.'
+                    : cancelled > 0
+                      ? `${cancelled} ${cancelled === 1 ? 'clip' : 'clips'} cancelled`
+                      : done === projects.length
+                        ? 'All done on your iPhone.'
+                        : 'Ready to review.'}
               </AppText>
             </View>
             {lowPower && working && (
@@ -152,8 +169,21 @@ export default function ProcessingScreen() {
                 style={styles.flex}
                 onPress={() => setPaused(batchId, !batch.paused)}
               />
-              <OutlineButton title="Cancel" icon="xmark" height={42} style={styles.flex} onPress={() => cancelBatch(batchId)} />
+              <OutlineButton
+                title="Cancel"
+                icon="xmark"
+                height={42}
+                style={styles.flex}
+                onPress={() =>
+                  Alert.alert('Cancel the rest of this batch?', 'Clips that are already done stay. You can resume later.', [
+                    { text: 'Keep going', style: 'cancel' },
+                    { text: 'Cancel batch', style: 'destructive', onPress: () => cancelBatch(batchId) },
+                  ])
+                }
+              />
             </View>
+          ) : cancelled > 0 ? (
+            <OutlineButton title={`Resume ${cancelled} ${cancelled === 1 ? 'clip' : 'clips'}`} icon="play" height={42} onPress={() => startBatch(batchId)} />
           ) : null}
         </View>
 
@@ -176,9 +206,11 @@ export default function ProcessingScreen() {
           title={
             exportable.length > 0
               ? `Export ${exportable.length === projects.length ? 'all' : exportable.length} to Photos`
-              : done === projects.length
+              : allSaved
                 ? 'All saved to Photos'
-                : 'Export when ready'
+                : done === projects.length
+                  ? 'All exported'
+                  : 'Export when ready'
           }
           icon="square.and.arrow.down"
           shape="pill"
@@ -200,10 +232,10 @@ function ProjectRow({ project: p }: { project: Project }) {
   return (
     <PressableScale
       scaleTo={0.97}
-      disabled={!openable && p.status !== 'failed'}
+      disabled={!openable && p.status !== 'failed' && p.status !== 'cancelled'}
       accessibilityLabel={`${p.title}, ${label}`}
       onPress={() =>
-        p.status === 'failed' ? retryProject(p.id) : router.push({ pathname: '/editor/[projectId]', params: { projectId: p.id } })
+        p.status === 'failed' || p.status === 'cancelled' ? retryProject(p.id) : router.push({ pathname: '/editor/[projectId]', params: { projectId: p.id } })
       }
       style={styles.row}>
       <Thumb seed={seedOf(p.id)} uri={p.posterUri} style={styles.thumb} />
@@ -212,7 +244,7 @@ function ProjectRow({ project: p }: { project: Project }) {
           {p.title}
         </AppText>
         <View style={styles.meta}>
-          <AppText variant="label" color={color} numberOfLines={1} style={styles.flex}>
+          <AppText variant="label" color={color} numberOfLines={2} style={styles.flex}>
             {label}
           </AppText>
           <AppText variant="label" color={colors.textMuted}>
@@ -224,9 +256,13 @@ function ProjectRow({ project: p }: { project: Project }) {
           <AppText variant="caption" color={colors.orange} numberOfLines={2}>
             {p.error}
           </AppText>
+        ) : p.warnings?.length && p.status === 'ready' ? (
+          <AppText variant="caption" color={colors.textMuted} numberOfLines={2}>
+            {p.warnings[0]}
+          </AppText>
         ) : null}
       </View>
-      {p.status === 'failed' ? (
+      {p.status === 'failed' || p.status === 'cancelled' ? (
         <SymbolView name="arrow.clockwise" size={16} tintColor={colors.textSecondary} />
       ) : openable ? (
         <SymbolView name="chevron.right" size={14} tintColor={colors.textMuted} />
@@ -246,7 +282,7 @@ function statusLabel(p: Project): string {
     case 'ready':
       return 'Ready to review';
     case 'exportQueued':
-      return 'Waiting to export';
+      return p.stage === 'cooling' ? 'Cooling down before export' : 'Waiting to export';
     case 'exporting':
       return `${STAGE_LABELS[p.stage ?? ''] ?? 'Exporting'} ${Math.round(p.progress * 100)}%`;
     case 'done':
@@ -254,7 +290,7 @@ function statusLabel(p: Project): string {
     case 'failed':
       return `Failed: ${p.error ?? 'unknown error'}. Tap to retry.`;
     case 'cancelled':
-      return 'Cancelled';
+      return 'Cancelled. Tap to resume.';
     default:
       return p.status;
   }

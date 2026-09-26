@@ -1,11 +1,25 @@
 import { Alert } from 'react-native';
+import { create } from 'zustand';
 
 import { Engine, type ImportedAsset } from '../engine';
 import { maxBatchSize, useEntitlements } from '../state/entitlements';
 import { useLibrary } from '../state/library';
 import { batchPreset } from '../state/presets';
 import { useSettings } from '../state/settings';
-import { errorText } from './queue';
+import { errorText, pump } from './queue';
+
+/** True while the Photos picker is open or picked clips are still copying in (iCloud can take minutes). */
+export const useImporting = create<{ busy: boolean }>(() => ({ busy: false }));
+
+async function exclusive<T>(fallback: T, work: () => Promise<T>): Promise<T> {
+  if (useImporting.getState().busy) return fallback; // a second tap while the picker is up would hang
+  useImporting.setState({ busy: true });
+  try {
+    return await work();
+  } finally {
+    useImporting.setState({ busy: false });
+  }
+}
 
 function report(assets: ImportedAsset[]) {
   const failed = assets.filter((a) => a.error);
@@ -19,29 +33,38 @@ function report(assets: ImportedAsset[]) {
 }
 
 /** Opens the Photos picker and creates a new batch. Returns the batch id, or null if nothing was picked. */
-export async function importNewBatch(): Promise<string | null> {
-  const isPro = useEntitlements.getState().isPro;
-  try {
-    const assets = report(await Engine.pickVideos(maxBatchSize(isPro)));
-    if (assets.length === 0) return null;
-    return useLibrary.getState().createBatch(assets, batchPreset(useSettings.getState().defaultPreset));
-  } catch (e) {
-    Alert.alert('Couldn’t import', errorText(e));
-    return null;
-  }
+export function importNewBatch(): Promise<string | null> {
+  return exclusive<string | null>(null, async () => {
+    const isPro = useEntitlements.getState().isPro;
+    try {
+      const assets = report(await Engine.pickVideos(maxBatchSize(isPro)));
+      if (assets.length === 0) return null;
+      return useLibrary.getState().createBatch(assets, batchPreset(useSettings.getState().defaultPreset, useSettings.getState().platforms));
+    } catch (e) {
+      Alert.alert('Couldn’t import', errorText(e));
+      return null;
+    }
+  });
 }
 
-/** Adds more clips to a batch that hasn't started yet. */
-export async function importIntoBatch(batchId: string) {
-  const { batches } = useLibrary.getState();
-  const batch = batches[batchId];
-  if (!batch) return;
-  const room = maxBatchSize(useEntitlements.getState().isPro) - batch.projectIds.length;
-  if (room <= 0) return;
-  try {
-    const assets = report(await Engine.pickVideos(room));
-    if (assets.length) useLibrary.getState().addToBatch(batchId, assets);
-  } catch (e) {
-    Alert.alert('Couldn’t import', errorText(e));
-  }
+/** Adds more clips to a batch. If the batch has started meanwhile, the new clips join the queue. */
+export function importIntoBatch(batchId: string): Promise<void> {
+  return exclusive(undefined, async () => {
+    const batch = useLibrary.getState().batches[batchId];
+    if (!batch) return;
+    const room = maxBatchSize(useEntitlements.getState().isPro) - batch.projectIds.length;
+    if (room <= 0) return;
+    try {
+      const assets = report(await Engine.pickVideos(room));
+      if (!assets.length) return;
+      const lib = useLibrary.getState();
+      lib.addToBatch(batchId, assets);
+      if (lib.batches[batchId]?.startedAt) {
+        assets.forEach((a) => useLibrary.getState().updateProject(a.projectId, { status: 'queued', progress: 0 }));
+        pump();
+      }
+    } catch (e) {
+      Alert.alert('Couldn’t import', errorText(e));
+    }
+  });
 }

@@ -19,6 +19,8 @@ public struct ExportResult: Codable, Sendable {
   public var uri: String
   public var savedToPhotos: Bool
   public var photosDenied: Bool
+  /// Set when saving to Photos failed for another reason (e.g. storage full).
+  public var saveError: String?
   public var durationSec: Double
   public var elapsedSec: Double
 }

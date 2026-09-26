@@ -1,4 +1,5 @@
 import { calls, control, running } from './mockEngine';
+import { AppState } from './rnMock';
 import { cancelBatch, queueExports, retryProject, setPaused, startBatch, startQueue, useQueueUI } from '@/batch/queue';
 import { useEntitlements } from '@/state/entitlements';
 import { projectsOf, useLibrary } from '@/state/library';
@@ -104,6 +105,49 @@ async function main() {
   const ids = [...lib().batches[b].projectIds];
   lib().deleteBatch(b);
   check(!lib().batches[b] && ids.every((id) => !lib().projects[id] && !lib().docs[id]), 'gone');
+
+  console.log('• exporting from a paused batch unpauses it and exports');
+  useEntitlements.setState({ isPro: true });
+  b = newBatch(2);
+  startBatch(b);
+  check(await until(() => statuses(b).every((s) => s === 'ready')), 'ready');
+  setPaused(b, true);
+  queueExports([lib().batches[b].projectIds[0]]);
+  check(await until(() => statuses(b)[0] === 'done'), `exported (${statuses(b)})`);
+  check(!lib().batches[b].paused, 'batch unpaused');
+
+  console.log('• iOS cancels an export in the background: re-queued, resumes in the foreground');
+  const bgId = lib().batches[b].projectIds[1];
+  control.systemCancel.add(bgId);
+  control.exportMs = 60;
+  queueExports([bgId]);
+  await until(() => lib().projects[bgId].status === 'exporting');
+  AppState.set('background');
+  check(await until(() => lib().projects[bgId].status === 'exportQueued'), `back in the queue (${lib().projects[bgId].status})`);
+  await sleep(150);
+  check(lib().projects[bgId].status === 'exportQueued', 'no export starts in the background');
+  AppState.set('active');
+  check(await until(() => lib().projects[bgId].status === 'done'), `exported after returning (${lib().projects[bgId].status})`);
+  control.exportMs = 15;
+
+  console.log('• a failed Photos save still finishes the export, with a message');
+  control.saveError = 'Disk full';
+  queueExports([bgId]);
+  check(await until(() => lib().projects[bgId].status === 'done' && lib().projects[bgId].savedToPhotos === false), 'done, not in Photos');
+  check((lib().projects[bgId].error ?? '').includes('Share'), `tells the user to share (${lib().projects[bgId].error})`);
+  control.saveError = undefined;
+
+  console.log('• cancelled clips can be resumed');
+  b = newBatch(3);
+  control.analyzeMs = 60;
+  startBatch(b);
+  await until(() => statuses(b).includes('analyzing'));
+  await cancelBatch(b);
+  control.analyzeMs = 15;
+  control.cancelled.clear();
+  check(statuses(b).includes('cancelled'), `some cancelled (${statuses(b)})`);
+  startBatch(b);
+  check(await until(() => statuses(b).every((s) => s === 'ready')), `all ready after resume (${statuses(b)})`);
 
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);

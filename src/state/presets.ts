@@ -9,7 +9,7 @@ export const PRESET_OPTIONS: { id: PresetId; name: string; blurb: string }[] = [
   { id: 'custom', name: 'Custom', blurb: 'Your own settings' },
 ];
 
-export function batchPreset(id: PresetId): BatchPreset {
+function basePreset(id: PresetId): BatchPreset {
   const base: BatchPreset = {
     presetId: id,
     analysis: { silence: 'medium', fillers: 'standard', language: 'auto' },
@@ -43,4 +43,17 @@ export function batchPreset(id: PresetId): BatchPreset {
     default:
       return base;
   }
+}
+
+const VERTICAL_PLATFORMS = ['tiktok', 'reels', 'shorts'];
+
+/**
+ * The preset for new batches. Where the user posts (onboarding) decides the frame: any vertical
+ * platform → 9:16, only YouTube / LinkedIn → keep the clip's shape. No answer → the preset's own.
+ */
+export function batchPreset(id: PresetId, platforms: readonly string[] = []): BatchPreset {
+  const preset = basePreset(id);
+  if (platforms.length === 0) return preset;
+  const vertical = platforms.some((p) => VERTICAL_PLATFORMS.includes(p));
+  return { ...preset, crop: vertical ? { auto916: true, aspect: '9:16' } : { auto916: false, aspect: 'original' } };
 }

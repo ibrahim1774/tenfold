@@ -60,7 +60,13 @@ public enum ProjectStore {
     try? FileManager.default.removeItem(at: root.appendingPathComponent(id, isDirectory: true))
   }
 
+  /// Bytes in a file, or in everything under a folder.
   public static func size(of url: URL) -> Int64 {
+    var isDir: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { return 0 }
+    if !isDir.boolValue {
+      return (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
+    }
     guard let e = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey]) else { return 0 }
     var total: Int64 = 0
     for case let f as URL in e {

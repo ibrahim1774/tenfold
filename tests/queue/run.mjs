@@ -23,6 +23,7 @@ await esbuild.build({
         b.onResolve({ filter: /^@\// }, (a) => ({ path: path.join(root, 'src', `${a.path.slice(2)}.ts`) }));
         b.onResolve({ filter: /^\.\.\/engine$/ }, () => ({ path: path.join(here, 'mockEngine.ts') }));
         b.onResolve({ filter: /^expo-sqlite\/kv-store$/ }, () => ({ path: path.join(here, 'kvMock.ts') }));
+        b.onResolve({ filter: /^react-native$/ }, () => ({ path: path.join(here, 'rnMock.ts') }));
       },
     },
   ],

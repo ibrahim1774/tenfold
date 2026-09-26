@@ -25,7 +25,7 @@ import {
 } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
 import type { AudioMode, FillerLevel, SilenceLevel, ZoomMode } from '@/engine/types';
-import { importIntoBatch } from '@/batch/importClips';
+import { importIntoBatch, useImporting } from '@/batch/importClips';
 import { startBatch } from '@/batch/queue';
 import { Engine } from '@/engine';
 import { setCaptionStyle as setStyle, setPresetId as setPreset, updatePreset } from '@/state/batchSetup';
@@ -65,6 +65,8 @@ export default function BatchSetupScreen() {
   const batch = useLibrary((s) => s.batches[batchId]);
   const projects = useLibrary((s) => s.projects);
   const removeProject = useLibrary((s) => s.removeProject);
+  const deleteBatch = useLibrary((s) => s.deleteBatch);
+  const importing = useImporting((s) => s.busy);
   const ent = useEntitlements();
   const isPro = ent.isPro;
   const exportsLeft = freeExportsLeft(ent);
@@ -100,7 +102,22 @@ export default function BatchSetupScreen() {
       },
     ]);
 
+  const discard = () =>
+    Alert.alert('Discard this batch?', 'The clips are removed from Tenfold. Your originals in Photos stay.', [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Discard',
+        style: 'destructive',
+        onPress: () => {
+          clips.forEach((c) => Engine.deleteProject(c.id).catch(() => {}));
+          deleteBatch(batchId);
+          router.back();
+        },
+      },
+    ]);
+
   const start = () => {
+    if (importing) return;
     startBatch(batchId);
     router.replace({ pathname: '/batch/[batchId]', params: { batchId } });
   };
@@ -112,7 +129,7 @@ export default function BatchSetupScreen() {
         contentContainerStyle={{ paddingTop: insets.top + 4, paddingBottom: insets.bottom + 130 }}
         showsVerticalScrollIndicator={false}>
         <View style={[styles.gutter, styles.stack]}>
-          <ScreenHeader title="New batch" />
+          <ScreenHeader title="New batch" right={<OutlineButton title="Discard" height={40} onPress={discard} />} />
           <AppText variant="body" color={colors.textSecondary}>
             Tell Tenfold how to edit your clips.
           </AppText>
@@ -122,15 +139,8 @@ export default function BatchSetupScreen() {
             {clips.length === 0 ? (
               <View style={styles.dropEmpty}>
                 <SymbolView name="icloud.and.arrow.up" size={34} tintColor={colors.textPrimary} weight="light" />
-                <AppText variant="bodyStrong">Add your clips</AppText>
-                <View style={styles.orRow}>
-                  <View style={styles.orLine} />
-                  <AppText variant="caption" color={colors.textMuted}>
-                    or
-                  </AppText>
-                  <View style={styles.orLine} />
-                </View>
-                <OutlineButton title="Add" icon="plus" height={38} onPress={() => importIntoBatch(batchId)} />
+                <AppText variant="bodyStrong">{importing ? 'Adding your clips…' : 'Add your clips'}</AppText>
+                <OutlineButton title="Add" icon="plus" height={38} disabled={importing} onPress={() => importIntoBatch(batchId)} />
                 <AppText variant="label" color={colors.textSecondary}>
                   Up to {maxBatchSize(isPro)} clips
                 </AppText>
@@ -159,8 +169,12 @@ export default function BatchSetupScreen() {
                     </PressableScale>
                   ))}
                   {clips.length < maxBatchSize(isPro) && (
-                    <PressableScale onPress={() => importIntoBatch(batchId)} style={styles.addThumb} accessibilityLabel="Add clips">
-                      <SymbolView name="plus" size={22} tintColor={colors.textPrimary} />
+                    <PressableScale
+                      onPress={() => importIntoBatch(batchId)}
+                      disabled={importing}
+                      style={[styles.addThumb, importing && styles.dim]}
+                      accessibilityLabel={importing ? 'Adding clips' : 'Add clips'}>
+                      <SymbolView name={importing ? 'hourglass' : 'plus'} size={22} tintColor={colors.textPrimary} />
                     </PressableScale>
                   )}
                 </ScrollView>
@@ -379,7 +393,7 @@ export default function BatchSetupScreen() {
             </ChipGroup>
             <OptionLabel>Language</OptionLabel>
             <ChipGroup>
-              <Chip label="Auto (English)" selected />
+              <Chip label="Automatic" selected />
             </ChipGroup>
             <ToggleRow
               title="Export automatically"
@@ -398,10 +412,10 @@ export default function BatchSetupScreen() {
           </AppText>
         )}
         <GradientButton
-          title={`Edit all ${clips.length} ${clips.length === 1 ? 'video' : 'videos'}`}
+          title={importing ? 'Adding clips…' : `Edit all ${clips.length} ${clips.length === 1 ? 'video' : 'videos'}`}
           shape="pill"
           trailingArrow
-          disabled={clips.length === 0}
+          disabled={clips.length === 0 || importing}
           onPress={start}
         />
       </View>
@@ -415,8 +429,7 @@ const styles = StyleSheet.create({
   stack: { gap: spacing.lg },
   drop: { paddingVertical: spacing.xl, paddingHorizontal: spacing.lg },
   dropEmpty: { alignItems: 'center', gap: spacing.sm },
-  orRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  orLine: { width: 80, height: 1, backgroundColor: 'rgba(139,92,246,0.4)' },
+  dim: { opacity: 0.5 },
   dropFilled: { gap: spacing.md },
   dropHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   thumbs: { gap: 8 },

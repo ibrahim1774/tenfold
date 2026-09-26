@@ -317,6 +317,36 @@ struct RenderHarness {
         try? FileManager.default.removeItem(at: o2)
       }
       print("  style frames written")
+
+      print("• captions in other aspect ratios")
+      for (aspect, expect) in [("16:9", CGSize(width: 1920, height: 1080)), ("1:1", CGSize(width: 1080, height: 1080)), ("4:5", CGSize(width: 1080, height: 1350))] {
+        var d3 = doc
+        d3.crop = CropSettings(auto916: false, aspect: aspect)
+        d3.captions = CaptionSettings(styleId: "pop")
+        let p3 = EditPlanner.plan(doc: d3, analysis: analysis)
+        let b3 = try await CompositionBuilder.build(source: src, media: media, plan: p3, doc: d3, faces: analysis.faces, quality: .hd)
+        check(b3.renderSize == expect, "\(aspect) render size \(b3.renderSize)")
+        let name = aspect.replacingOccurrences(of: ":", with: "x")
+        let o3 = outDir.appendingPathComponent("harness-aspect-\(name).mp4")
+        try await Exporter.export(built: b3, plan: p3, captions: d3.captions, options: ExportOptions(quality: .hd, watermark: true, saveToPhotos: false), to: o3) { _ in }
+        let card = p3.cards.first { $0.words.count >= 2 } ?? p3.cards[0]
+        let words = CaptionLayerBuilder.layout(card: card, captions: d3.captions, style: CaptionStyle.forId("pop"), render: b3.renderSize)
+        let box = words.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+        check(!words.isEmpty && box.minX >= 0 && box.maxX <= b3.renderSize.width, "\(aspect) caption inside the frame \(box)")
+        check(box.height / b3.renderSize.height < 0.2, "\(aspect) caption height \(Int(box.height / b3.renderSize.height * 100))% of frame")
+        let w = card.words[min(1, card.words.count - 1)]
+        let img = try await frame(o3, at: (w.start + w.end) / 2, orient: false)
+        try ThumbnailGenerator.writeJPEG(img, to: outDir.appendingPathComponent("harness-aspect-\(name).jpg"))
+        try? FileManager.default.removeItem(at: o3)
+      }
+
+      print("• a very long word shrinks to fit instead of being cut off")
+      var big = doc.captions
+      big.styleId = "oneword"
+      big.sizeScale = 1.5
+      let longCard = CaptionCard(start: 0, end: 1, words: [CardWord(index: 0, text: "UNBELIEVABLEEEEE", start: 0, end: 1, emphasis: false)])
+      let laid = CaptionLayerBuilder.layout(card: longCard, captions: big, style: CaptionStyle.forId("oneword"), render: CGSize(width: 1080, height: 1920))
+      check(laid.count == 1 && laid[0].frame.minX >= 0 && laid[0].frame.maxX <= 1080, "long word fits \(laid.first?.frame ?? .zero)")
       ProjectStore.delete(id)
     } catch {
       print("  FAIL threw \(error)")

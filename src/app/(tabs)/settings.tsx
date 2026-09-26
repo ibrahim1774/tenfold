@@ -1,3 +1,5 @@
+import * as Haptics from 'expo-haptics';
+import * as Linking from 'expo-linking';
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useState, type ReactNode } from 'react';
@@ -21,6 +23,16 @@ import { exportsLeft, useEntitlements } from '@/state/entitlements';
 import { PRESET_OPTIONS } from '@/state/presets';
 import { useSettings } from '@/state/settings';
 import { prepareSpeech, refreshSpeechStatus } from '@/state/speech';
+
+/** "en_US" → "English (United States)"; empty → "Automatic". */
+function languageName(locale: string) {
+  if (!locale) return 'Automatic';
+  try {
+    return new Intl.DisplayNames(undefined, { type: 'language' }).of(locale.replace('_', '-')) ?? locale;
+  } catch {
+    return locale;
+  }
+}
 
 function formatBytes(n: number) {
   if (n < 1e6) return `${Math.round(n / 1e3)} KB`;
@@ -51,8 +63,13 @@ export default function SettingsScreen() {
         text: 'Clear',
         style: 'destructive',
         onPress: async () => {
-          await Engine.clearExports().catch(() => {});
-          Engine.storageBytes().then(setStorage).catch(() => {});
+          try {
+            await Engine.clearExports();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setStorage(await Engine.storageBytes());
+          } catch (e) {
+            Alert.alert('Couldn’t clear files', e instanceof Error ? e.message : String(e));
+          }
         },
       },
     ]);
@@ -101,7 +118,7 @@ export default function SettingsScreen() {
               <ProgressBar progress={speechProgress} height={4} />
             </View>
           )}
-          <Row icon="globe" title="Language" value={speechLocale || 'Automatic'} />
+          <Row icon="globe" title="Language" value={languageName(speechLocale)} />
           <Row icon="cpu" title="Engine" value="Apple SpeechAnalyzer" last={speech !== 'supported'} />
           {speech === 'supported' && <Row icon="arrow.down.circle" title="Set up speech" onPress={prepareSpeech} last />}
         </Group>
@@ -127,14 +144,19 @@ export default function SettingsScreen() {
         </Group>
 
         <Group title="Storage">
-          <Row icon="internaldrive" title="Projects and exports" value={storage == null ? '…' : formatBytes(storage)} />
+          <Row icon="internaldrive" title="Projects and exports" value={!engine ? 'Unavailable' : storage == null ? '…' : formatBytes(storage)} />
           <Row icon="trash" title="Clear exported files" onPress={clearExports} last />
         </Group>
 
         <Group title="Subscription">
           <Row icon="crown" title="Plan" value={isPro ? 'Pro' : `Free · ${exportsLeft(ent)} exports left`} />
           <Row icon="arrow.clockwise" title="Restore purchases" onPress={() => Alert.alert('Coming soon', 'Purchases arrive with the Superwall integration.')} />
-          <Row icon="creditcard" title="Manage subscription" onPress={() => router.push('/paywall')} last />
+          <Row
+            icon="creditcard"
+            title={isPro ? 'Manage subscription' : 'See Pro plans'}
+            onPress={() => (isPro ? Linking.openURL('https://apps.apple.com/account/subscriptions') : router.push('/paywall'))}
+            last
+          />
         </Group>
 
         <Group title="Privacy">
@@ -148,7 +170,17 @@ export default function SettingsScreen() {
 
         <Group title="About">
           <Row icon="bolt.horizontal" title="Video engine" value={engine ? 'Connected' : 'Update the app'} />
-          <Row icon="arrow.counterclockwise" title="Replay onboarding" onPress={() => setOnboarded(false)} last />
+          <Row
+            icon="arrow.counterclockwise"
+            title="Replay onboarding"
+            onPress={() =>
+              Alert.alert('Replay onboarding?', 'Your answers set the default style for new batches. Existing batches don’t change.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Replay', onPress: () => setOnboarded(false) },
+              ])
+            }
+            last
+          />
         </Group>
       </ScrollView>
     </View>

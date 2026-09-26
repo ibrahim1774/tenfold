@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -25,6 +26,17 @@ const FEATURES = [
   { icon: '4k.tv', title: '4K export', subtitle: 'Full resolution from your camera.', color: '#4DD8FF' },
   { icon: 'captions.bubble', title: 'All caption styles', subtitle: 'Karaoke, Outline, Subtle and more.', color: '#FFC24D' },
 ] as const;
+
+const LINKS = [
+  { label: 'Restore', onPress: () => Alert.alert('Restore purchases', 'Restoring arrives with subscriptions in the next update.') },
+  // Apple's standard licence agreement until Tenfold has its own terms page.
+  { label: 'Terms', onPress: () => WebBrowser.openBrowserAsync('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/') },
+  {
+    label: 'Privacy',
+    onPress: () =>
+      Alert.alert('Privacy', 'Tenfold edits everything on your iPhone. No account, no uploads, no analytics. Your videos never leave your phone.'),
+  },
+];
 
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
@@ -98,8 +110,13 @@ export default function PaywallScreen() {
           icon={false}
           shape="pill"
           onPress={() => {
-            setPro(true);
-            close();
+            // Placeholder until Superwall (M5): dev builds can unlock Pro to test; release builds never get it free.
+            if (__DEV__) {
+              setPro(true);
+              close();
+            } else {
+              Alert.alert('Coming soon', 'Subscriptions open with the next update.');
+            }
           }}
         />
 
@@ -112,8 +129,8 @@ export default function PaywallScreen() {
         )}
 
         <View style={styles.links}>
-          {['Restore', 'Terms', 'Privacy'].map((l) => (
-            <PressableScale key={l} haptic={false} accessibilityRole="link">
+          {LINKS.map(({ label: l, onPress }) => (
+            <PressableScale key={l} haptic={false} accessibilityRole="link" onPress={onPress}>
               <AppText variant="caption" color={colors.textMuted}>
                 {l}
               </AppText>

@@ -144,7 +144,7 @@ export const CAPTION_PRESETS: CaptionPreset[] = [
     font: 'sfRounded',
     colors: { base: '#FFFFFF', active: '#FFFFFF', stroke: 'transparent', bg: 'transparent' },
     uppercase: false,
-    positionY: 0.8,
+    positionY: 0.7,
     animation: 'none',
     maxWords: 7,
     free: false,

@@ -37,7 +37,9 @@ class TenfoldPreviewView: ExpoView {
     layer.addSublayer(playerLayer)
     player.actionAtItemEnd = .pause
     timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 30), queue: .main) { [weak self] t in
-      self?.onTime(["time": t.seconds])
+      // Seeks also fire this observer with in-between times; only report while nothing is being chased.
+      guard let self, !self.seekInFlight, self.pendingSeek == nil else { return }
+      self.onTime(["time": t.seconds])
     }
     // Tell JS whenever the player really starts or stops (end of clip, interruptions), so its play button never lies.
     statusObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in

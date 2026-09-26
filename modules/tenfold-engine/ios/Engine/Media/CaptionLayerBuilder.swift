@@ -39,10 +39,14 @@ public enum CaptionLayerBuilder {
   }
 
   /// Word frames for one card, wrapped to at most two lines and centred on the caption position.
+  /// Style sizes are fractions of a 9:16 frame's width; the short side keeps them the same visual size in 1:1 and 16:9.
+  static func unit(_ render: CGSize) -> CGFloat { min(render.width, render.height) }
+
   public static func layout(card: CaptionCard, captions: CaptionSettings, style: CaptionStyle, render: CGSize) -> [LaidOutWord] {
-    var size = CGFloat(style.sizeRatio * Double(render.width) * max(0.5, captions.sizeScale))
-    let maxWidth = render.width * 0.84
-    for _ in 0..<5 {
+    var size = CGFloat(style.sizeRatio * Double(unit(render)) * max(0.5, captions.sizeScale))
+    let maxWidth = min(render.width * 0.84, unit(render) * 1.5)
+    var result: [LaidOutWord] = []
+    for attempt in 0..<8 {
       let base = makeFont(captions.font, size: size)
       let emph = makeFont(captions.font, size: size * 1.1)
       let space = width(" ", base)
@@ -60,10 +64,10 @@ public enum CaptionLayerBuilder {
           lineW += add
         }
       }
-      if lines.count > CaptionGrouper.maxLines && size > 12 {
-        size *= 0.85
-        continue
-      }
+      // Shrink while the card needs too many lines or a single word is wider than the frame allows.
+      let widest = lines.map { l in l.map(\.1).reduce(0, +) + space * CGFloat(max(0, l.count - 1)) }.max() ?? 0
+      let fits = lines.count <= CaptionGrouper.maxLines && widest <= maxWidth
+      let lastTry = attempt == 7 || size <= 12
       let lh = lineHeight(emph)
       let totalH = lh * CGFloat(lines.count)
       var centerY = CGFloat(captions.position.y) * render.height
@@ -79,9 +83,11 @@ public enum CaptionLayerBuilder {
         }
         y += lh
       }
-      return out
+      result = out
+      if fits || lastTry { break }
+      size *= 0.85
     }
-    return []
+    return result
   }
 
   // MARK: - Animation helpers (composition time; begin at AVCoreAnimationBeginTimeAtZero)
@@ -139,8 +145,8 @@ public enum CaptionLayerBuilder {
     let active = ColorParser.cgColor(captions.colors.active) ?? base
     let stroke = ColorParser.cgColor(captions.colors.stroke) ?? ColorParser.black
     let bg = ColorParser.cgColor(captions.colors.bg) ?? ColorParser.make(0.06, 0.07, 0.13, 0.85)
-    // Outline strokes scale with frame width (preset stroke is in 1080-wide pixels).
-    let strokeW = style.strokeWidth * Double(render.width) / 1080
+    // Outline strokes scale with the frame's short side (preset stroke is in 1080-wide pixels).
+    let strokeW = style.strokeWidth * Double(unit(render)) / 1080
 
     if captions.enabled && total > 0 {
       for card in plan.cards {
@@ -249,13 +255,13 @@ public enum CaptionLayerBuilder {
     }
 
     if watermark {
-      let size = render.width * 0.034
+      let size = unit(render) * 0.034
       let font = CTFontCreateWithName("Poppins-SemiBold" as CFString, size, nil)
       let label = "Tenfold"
       let w = width(label, font) + 4
       let h = lineHeight(font)
       let mark = text(label, font: font, fill: ColorParser.white, stroke: nil, strokeWidth: 0,
-                      origin: CGPoint(x: render.width - w - render.width * 0.04, y: render.height - h - render.height * 0.035),
+                      origin: CGPoint(x: render.width - w - unit(render) * 0.04, y: render.height - h - unit(render) * 0.06),
                       scale: contentsScale)
       mark.opacity = 0.7
       mark.shadowColor = ColorParser.black

@@ -47,7 +47,12 @@ export default function LibraryScreen() {
           ))}
         </ChipGroup>
 
-        {batches.length === 0 ? (
+        {batches.length === 0 && filter !== 'all' && Object.keys(batchMap).length > 0 ? (
+          <View style={styles.empty}>
+            <AppText variant="bodyStrong">No {FILTERS.find((f) => f.v === filter)?.l.toLowerCase()} batches</AppText>
+            <Chip label="Show all" onPress={() => setFilter('all')} />
+          </View>
+        ) : batches.length === 0 ? (
           <View style={styles.empty}>
             <AppText variant="bodyStrong">Nothing here yet</AppText>
             <AppText variant="label" color={colors.textSecondary} style={styles.center}>

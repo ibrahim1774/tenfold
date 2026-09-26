@@ -21,9 +21,9 @@ export default function ExportScreen() {
   const { exportQuality, setExportQuality } = useSettings();
   // When this screen started an export (0 = not yet), to tell a fresh export from an older one.
   const [startedAt, setStartedAt] = useState(0);
-  const started = startedAt > 0;
-
   const busy = project?.status === 'exportQueued' || project?.status === 'exporting';
+  // Also "started" when coming back to an export that's already running.
+  const started = startedAt > 0 || busy;
   const finished = started && project?.status === 'done' && (project.exportedAt ?? 0) >= startedAt;
   const failed = started && !busy && !finished && !!project?.error;
   const can4K = (project?.media ? Math.min(project.media.width, project.media.height) : 0) >= 2160;
@@ -45,13 +45,19 @@ export default function ExportScreen() {
 
   const share = async () => {
     if (!project.exportUri) return;
-    if (!(await Sharing.isAvailableAsync())) return;
-    await Sharing.shareAsync(project.exportUri, { mimeType: 'video/mp4', UTI: 'public.mpeg-4' });
+    try {
+      if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing isn’t available on this device.');
+      await Sharing.shareAsync(project.exportUri, { mimeType: 'video/mp4', UTI: 'public.mpeg-4' });
+    } catch (e) {
+      Alert.alert('Couldn’t share', e instanceof Error ? e.message : String(e));
+    }
   };
 
   const openTikTok = async () => {
     const can = await Linking.canOpenURL('tiktok://').catch(() => false);
-    await Linking.openURL(can ? 'tiktok://' : 'photos-redirect://');
+    await Linking.openURL(can ? 'tiktok://' : 'photos-redirect://').catch(() => {
+      Alert.alert('Couldn’t open TikTok', 'Your video is in Photos. Open TikTok and pick it from your camera roll.');
+    });
   };
 
   const left = exportsLeft(ent);
@@ -71,12 +77,12 @@ export default function ExportScreen() {
           <Card style={styles.options}>
             <AppText variant="bodyStrong">Quality</AppText>
             <ChipGroup>
-              <Chip label="1080p" selected={exportQuality === 'hd' || !ent.isPro} onPress={() => setExportQuality('hd')} />
+              <Chip label="1080p" selected={exportQuality === 'hd' || !ent.isPro || !can4K} onPress={() => setExportQuality('hd')} />
               <Chip
                 label="4K"
                 locked={!ent.isPro}
                 disabled={ent.isPro && !can4K}
-                selected={ent.isPro && exportQuality === 'uhd'}
+                selected={ent.isPro && can4K && exportQuality === 'uhd'}
                 onPress={() => (ent.isPro ? setExportQuality('uhd') : router.push('/paywall'))}
               />
             </ChipGroup>
@@ -119,13 +125,20 @@ export default function ExportScreen() {
         <GradientButton title="Save to Photos" icon="square.and.arrow.down" shape="pill" onPress={start} />
       )}
       {started && busy && <OutlineButton title="Hide" height={50} onPress={() => router.back()} />}
-      {finished && (
+      {finished && project.savedToPhotos && (
         <View style={styles.saved}>
           <GradientButton title="Open TikTok" icon="arrow.up.right" shape="pill" onPress={openTikTok} />
           <View style={styles.savedRow}>
             <OutlineButton title="Share" icon="square.and.arrow.up" height={50} style={styles.flexOne} onPress={share} />
             <OutlineButton title="Done" height={50} style={styles.flexOne} onPress={() => router.back()} />
           </View>
+        </View>
+      )}
+      {/* Not in Photos (access denied or save failed): Share is the way to get the video out. */}
+      {finished && !project.savedToPhotos && (
+        <View style={styles.saved}>
+          <GradientButton title="Share video" icon="square.and.arrow.up" shape="pill" onPress={share} />
+          <OutlineButton title="Done" height={50} onPress={() => router.back()} />
         </View>
       )}
     </View>

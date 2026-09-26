@@ -133,12 +133,18 @@ public class TenfoldEngineModule: Module {
         }
         var saved = false
         var denied = false
+        var saveError: String?
         if options.saveToPhotos {
           self.sendEvent("onJobProgress", ["projectId": projectId, "stage": "saving", "fraction": 0])
-          saved = try await PhotoSaver.save(out)
-          denied = !saved
+          // The video is rendered either way; a failed save still leaves it shareable.
+          do {
+            saved = try await PhotoSaver.save(out)
+            denied = !saved
+          } catch {
+            saveError = error.localizedDescription
+          }
         }
-        return try encodeJSON(ExportResult(uri: out.absoluteString, savedToPhotos: saved, photosDenied: denied, durationSec: plan.compDuration, elapsedSec: Date().timeIntervalSince(started)))
+        return try encodeJSON(ExportResult(uri: out.absoluteString, savedToPhotos: saved, photosDenied: denied, saveError: saveError, durationSec: plan.compDuration, elapsedSec: Date().timeIntervalSince(started)))
       }
     }
 
@@ -186,7 +192,7 @@ public class TenfoldEngineModule: Module {
 
       AsyncFunction("seek") { (view: TenfoldPreviewView, time: Double) in
         view.seek(time)
-      }
+      }.runOnQueue(.main)
     }
   }
 }

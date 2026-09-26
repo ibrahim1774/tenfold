@@ -8,7 +8,13 @@ import { AppText, Chip, GradientButton, IconButton, OptionLabel, PressableScale,
 import { colors, fonts, radii, spacing } from '@/design/tokens';
 import { Engine, type CaptionFont, type CaptionSettings, type CaptionStyleId } from '@/engine';
 import { useEntitlements } from '@/state/entitlements';
+import { commitDoc } from '@/state/history';
 import { useLibrary } from '@/state/library';
+
+/** Styles that colour the spoken word differently; the rest use one text colour. */
+function usesHighlight(id: CaptionStyleId) {
+  return !['classic', 'reveal', 'none'].includes(presetById(id).animation);
+}
 
 // Edits the captions of one video (`projectId`) or the preset of a batch (`batchId`).
 // Tiles are illustrations; the live preview in the editor shows the real, export-identical render.
@@ -18,12 +24,11 @@ export default function CaptionStyleSheet() {
   const isPro = useEntitlements((s) => s.isPro);
   const doc = useLibrary((s) => (projectId ? s.docs[projectId] : undefined));
   const batch = useLibrary((s) => (batchId ? s.batches[batchId] : undefined));
-  const setDoc = useLibrary((s) => s.setDoc);
   const updateBatch = useLibrary((s) => s.updateBatch);
   const initial: CaptionSettings = doc?.captions ?? batch?.preset.captions ?? captionSettingsFromPreset('pop');
   const [styleId, setStyleId] = useState<CaptionStyleId>(initial.styleId);
   const [font, setFont] = useState<CaptionFont>(initial.font);
-  const [color, setColor] = useState(initial.colors.active);
+  const [color, setColor] = useState(usesHighlight(initial.styleId) ? initial.colors.active : initial.colors.base);
   const [size, setSize] = useState(initial.sizeScale);
   const [posY, setPosY] = useState(initial.position.y);
   const [uppercase, setUppercase] = useState(initial.uppercase);
@@ -48,7 +53,7 @@ export default function CaptionStyleSheet() {
     setUppercase(p.uppercase);
     setPosY(p.positionY);
     setMaxWords(p.maxWords);
-    setColor(p.colors.active);
+    setColor(usesHighlight(id) ? p.colors.active : p.colors.base);
   };
 
   const apply = () => {
@@ -57,13 +62,14 @@ export default function CaptionStyleSheet() {
       styleId,
       font,
       sizeScale: size,
-      colors: { ...p.colors, active: color },
+      // Styles without a highlighted word take the colour as their text colour.
+      colors: usesHighlight(styleId) ? { ...p.colors, active: color } : { ...p.colors, base: color, active: color },
       position: { y: posY },
       uppercase,
       maxWords,
       enabled,
     };
-    if (projectId && doc) setDoc(projectId, { ...doc, captions: next });
+    if (projectId && doc) commitDoc(projectId, { ...doc, captions: next });
     if (batchId && batch) updateBatch(batchId, { captionsOff: !enabled, preset: { ...batch.preset, presetId: 'custom', captions: next } });
     router.back();
   };
@@ -85,7 +91,7 @@ export default function CaptionStyleSheet() {
               highlight={styleId === p.id ? color : p.colors.active}
               animation={p.animation}
               fontFamily={CAPTION_FONTS.find((f) => f.id === (styleId === p.id ? font : p.font))?.family}
-              uppercase={p.uppercase}
+              uppercase={styleId === p.id ? uppercase : p.uppercase}
               maxWords={styleId === p.id ? maxWords : p.maxWords}
               locked={locked}
               selected={styleId === p.id}
@@ -110,7 +116,7 @@ export default function CaptionStyleSheet() {
         ))}
       </ScrollView>
 
-      <OptionLabel>Highlight colour</OptionLabel>
+      <OptionLabel>{usesHighlight(styleId) ? 'Highlight colour' : 'Text colour'}</OptionLabel>
       <View style={styles.row}>
         {CAPTION_COLORS.map((c) => (
           <PressableScale

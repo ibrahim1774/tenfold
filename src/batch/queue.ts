@@ -1,3 +1,4 @@
+import { AppState } from 'react-native';
 import { create } from 'zustand';
 
 import { Engine, EngineEvents, type Project } from '../engine';
@@ -37,6 +38,7 @@ let analysisBusy = false;
 let exportBusy = false;
 let started = false;
 const lastUpdate: Record<string, number> = {};
+const lastStage: Record<string, string> = {};
 
 const lib = () => useLibrary.getState();
 
@@ -68,10 +70,16 @@ export function startQueue() {
   }
   EngineEvents.onJobProgress(({ projectId, stage, fraction }) => {
     const now = Date.now();
-    if (fraction < 1 && now - (lastUpdate[projectId] ?? 0) < 100) return;
+    // Throttle progress, but never drop a stage change ("Saving to Photos" arrives right after 100%).
+    if (fraction < 1 && stage === lastStage[projectId] && now - (lastUpdate[projectId] ?? 0) < 100) return;
     lastUpdate[projectId] = now;
+    lastStage[projectId] = stage;
     const [a, b] = STAGE_SPAN[stage] ?? [0, 1];
     useLibrary.getState().updateProject(projectId, { stage, progress: a + (b - a) * Math.max(0, Math.min(1, fraction)) });
+  });
+  // Exports only start in the foreground (iOS would cut them short); resume when the app comes back.
+  AppState.addEventListener('change', (state) => {
+    if (state === 'active') pump();
   });
   pump();
 }
@@ -103,13 +111,15 @@ async function analyzeOne(p: Project) {
     const analysis = await Engine.analyze(p.id, { ...batch.preset.analysis, language: useSettings.getState().language });
     if (lib().projects[p.id]?.status !== 'analyzing') return; // cancelled meanwhile
     lib().setDoc(p.id, docFromAnalysis(analysis, batch));
+    // Out of free exports: leave it ready instead of queueing an export that would only bounce to the paywall.
+    const autoExport = batch.preset.autoExport && exportsLeft(useEntitlements.getState()) > 0;
     lib().updateProject(p.id, {
-      status: batch.preset.autoExport ? 'exportQueued' : 'ready',
+      status: autoExport ? 'exportQueued' : 'ready',
       stage: undefined,
       progress: 1,
       warnings: analysis.warnings,
     });
-    if (batch.preset.autoExport) void runExportLane();
+    if (autoExport) void runExportLane();
   } catch (e) {
     if (lib().projects[p.id]?.status !== 'analyzing') return;
     lib().updateProject(p.id, { status: 'failed', stage: undefined, error: errorText(e) });
@@ -122,10 +132,20 @@ async function runExportLane() {
   keepAwake();
   try {
     for (let p = nextProject('exportQueued'); p; p = nextProject('exportQueued')) {
+      if (AppState.currentState !== 'active') break;
       // Thermal pause (spec §7): wait until the phone cools down.
+      let cooled = false;
       while (['serious', 'critical'].includes(Engine.thermalState())) {
         lib().updateProject(p.id, { stage: 'cooling' });
         await new Promise((r) => setTimeout(r, 10_000));
+        cooled = true;
+      }
+      if (cooled) {
+        lib().updateProject(p.id, { stage: undefined });
+        // The user may have cancelled or paused while we waited: pick again.
+        const fresh = lib().projects[p.id];
+        const b = fresh && lib().batches[fresh.batchId];
+        if (!fresh || fresh.status !== 'exportQueued' || !b || b.paused) continue;
       }
       if (exportsLeft(useEntitlements.getState()) <= 0) {
         // Free tier used up: park everything waiting and ask for Pro.
@@ -168,10 +188,19 @@ async function exportOne(p: Project) {
       exportUri: result.uri,
       exportedAt: Date.now(),
       savedToPhotos: result.savedToPhotos,
-      error: result.photosDenied ? 'Photos access was denied. Use Share to save it.' : undefined,
+      error: result.photosDenied
+        ? 'Photos access was denied. Use Share to save it.'
+        : result.saveError
+          ? `Couldn’t save to Photos (${result.saveError}). Use Share to save it.`
+          : undefined,
     });
   } catch (e) {
     if (lib().projects[p.id]?.status !== 'exporting') return;
+    // Still "exporting" means the user didn't cancel: iOS ended our background time. Try again when back.
+    if (/cancel/i.test(errorText(e))) {
+      lib().updateProject(p.id, { status: 'exportQueued', stage: undefined, progress: 0 });
+      return;
+    }
     lib().updateProject(p.id, { status: 'ready', stage: undefined, progress: 1, error: errorText(e) });
   }
 }
@@ -212,12 +241,14 @@ export async function cancelBatch(batchId: string) {
 
 /** Queue exports for the given projects (only analysed ones). Returns how many were queued. */
 export function queueExports(projectIds: string[]): number {
-  const { projects, updateProject } = lib();
+  const { projects, batches, updateProject, updateBatch } = lib();
   let n = 0;
   for (const id of projectIds) {
     const p = projects[id];
     if (p && (p.status === 'ready' || p.status === 'done')) {
       updateProject(id, { status: 'exportQueued', progress: 0, error: undefined });
+      // Exporting is an explicit "go": a paused batch would otherwise leave it waiting forever.
+      if (batches[p.batchId]?.paused) updateBatch(p.batchId, { paused: false });
       n++;
     }
   }

@@ -9,6 +9,9 @@ export const control = {
   exportMs: 15,
   thermal: 'nominal' as string,
   cancelled: new Set<string>(),
+  /** Export fails once with a cancellation the user didn't ask for (iOS ended background time). */
+  systemCancel: new Set<string>(),
+  saveError: undefined as string | undefined,
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -44,7 +47,9 @@ export const Engine = {
     try {
       await sleep(control.exportMs);
       if (control.cancelled.has(id)) throw new Error('CancellationError');
-      return { uri: `file:///exports/${id}.mp4`, savedToPhotos: true, photosDenied: false, durationSec: 9, elapsedSec: 0.1, watermark: opts.watermark };
+      if (control.systemCancel.delete(id)) throw new Error('Swift.CancellationError');
+      const saveError = control.saveError;
+      return { uri: `file:///exports/${id}.mp4`, savedToPhotos: !saveError, photosDenied: false, saveError, durationSec: 9, elapsedSec: 0.1, watermark: opts.watermark };
     } finally {
       running.export--;
     }
