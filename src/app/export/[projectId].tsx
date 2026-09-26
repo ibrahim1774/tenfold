@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Background, Chip, ChipGroup, GradientButton, PressableScale, ProgressRing } from '@/design/components';
+import { AppText, Background, Card, Chip, ChipGroup, GradientButton, OutlineButton, PressableScale, ProgressRing } from '@/design/components';
 import { colors, spacing } from '@/design/tokens';
 import { mockProjects } from '@/mock/data';
 import { useEntitlements } from '@/state/entitlements';
@@ -49,13 +49,13 @@ export default function ExportScreen() {
       <AppText variant="title" style={styles.center}>
         {phase === 'saved' ? 'Saved to Photos' : 'Export'}
       </AppText>
-      <AppText variant="body" color={colors.textOnLightMuted} style={styles.center} numberOfLines={1}>
+      <AppText variant="body" color={colors.textSecondary} style={styles.center} numberOfLines={1}>
         {project.title}
       </AppText>
 
       <View style={styles.middle}>
         {phase === 'options' ? (
-          <View style={styles.options}>
+          <Card style={styles.options}>
             <AppText variant="bodyStrong">Quality</AppText>
             <ChipGroup>
               <Chip label="1080p" selected={quality === '1080p'} onPress={() => setQuality('1080p')} />
@@ -74,7 +74,7 @@ export default function ExportScreen() {
                 </AppText>
               </PressableScale>
             )}
-          </View>
+          </Card>
         ) : (
           <View style={styles.ring}>
             <ProgressRing progress={progress} size={180} label={phase === 'saved' ? 'Done' : undefined} />
@@ -82,17 +82,15 @@ export default function ExportScreen() {
         )}
       </View>
 
-      {phase === 'options' && <GradientButton title="Save to Photos" onPress={() => setPhase('exporting')} />}
+      {phase === 'options' && (
+        <GradientButton title="Save to Photos" icon="square.and.arrow.down" shape="pill" onPress={() => setPhase('exporting')} />
+      )}
       {phase === 'saved' && (
         <View style={styles.saved}>
-          <GradientButton title="Open in TikTok" icon={false} onPress={openTikTok} />
+          <GradientButton title="Open TikTok" icon="arrow.up.right" shape="pill" onPress={openTikTok} />
           <View style={styles.savedRow}>
-            <PressableScale style={styles.secondary} accessibilityRole="button">
-              <AppText variant="bodyStrong">Share</AppText>
-            </PressableScale>
-            <PressableScale style={styles.secondary} accessibilityRole="button" onPress={() => router.back()}>
-              <AppText variant="bodyStrong">Done</AppText>
-            </PressableScale>
+            <OutlineButton title="Share" icon="square.and.arrow.up" height={50} style={styles.flexOne} />
+            <OutlineButton title="Done" height={50} style={styles.flexOne} onPress={() => router.back()} />
           </View>
         </View>
       )}
@@ -102,25 +100,13 @@ export default function ExportScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, paddingHorizontal: spacing.gutter, gap: 4 },
-  center: { textAlign: 'center', color: colors.textOnLight },
+  center: { textAlign: 'center' },
+  flexOne: { flex: 1 },
   middle: { flex: 1, justifyContent: 'center' },
-  options: {
-    gap: spacing.md,
-    padding: spacing.xl,
-    borderRadius: 28,
-    backgroundColor: 'rgba(22,26,48,0.75)',
-  },
+  options: { gap: spacing.md },
   notice: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: spacing.sm },
   flexText: { flex: 1 },
   ring: { alignItems: 'center' },
   saved: { gap: spacing.md },
   savedRow: { flexDirection: 'row', gap: spacing.md },
-  secondary: {
-    flex: 1,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(22,26,48,0.75)',
-  },
 });

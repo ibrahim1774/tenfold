@@ -6,16 +6,19 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { colors } from '@/design/tokens';
+import { useSettings } from '@/state/settings';
 
 SplashScreen.preventAutoHideAsync();
 
 // Fonts (Poppins) are embedded at build time by the expo-font config plugin, so no runtime loading.
 const theme = {
   ...DarkTheme,
-  colors: { ...DarkTheme.colors, background: colors.bgDarkTop, primary: '#B07CFF' },
+  colors: { ...DarkTheme.colors, background: colors.bg, card: colors.bg, primary: colors.violet },
 };
 
 export default function RootLayout() {
+  const onboarded = useSettings((s) => s.onboarded);
+
   useEffect(() => {
     SplashScreen.hideAsync();
   }, []);
@@ -24,25 +27,32 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={theme}>
         <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bgDarkTop } }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="onboarding" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
-          <Stack.Screen name="import" />
-          <Stack.Screen name="batch/setup" />
-          <Stack.Screen name="batch/[batchId]" />
-          <Stack.Screen name="editor/[projectId]" />
-          <Stack.Screen
-            name="editor/captions"
-            options={{
-              presentation: 'formSheet',
-              sheetAllowedDetents: [0.75, 1],
-              sheetGrabberVisible: true,
-              sheetCornerRadius: 28,
-              contentStyle: { backgroundColor: colors.bgDarkBottom },
-            }}
-          />
-          <Stack.Screen name="export/[projectId]" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+          <Stack.Protected guard={!onboarded}>
+            <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+          </Stack.Protected>
+
+          <Stack.Protected guard={onboarded}>
+            <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+            <Stack.Screen name="import" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="batch/setup" />
+            <Stack.Screen name="batch/[batchId]" />
+            <Stack.Screen name="editor/[projectId]" />
+            <Stack.Screen
+              name="editor/captions"
+              options={{
+                presentation: 'formSheet',
+                sheetAllowedDetents: [0.8, 1],
+                sheetGrabberVisible: true,
+                sheetCornerRadius: 28,
+                contentStyle: { backgroundColor: colors.bgRaised },
+              }}
+            />
+            <Stack.Screen name="export/[projectId]" options={{ presentation: 'modal' }} />
+          </Stack.Protected>
+
+          {/* Reachable from onboarding (last step) and from inside the app. */}
+          <Stack.Screen name="paywall" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
         </Stack>
       </ThemeProvider>
     </GestureHandlerRootView>

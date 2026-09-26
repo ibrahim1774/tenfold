@@ -1,55 +1,54 @@
-// Design tokens derived from the reference screens (spec §5.1).
+// Design tokens: dark "cinematic" theme (docs/SPEC.md §5.1, reference docs/design-reference-v2.png).
 
 export const colors = {
-  // Background mesh
-  bgPeach: '#F6D7C3',
-  bgLavender: '#D9CDF2',
-  bgSky: '#C9E4F6',
-  bgDarkTop: '#0F1222',
-  bgDarkBottom: '#1B1E3A',
+  // Surfaces
+  bg: '#0A090E',
+  bgRaised: '#111016',
+  card: '#15141B',
+  cardHigh: '#1C1B23',
+  border: 'rgba(255,255,255,0.08)',
+  borderStrong: 'rgba(255,255,255,0.18)',
+  overlay: 'rgba(10,9,14,0.72)',
 
-  // Glass
-  glassFill: 'rgba(22,26,48,0.55)',
-  glassBorder: 'rgba(255,255,255,0.14)',
-  glassShadow: 'rgba(10,12,30,0.35)',
-
-  // Chips
-  chipFill: 'rgba(42,50,86,0.9)',
-  chipText: '#E8ECFF',
-  chipSelectedFill: '#FFFFFF',
-  chipSelectedText: '#151A33',
-
-  // Tools panel
-  toolPanel: '#4C8BFF',
-  toolFill: 'rgba(60,90,220,0.35)',
+  // Ambient glow behind the top of each screen
+  glowPlum: 'rgba(120,36,92,0.55)',
+  glowViolet: 'rgba(76,40,140,0.45)',
 
   // Text
   textPrimary: '#FFFFFF',
-  textSecondary: 'rgba(255,255,255,0.72)',
-  textMuted: 'rgba(255,255,255,0.5)',
-  textOnLight: '#151A33',
-  textOnLightMuted: 'rgba(21,26,51,0.6)',
+  textSecondary: '#B3B0BD',
+  textMuted: '#77737F',
+  textInverse: '#0A090E',
 
   // Accents
-  badgeOrange: '#FF7A3D',
+  violet: '#8B5CF6',
+  violetSoft: 'rgba(139,92,246,0.18)',
+  orange: '#FF7A30',
   danger: '#FF5A6E',
-  success: '#5BE3A5',
-  ruler: 'rgba(255,255,255,0.8)',
+  dangerSoft: 'rgba(255,90,110,0.16)',
+  success: '#4ADE80',
+  heart: '#FF3B55',
+
+  // Controls
+  chipFill: '#1C1B23',
+  chipText: '#E9E7F0',
+  chipSelectedFill: '#FFFFFF',
+  chipSelectedText: '#0A090E',
+  ruler: '#8E8A98',
+  waveform: '#B9B5C4',
 } as const;
 
 export const gradients = {
-  cta: ['#4DD8FF', '#B07CFF', '#FF7A59', '#FFC24D'] as const,
-  backgroundLight: [colors.bgPeach, colors.bgLavender, colors.bgSky] as const,
-  backgroundDark: [colors.bgDarkTop, colors.bgDarkBottom] as const,
-  // Dark wash that the glass stack sits on, like the lower half of the reference screens
-  screenWash: ['rgba(27,30,58,0)', 'rgba(27,30,58,0.55)', 'rgba(15,18,34,0.92)'] as const,
+  cta: ['#7C4DFF', '#C94FC0', '#FF7A30'] as const,
+  glow: ['rgba(120,36,92,0.55)', 'rgba(40,20,60,0.25)', 'rgba(10,9,14,0)'] as const,
 };
 
 export const radii = {
-  card: 28,
+  card: 24,
+  tile: 20,
   chip: 22,
-  cta: 30,
-  thumb: 14,
+  button: 20,
+  thumb: 16,
   round: 999,
 } as const;
 
@@ -60,7 +59,7 @@ export const spacing = {
   lg: 16,
   xl: 20,
   xxl: 28,
-  gutter: 16,
+  gutter: 20,
 } as const;
 
 export const fonts = {
@@ -71,24 +70,40 @@ export const fonts = {
 } as const;
 
 export const type = {
-  display: { fontFamily: fonts.bold, fontSize: 34, lineHeight: 40, letterSpacing: -0.3 },
-  title: { fontFamily: fonts.semiBold, fontSize: 26, lineHeight: 32 },
-  section: { fontFamily: fonts.semiBold, fontSize: 22, lineHeight: 28 },
-  body: { fontFamily: fonts.regular, fontSize: 16, lineHeight: 23 },
-  bodyStrong: { fontFamily: fonts.semiBold, fontSize: 16, lineHeight: 23 },
-  chip: { fontFamily: fonts.semiBold, fontSize: 15, lineHeight: 20 },
-  caption: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 18 },
-  cta: { fontFamily: fonts.bold, fontSize: 18, lineHeight: 24 },
+  hero: { fontFamily: fonts.semiBold, fontSize: 32, lineHeight: 40, letterSpacing: -0.6 },
+  display: { fontFamily: fonts.semiBold, fontSize: 30, lineHeight: 38, letterSpacing: -0.5 },
+  title: { fontFamily: fonts.medium, fontSize: 22, lineHeight: 28, letterSpacing: -0.2 },
+  section: { fontFamily: fonts.medium, fontSize: 19, lineHeight: 26, letterSpacing: -0.2 },
+  body: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 22 },
+  bodyStrong: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
+  chip: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 20 },
+  label: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18 },
+  caption: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 16 },
+  cta: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
 } as const;
 
 export const sizes = {
-  chipHeight: 44,
-  ctaHeight: 60,
-  roundTool: 64,
+  chipHeight: 40,
+  ctaHeight: 56,
   iconButton: 44,
+  tabBarHeight: 72,
 } as const;
 
 export const motion = {
   spring: { damping: 18, stiffness: 160 },
   pressScale: 0.97,
 } as const;
+
+// Mock thumbnail palettes (M0 only; real thumbnails come from the engine in M1).
+export const thumbGradients = [
+  ['#2B1A12', '#C2531D', '#FFB347'],
+  ['#0D0F1F', '#3A1B4F', '#FF2E4D'],
+  ['#0E1418', '#1F3340', '#6D8A96'],
+  ['#1A0B24', '#8E2DE2', '#FF4FD8'],
+  ['#101820', '#2E4A62', '#F2A65A'],
+  ['#1B0F0A', '#6B2E1F', '#E0703B'],
+  ['#0B1020', '#243B6B', '#7FB2FF'],
+  ['#12100E', '#4A3B2A', '#D9B38C'],
+  ['#140A1F', '#4B1D6B', '#C04BFF'],
+  ['#0F1412', '#29473C', '#8FD1A8'],
+] as const;

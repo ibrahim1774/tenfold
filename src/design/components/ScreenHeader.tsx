@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { spacing } from '../tokens';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
 
@@ -12,38 +13,21 @@ export type ScreenHeaderProps = {
   onBack?: () => void;
 };
 
-/** Back circle, centred title, optional right action (reference screen 2 header). */
+/** Outlined back circle, left-aligned title, optional right actions ("< Video Editor   Export ⋮"). */
 export function ScreenHeader({ title, back = true, right, onBack }: ScreenHeaderProps) {
   return (
     <View style={styles.row}>
-      <View style={styles.side}>
-        {back && <IconButton icon="chevron.left" label="Back" onPress={onBack ?? (() => router.back())} />}
-      </View>
+      {back && <IconButton icon="chevron.left" label="Back" size={46} onPress={onBack ?? (() => router.back())} />}
       <AppText variant="title" style={styles.title} numberOfLines={1}>
         {title}
       </AppText>
-      <View style={[styles.side, styles.right]}>{right}</View>
+      {right ? <View style={styles.right}>{right}</View> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 52,
-  },
-  side: {
-    width: 96,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  right: {
-    justifyContent: 'flex-end',
-  },
-  title: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 22,
-  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, minHeight: 56 },
+  title: { flex: 1 },
+  right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 });

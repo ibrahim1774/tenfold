@@ -87,7 +87,7 @@ export type Project = {
   status: ProjectStatus;
   stage?: string;
   progress: number;
-  thumbColor: string; // M0 mock stand-in for a real thumbnail file URL
+  thumbSeed: number; // M0 mock stand-in for a real thumbnail file URL
   errorText?: string;
 };
 

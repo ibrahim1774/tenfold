@@ -3,8 +3,6 @@ import { batchPreset } from '../state/presets';
 
 // M0 mock data so every screen renders before the engine exists. Removed in M1/M4.
 
-const THUMBS = ['#6FB7FF', '#FF9E7A', '#B79CFF', '#5ED3C6', '#FFC870', '#FF8DB3', '#7FA8FF', '#9BE08A', '#E7A0FF', '#FFB085'];
-
 const titles = [
   'Morning routine hook',
   '3 tips for creators',
@@ -33,7 +31,7 @@ export const mockProjects: Project[] = titles.map((title, i) => ({
   status: i < 3 ? 'ready' : i < 5 ? 'analyzing' : 'queued',
   stage: i < 3 ? undefined : i < 5 ? stages[i - 3] : undefined,
   progress: i < 3 ? 1 : i < 5 ? 0.35 + (i - 3) * 0.3 : 0,
-  thumbColor: THUMBS[i % THUMBS.length],
+  thumbSeed: i,
 }));
 
 export const mockBatches: Batch[] = [
@@ -89,6 +87,50 @@ export const mockCuts: Cut[] = [
       confidence: w.text === 'like' ? 0.6 : 0.95,
     })),
 ];
+
+/** Source duration of the mock transcript clip, used by the editor timeline. */
+export const mockClipDuration = Math.ceil(t + 0.6);
+
+export type Segment = { start: number; end: number };
+
+/** Inverts accepted cuts into keep segments (JS mirror of CutPlanner for the M0 mock). */
+export function keepSegments(cuts: Cut[], duration: number): Segment[] {
+  const accepted = cuts.filter((c) => c.accepted).sort((a, b) => a.start - b.start);
+  const out: Segment[] = [];
+  let cursor = 0;
+  for (const c of accepted) {
+    if (c.start > cursor + 0.18) out.push({ start: cursor, end: c.start });
+    cursor = Math.max(cursor, c.end);
+  }
+  if (duration > cursor + 0.18) out.push({ start: cursor, end: duration });
+  return out;
+}
+
+/** Groups words into caption cards (JS mirror of CaptionGrouper for the M0 mock). */
+export function captionCards(words: Word[], maxWords = 4): { text: string; start: number; end: number }[] {
+  const cards: { text: string; start: number; end: number }[] = [];
+  let cur: Word[] = [];
+  const flush = () => {
+    if (cur.length) cards.push({ text: cur.map((w) => w.text).join(' '), start: cur[0].start, end: cur[cur.length - 1].end });
+    cur = [];
+  };
+  words.forEach((w, i) => {
+    const gap = i > 0 ? w.start - words[i - 1].end : 0;
+    if (cur.length >= maxWords || gap >= 0.35) flush();
+    cur.push(w);
+  });
+  flush();
+  return cards;
+}
+
+export function timeAgo(ms: number): string {
+  const mins = Math.round((Date.now() - ms) / 60000);
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+}
 
 export function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60);

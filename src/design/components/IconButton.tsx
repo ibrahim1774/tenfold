@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
-import type { SFSymbol } from '../symbols';
 import { StyleSheet } from 'react-native';
 
+import type { SFSymbol } from '../symbols';
 import { colors, sizes } from '../tokens';
 import { PressableScale } from './PressableScale';
 
@@ -10,12 +10,21 @@ export type IconButtonProps = {
   label: string;
   onPress?: () => void;
   size?: number;
-  tone?: 'glass' | 'light';
+  tone?: 'outline' | 'ghost' | 'solid';
   disabled?: boolean;
+  iconScale?: number;
 };
 
-/** Circular translucent button: back, more, chevrons, + (reference screens 2 and 3). */
-export function IconButton({ icon, label, onPress, size = sizes.iconButton, tone = 'glass', disabled }: IconButtonProps) {
+/** Outlined circle (back button in the reference) or a bare glyph (undo/redo/fullscreen). */
+export function IconButton({
+  icon,
+  label,
+  onPress,
+  size = sizes.iconButton,
+  tone = 'outline',
+  disabled,
+  iconScale = 0.4,
+}: IconButtonProps) {
   return (
     <PressableScale
       onPress={onPress}
@@ -26,25 +35,17 @@ export function IconButton({ icon, label, onPress, size = sizes.iconButton, tone
       hitSlop={6}
       style={[
         styles.base,
-        { width: size, height: size, borderRadius: size / 2, opacity: disabled ? 0.4 : 1 },
-        tone === 'light' ? styles.light : styles.glass,
+        { width: size, height: size, borderRadius: size / 2, opacity: disabled ? 0.35 : 1 },
+        tone === 'outline' && styles.outline,
+        tone === 'solid' && styles.solid,
       ]}>
-      <SymbolView name={icon} size={size * 0.42} tintColor={colors.textPrimary} weight="medium" />
+      <SymbolView name={icon} size={size * iconScale} tintColor={colors.textPrimary} weight="regular" />
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
-  base: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  glass: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderWidth: 1,
-    borderColor: colors.glassBorder,
-  },
-  light: {
-    backgroundColor: 'rgba(255,255,255,0.28)',
-  },
+  base: { alignItems: 'center', justifyContent: 'center' },
+  outline: { borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: 'rgba(21,20,27,0.5)' },
+  solid: { backgroundColor: colors.cardHigh, borderWidth: 1, borderColor: colors.border },
 });

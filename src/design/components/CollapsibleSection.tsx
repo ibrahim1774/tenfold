@@ -2,9 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
-import { spacing } from '../tokens';
+import { colors, spacing } from '../tokens';
 import { AppText } from './AppText';
-import { GlassCard } from './GlassCard';
+import { Card } from './Card';
 import { IconButton } from './IconButton';
 
 export type CollapsibleSectionProps = {
@@ -14,18 +14,17 @@ export type CollapsibleSectionProps = {
   children: ReactNode;
 };
 
-/** Glass card with a 22 pt header and a round chevron, like "Model / Style / Audio" in the reference. */
 export function CollapsibleSection({ title, summary, initiallyOpen = false, children }: CollapsibleSectionProps) {
   const [open, setOpen] = useState(initiallyOpen);
 
   return (
     <Animated.View layout={LinearTransition.springify().damping(18).stiffness(160)}>
-      <GlassCard>
+      <Card>
         <View style={styles.header}>
           <View style={styles.titles}>
-            <AppText variant="section">{title}</AppText>
+            <AppText variant="bodyStrong">{title}</AppText>
             {!open && summary ? (
-              <AppText variant="caption" color="rgba(255,255,255,0.6)" numberOfLines={1}>
+              <AppText variant="label" color={colors.textMuted} numberOfLines={1}>
                 {summary}
               </AppText>
             ) : null}
@@ -33,6 +32,7 @@ export function CollapsibleSection({ title, summary, initiallyOpen = false, chil
           <IconButton
             icon={open ? 'chevron.up' : 'chevron.down'}
             label={open ? `Collapse ${title}` : `Expand ${title}`}
+            size={36}
             onPress={() => setOpen((o) => !o)}
           />
         </View>
@@ -41,24 +41,13 @@ export function CollapsibleSection({ title, summary, initiallyOpen = false, chil
             {children}
           </Animated.View>
         )}
-      </GlassCard>
+      </Card>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  },
-  titles: {
-    flex: 1,
-    gap: 2,
-  },
-  body: {
-    marginTop: spacing.xl,
-    gap: spacing.lg,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  titles: { flex: 1, gap: 2 },
+  body: { marginTop: spacing.lg, gap: spacing.md },
 });

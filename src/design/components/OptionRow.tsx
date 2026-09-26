@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, Switch, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { colors } from '../tokens';
 import { AppText } from './AppText';
+import { Toggle } from './Toggle';
 
 export function OptionLabel({ children }: { children: ReactNode }) {
   return (
-    <AppText variant="caption" color={colors.textMuted} style={styles.label}>
+    <AppText variant="label" color={colors.textSecondary}>
       {children}
     </AppText>
   );
@@ -26,33 +27,17 @@ export function ToggleRow({ title, subtitle, value, onChange, disabled }: Toggle
       <View style={styles.text}>
         <AppText variant="bodyStrong">{title}</AppText>
         {subtitle ? (
-          <AppText variant="caption" color={colors.textMuted}>
+          <AppText variant="label" color={colors.textMuted}>
             {subtitle}
           </AppText>
         ) : null}
       </View>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        disabled={disabled}
-        trackColor={{ true: '#B07CFF', false: 'rgba(255,255,255,0.2)' }}
-        accessibilityLabel={title}
-      />
+      <Toggle value={value} onChange={onChange} disabled={disabled} label={title} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  label: {
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  text: {
-    flex: 1,
-  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  text: { flex: 1 },
 });

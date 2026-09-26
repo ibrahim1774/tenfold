@@ -1,58 +1,36 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, useColorScheme, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { colors, gradients } from '../tokens';
 
-/**
- * Diagonal pastel mesh: two stacked linear gradients plus a soft blob.
- * `wash` darkens the lower part so glass cards read like the reference screens.
- */
-export function Background({ wash = true }: { wash?: boolean }) {
-  const dark = useColorScheme() === 'dark';
-
-  if (dark) {
-    return (
-      <LinearGradient
-        colors={gradients.backgroundDark}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-    );
-  }
-
+/** Near-black canvas with a soft plum/violet glow bleeding in from the top, like the reference screens. */
+export function Background({ glow = true }: { glow?: boolean }) {
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <LinearGradient
-        colors={gradients.backgroundLight}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-      <LinearGradient
-        colors={['rgba(255,170,140,0.45)', 'rgba(255,170,140,0)']}
-        start={{ x: 0.1, y: 0 }}
-        end={{ x: 0.6, y: 0.45 }}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.blob} />
-      {wash && (
-        <LinearGradient colors={gradients.screenWash} locations={[0.18, 0.5, 1]} style={StyleSheet.absoluteFill} />
+    <View style={[StyleSheet.absoluteFill, styles.base]} pointerEvents="none">
+      {glow && (
+        <>
+          <View style={[styles.blob, styles.plum]} />
+          <View style={[styles.blob, styles.violet]} />
+          <LinearGradient colors={gradients.glow} locations={[0, 0.35, 0.62]} style={StyleSheet.absoluteFill} />
+        </>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  blob: {
-    position: 'absolute',
-    top: '28%',
-    right: -80,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: colors.bgLavender,
-    opacity: 0.55,
-    boxShadow: `0 0 120px 60px ${colors.bgLavender}`,
+  base: { backgroundColor: colors.bg, overflow: 'hidden' },
+  blob: { position: 'absolute', width: 320, height: 320, borderRadius: 160 },
+  plum: {
+    top: -200,
+    left: -120,
+    backgroundColor: colors.glowPlum,
+    boxShadow: `0 0 140px 90px ${colors.glowPlum}`,
+  },
+  violet: {
+    top: -230,
+    right: -160,
+    backgroundColor: colors.glowViolet,
+    boxShadow: `0 0 140px 80px ${colors.glowViolet}`,
   },
 });

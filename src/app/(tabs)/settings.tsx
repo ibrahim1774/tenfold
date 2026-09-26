@@ -1,4 +1,6 @@
 import { router } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
+import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,120 +9,208 @@ import {
   Background,
   Chip,
   ChipGroup,
-  GlassCard,
-  OptionLabel,
   PressableScale,
-  ToggleRow,
+  ProgressBar,
+  Toggle,
+  useTabBarSpace,
 } from '@/design/components';
-import { colors, spacing } from '@/design/tokens';
+import type { SFSymbol } from '@/design/symbols';
+import { colors, radii, spacing } from '@/design/tokens';
 import { pingEngine } from '@/engine';
 import { useEntitlements } from '@/state/entitlements';
+import { deleteModel, startModelDownload } from '@/state/modelDownload';
 import { PRESET_OPTIONS } from '@/state/presets';
 import { useSettings } from '@/state/settings';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { speechModel, defaultPreset, keepHDR, setSpeechModel, setDefaultPreset, setKeepHDR, setOnboarded } = useSettings();
+  const bottom = useTabBarSpace();
+  const { speechModel, modelProgress, defaultPreset, keepHDR, setDefaultPreset, setKeepHDR, setOnboarded } = useSettings();
   const isPro = useEntitlements((s) => s.isPro);
-  const engineStatus = pingEngine();
+  const engine = pingEngine();
 
   return (
     <View style={styles.flex}>
       <Background />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 100 }]}>
-        <AppText variant="display" color={colors.textOnLight}>
-          Settings
-        </AppText>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12, paddingBottom: bottom }]}
+        showsVerticalScrollIndicator={false}>
+        <AppText variant="display">Settings</AppText>
 
-        <GlassCard style={styles.card}>
-          <AppText variant="section">Speech model</AppText>
+        {!isPro && (
+          <PressableScale onPress={() => router.push('/paywall')} style={styles.proCard} accessibilityRole="button">
+            <View style={styles.proIcon}>
+              <SymbolView name="crown.fill" size={20} tintColor="#FFC24D" />
+            </View>
+            <View style={styles.flex}>
+              <AppText variant="bodyStrong">Go Pro</AppText>
+              <AppText variant="label" color={colors.textSecondary}>
+                Unlimited exports, batches of 20, no watermark
+              </AppText>
+            </View>
+            <SymbolView name="chevron.right" size={14} tintColor={colors.textMuted} />
+          </PressableScale>
+        )}
+
+        <Group title="Speech">
           <Row
-            label="Tenfold model (600 MB)"
-            value={speechModel === 'installed' ? 'Installed' : speechModel === 'downloading' ? 'Downloading' : 'Not downloaded'}
+            icon="waveform"
+            title="Speech model"
+            value={speechModel === 'installed' ? 'Installed' : speechModel === 'downloading' ? `${Math.round(modelProgress * 100)}%` : '600 MB'}
           />
-          <Row label="Engine in use" value={speechModel === 'installed' ? 'Parakeet (on device)' : 'Apple Speech (on device)'} />
-          <PressableScale
-            style={styles.action}
-            accessibilityRole="button"
-            onPress={() => setSpeechModel(speechModel === 'installed' ? 'notDownloaded' : 'installed', 1)}>
-            <AppText variant="bodyStrong" color={speechModel === 'installed' ? colors.danger : colors.textPrimary}>
-              {speechModel === 'installed' ? 'Delete model' : 'Download model'}
+          {speechModel === 'downloading' && (
+            <View style={styles.inset}>
+              <ProgressBar progress={modelProgress} height={4} />
+            </View>
+          )}
+          <Row icon="cpu" title="Engine in use" value={speechModel === 'installed' ? 'Parakeet' : 'Apple Speech'} />
+          <Row
+            icon={speechModel === 'installed' ? 'trash' : 'arrow.down.circle'}
+            title={speechModel === 'installed' ? 'Delete model' : 'Download model'}
+            danger={speechModel === 'installed'}
+            onPress={speechModel === 'installed' ? deleteModel : speechModel === 'notDownloaded' ? startModelDownload : undefined}
+            last
+          />
+        </Group>
+
+        <Group title="Editing">
+          <View style={[styles.inset, styles.presetBlock]}>
+            <AppText variant="label" color={colors.textSecondary}>
+              Default preset
             </AppText>
-          </PressableScale>
-        </GlassCard>
-
-        <GlassCard style={styles.card}>
-          <AppText variant="section">Editing</AppText>
-          <OptionLabel>Default preset</OptionLabel>
-          <ChipGroup>
-            {PRESET_OPTIONS.filter((p) => p.id !== 'custom').map((p) => (
-              <Chip key={p.id} label={p.name} selected={defaultPreset === p.id} onPress={() => setDefaultPreset(p.id)} />
-            ))}
-          </ChipGroup>
-          <ToggleRow
-            title="Keep HDR (no captions)"
-            subtitle="Exports stay HDR, but captions and zooms are turned off"
-            value={keepHDR}
-            onChange={setKeepHDR}
+            <ChipGroup>
+              {PRESET_OPTIONS.filter((p) => p.id !== 'custom').map((p) => (
+                <Chip key={p.id} label={p.name} selected={defaultPreset === p.id} onPress={() => setDefaultPreset(p.id)} />
+              ))}
+            </ChipGroup>
+          </View>
+          <Row
+            icon="sun.max"
+            title="Keep HDR"
+            subtitle="Turns off captions and zooms"
+            right={<Toggle value={keepHDR} onChange={setKeepHDR} label="Keep HDR" />}
+            last
           />
-        </GlassCard>
+        </Group>
 
-        <GlassCard style={styles.card}>
-          <AppText variant="section">Storage</AppText>
-          <Row label="Projects and exports" value="0 MB" />
-          <PressableScale style={styles.action} accessibilityRole="button">
-            <AppText variant="bodyStrong">Clear exports</AppText>
-          </PressableScale>
-        </GlassCard>
+        <Group title="Storage">
+          <Row icon="internaldrive" title="Projects and exports" value="0 MB" />
+          <Row icon="trash" title="Clear exported files" onPress={() => {}} last />
+        </Group>
 
-        <GlassCard style={styles.card}>
-          <AppText variant="section">Subscription</AppText>
-          <Row label="Plan" value={isPro ? 'Pro' : 'Free'} />
-          <PressableScale style={styles.action} accessibilityRole="button" onPress={() => router.push('/paywall')}>
-            <AppText variant="bodyStrong">{isPro ? 'Manage subscription' : 'Upgrade to Pro'}</AppText>
-          </PressableScale>
-        </GlassCard>
+        <Group title="Subscription">
+          <Row icon="crown" title="Plan" value={isPro ? 'Pro' : 'Free'} />
+          <Row icon="arrow.clockwise" title="Restore purchases" onPress={() => {}} />
+          <Row icon="creditcard" title="Manage subscription" onPress={() => router.push('/paywall')} last />
+        </Group>
 
-        <GlassCard style={styles.card}>
-          <AppText variant="section">Privacy</AppText>
-          <AppText variant="body" color={colors.textSecondary}>
-            Nothing leaves your phone. Tenfold has no account, no uploads and no analytics.
-          </AppText>
-        </GlassCard>
+        <Group title="Privacy">
+          <View style={[styles.inset, styles.privacy]}>
+            <SymbolView name="lock.shield" size={22} tintColor="#C9B6FF" weight="light" />
+            <AppText variant="label" color={colors.textSecondary} style={styles.flex}>
+              Nothing leaves your phone. No account, no uploads, no analytics.
+            </AppText>
+          </View>
+        </Group>
 
-        <GlassCard style={styles.card}>
-          <AppText variant="section">Developer</AppText>
-          <Row label="Native engine" value={engineStatus === 'pong' ? 'Connected (pong)' : 'Not in this build'} />
-          <PressableScale style={styles.action} accessibilityRole="button" onPress={() => setOnboarded(false)}>
-            <AppText variant="bodyStrong">Replay onboarding</AppText>
-          </PressableScale>
-        </GlassCard>
+        <Group title="About">
+          <Row icon="bolt.horizontal" title="Native engine" value={engine === 'pong' ? 'Connected' : 'Not in this build'} />
+          <Row icon="arrow.counterclockwise" title="Replay onboarding" onPress={() => setOnboarded(false)} last />
+        </Group>
       </ScrollView>
     </View>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <View style={styles.row}>
-      <AppText variant="body" color={colors.textSecondary}>
-        {label}
+    <View style={styles.group}>
+      <AppText variant="label" color={colors.textMuted} style={styles.groupTitle}>
+        {title.toUpperCase()}
       </AppText>
-      <AppText variant="bodyStrong">{value}</AppText>
+      <View style={styles.groupCard}>{children}</View>
     </View>
+  );
+}
+
+type RowProps = {
+  icon: SFSymbol;
+  title: string;
+  subtitle?: string;
+  value?: string;
+  right?: ReactNode;
+  onPress?: () => void;
+  danger?: boolean;
+  last?: boolean;
+};
+
+function Row({ icon, title, subtitle, value, right, onPress, danger, last }: RowProps) {
+  const content = (
+    <View style={[styles.row, !last && styles.rowBorder]}>
+      <SymbolView name={icon} size={19} tintColor={danger ? colors.danger : colors.textPrimary} weight="light" />
+      <View style={styles.flex}>
+        <AppText variant="body" color={danger ? colors.danger : colors.textPrimary}>
+          {title}
+        </AppText>
+        {subtitle ? (
+          <AppText variant="caption" color={colors.textMuted}>
+            {subtitle}
+          </AppText>
+        ) : null}
+      </View>
+      {value ? (
+        <AppText variant="label" color={colors.textSecondary}>
+          {value}
+        </AppText>
+      ) : null}
+      {right}
+      {onPress && !right ? <SymbolView name="chevron.right" size={13} tintColor={colors.textMuted} /> : null}
+    </View>
+  );
+  return onPress ? (
+    <PressableScale onPress={onPress} scaleTo={0.99} accessibilityRole="button" accessibilityLabel={title}>
+      {content}
+    </PressableScale>
+  ) : (
+    content
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { paddingHorizontal: spacing.gutter, gap: spacing.md },
-  card: { gap: spacing.md },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  action: {
-    height: 48,
-    borderRadius: 24,
+  content: { paddingHorizontal: spacing.gutter, gap: spacing.xl },
+  proCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    borderRadius: radii.card,
+    borderCurve: 'continuous',
+    backgroundColor: '#1D1628',
+    borderWidth: 1,
+    borderColor: 'rgba(139,92,246,0.4)',
+  },
+  proIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,194,77,0.14)',
   },
+  group: { gap: 8 },
+  groupTitle: { letterSpacing: 0.8, paddingHorizontal: 4 },
+  groupCard: {
+    borderRadius: radii.card,
+    borderCurve: 'continuous',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, minHeight: 54, paddingVertical: 10 },
+  rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.1)' },
+  inset: { paddingHorizontal: 16, paddingVertical: 12 },
+  presetBlock: { gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.1)' },
+  privacy: { flexDirection: 'row', alignItems: 'center', gap: 14 },
 });

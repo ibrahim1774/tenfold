@@ -1,79 +1,115 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Background, FeatureRow, GradientButton, IconButton, PressableScale, SegmentedPill } from '@/design/components';
 import { colors, spacing } from '@/design/tokens';
 import { useEntitlements } from '@/state/entitlements';
+import { useSettings } from '@/state/settings';
 
 type Plan = 'monthly' | 'yearly';
 
-// M5: offerings, prices and trial eligibility come from RevenueCat. The strings below are
-// placeholders that get replaced by the store's localized price strings; never ship them hardcoded.
+// M5: offerings, prices and trial eligibility come from RevenueCat. These strings are
+// placeholders replaced by the store's localized price strings; never ship them hardcoded.
 const MOCK_OFFERING: Record<Plan, { price: string; period: string; note: string }> = {
   monthly: { price: '$9.99', period: '/month', note: 'Billed monthly. Cancel anytime.' },
-  yearly: { price: '$49.99', period: '/year', note: 'Billed annually. Cancel anytime.' },
+  yearly: { price: '$49.99', period: '/year', note: '7 days free, then billed annually. Cancel anytime.' },
 };
+
+const FEATURES = [
+  { icon: 'infinity', title: 'Unlimited exports', subtitle: 'No credits, no minutes, ever.', color: '#FF7A30' },
+  { icon: 'square.stack.3d.up', title: 'Batches of 20', subtitle: 'Free plan edits 5 at a time.', color: '#A98BFF' },
+  { icon: 'drop.degreesign.slash', title: 'No watermark', subtitle: 'Clean videos, ready for social.', color: '#FF6A8A' },
+  { icon: '4k.tv', title: '4K export', subtitle: 'Full resolution from your camera.', color: '#4DD8FF' },
+  { icon: 'captions.bubble', title: 'All caption styles', subtitle: 'Karaoke, Outline, Subtle and more.', color: '#FFC24D' },
+] as const;
 
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const [plan, setPlan] = useState<Plan>('yearly');
   const setPro = useEntitlements((s) => s.setPro);
+  const setOnboarded = useSettings((s) => s.setOnboarded);
   const offer = MOCK_OFFERING[plan];
+  const fromOnboarding = from === 'onboarding';
+
+  const close = () => {
+    if (fromOnboarding) {
+      setOnboarded(true);
+      router.replace('/');
+    } else {
+      router.back();
+    }
+  };
 
   return (
     <View style={styles.flex}>
       <Background />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 16 }]}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}
+        showsVerticalScrollIndicator={false}>
         <View style={styles.top}>
-          <IconButton icon="xmark" label="Close" onPress={() => router.back()} />
+          <IconButton icon="xmark" label={fromOnboarding ? 'Continue with free plan' : 'Close'} size={40} onPress={close} />
         </View>
 
-        <AppText variant="bodyStrong" color={colors.textOnLightMuted} style={styles.center}>
-          Get Tenfold Pro
-        </AppText>
-        <AppText variant="display" style={[styles.center, styles.title]}>
-          Edit Without Limits
-        </AppText>
-        <AppText variant="caption" color={colors.textSecondary} style={styles.center}>
-          Batch edit unlimited videos on your iPhone. No credits. No uploads.
-        </AppText>
+        <Animated.View entering={FadeInDown.duration(400)} style={styles.head}>
+          <AppText variant="label" color={colors.textSecondary} style={styles.center}>
+            Tenfold Pro
+          </AppText>
+          <AppText variant="hero" style={styles.center}>
+            Edit Without Limits
+          </AppText>
+          <AppText variant="label" color={colors.textSecondary} style={styles.center}>
+            Batch edit unlimited videos on your iPhone. No credits. No uploads.
+          </AppText>
+        </Animated.View>
 
         <SegmentedPill<Plan>
           value={plan}
           onChange={setPlan}
           segments={[
             { value: 'monthly', label: 'Monthly' },
-            { value: 'yearly', label: 'Yearly', badge: 'Save 58%' },
+            { value: 'yearly', label: 'Yearly', badge: '-58%' },
           ]}
         />
 
         <View style={styles.features}>
-          <FeatureRow icon="infinity" title="Unlimited exports" subtitle="No credits, ever." />
-          <FeatureRow icon="square.stack.3d.up.fill" title="Batches of 20" subtitle="Free plan is limited to 5." iconColor="#B07CFF" />
-          <FeatureRow icon="drop.degreesign.slash" title="No watermark" subtitle="Clean videos, ready for social." iconColor="#FF7A59" />
-          <FeatureRow icon="4k.tv" title="4K export" subtitle="Ultra-high-definition video quality." iconColor="#4DD8FF" />
-          <FeatureRow icon="captions.bubble.fill" title="All caption styles" subtitle="Karaoke, Outline, Subtle and more." iconColor="#FFC24D" />
+          {FEATURES.map((f, i) => (
+            <Animated.View key={f.title} entering={FadeInDown.delay(60 * i).duration(350)}>
+              <FeatureRow icon={f.icon} title={f.title} subtitle={f.subtitle} iconColor={f.color} />
+            </Animated.View>
+          ))}
         </View>
 
-        <View style={styles.priceCard}>
-          <AppText variant="display" style={styles.center}>
+        <View style={styles.priceBlock}>
+          <AppText style={styles.price}>
             {offer.price}
             <AppText variant="bodyStrong">{offer.period}</AppText>
           </AppText>
-          <AppText variant="caption" color={colors.textSecondary} style={styles.center}>
+          <AppText variant="label" color={colors.textSecondary} style={styles.center}>
             {offer.note}
           </AppText>
-          <GradientButton
-            title="Start 7-day free trial"
-            icon={false}
-            onPress={() => {
-              setPro(true);
-              router.back();
-            }}
-          />
         </View>
+
+        <GradientButton
+          title={plan === 'yearly' ? 'Start 7-day free trial' : 'Subscribe'}
+          icon={false}
+          shape="pill"
+          onPress={() => {
+            setPro(true);
+            close();
+          }}
+        />
+
+        {fromOnboarding && (
+          <PressableScale haptic={false} onPress={close} style={styles.later} accessibilityRole="button">
+            <AppText variant="bodyStrong" color={colors.textSecondary}>
+              Continue with free plan
+            </AppText>
+          </PressableScale>
+        )}
 
         <View style={styles.links}>
           {['Restore', 'Terms', 'Privacy'].map((l) => (
@@ -91,18 +127,13 @@ export default function PaywallScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.lg, gap: spacing.md },
+  content: { paddingHorizontal: spacing.gutter, gap: spacing.lg },
   top: { flexDirection: 'row' },
+  head: { gap: spacing.sm },
   center: { textAlign: 'center' },
-  title: { color: colors.textPrimary, textShadowColor: 'rgba(15,18,34,0.35)', textShadowRadius: 12 },
-  features: { gap: 10, marginTop: spacing.sm },
-  priceCard: {
-    marginTop: spacing.sm,
-    padding: spacing.xl,
-    gap: spacing.sm,
-    borderRadius: 32,
-    borderCurve: 'continuous',
-    backgroundColor: 'rgba(22,26,48,0.8)',
-  },
-  links: { flexDirection: 'row', justifyContent: 'center', gap: 28, paddingTop: spacing.sm },
+  features: { gap: 10 },
+  priceBlock: { gap: 2, marginTop: spacing.sm },
+  price: { fontFamily: 'Poppins-SemiBold', fontSize: 40, lineHeight: 48, color: '#FFFFFF', textAlign: 'center', letterSpacing: -1 },
+  later: { alignSelf: 'center', padding: 8 },
+  links: { flexDirection: 'row', justifyContent: 'center', gap: 28 },
 });

@@ -1,16 +1,19 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   AppText,
   Background,
-  GlassCard,
   GradientButton,
+  OutlineButton,
   PressableScale,
   ProgressBar,
   ProgressRing,
   ScreenHeader,
+  Thumb,
 } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
 import type { Project } from '@/engine/types';
@@ -28,41 +31,46 @@ export default function ProcessingScreen() {
   return (
     <View style={styles.flex}>
       <Background />
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 110, gap: spacing.lg }}>
+      <ScrollView
+        contentContainerStyle={{ paddingTop: insets.top + 4, paddingBottom: insets.bottom + 110, gap: spacing.xl }}
+        showsVerticalScrollIndicator={false}>
         <View style={styles.gutter}>
           <ScreenHeader title={batch.title} onBack={() => router.dismissTo('/')} />
         </View>
 
         <View style={[styles.gutter, styles.summary]}>
-          <ProgressRing progress={overall} size={140} />
-          <AppText variant="bodyStrong">
-            {readyCount} of {projects.length} ready
-          </AppText>
-          <AppText variant="caption" color={colors.textSecondary}>
-            Runs on your iPhone. Keep the app open.
-          </AppText>
-          <View style={styles.actions}>
-            <PressableScale style={styles.secondary} accessibilityRole="button">
-              <AppText variant="bodyStrong">Pause</AppText>
-            </PressableScale>
-            <PressableScale style={styles.secondary} accessibilityRole="button" onPress={() => router.dismissTo('/')}>
-              <AppText variant="bodyStrong" color={colors.danger}>
-                Cancel batch
+          <ProgressRing progress={overall} size={150} stroke={9} />
+          <View style={styles.summaryText}>
+            <AppText variant="title">
+              {readyCount} of {projects.length} ready
+            </AppText>
+            <View style={styles.onDevice}>
+              <SymbolView name="iphone" size={14} tintColor={colors.textSecondary} />
+              <AppText variant="label" color={colors.textSecondary}>
+                Editing on your iPhone. Keep Tenfold open.
               </AppText>
-            </PressableScale>
+            </View>
+          </View>
+          <View style={styles.actions}>
+            <OutlineButton title="Pause" icon="pause" height={42} style={styles.flex} />
+            <OutlineButton title="Cancel" icon="xmark" height={42} style={styles.flex} onPress={() => router.dismissTo('/')} />
           </View>
         </View>
 
         <View style={[styles.gutter, styles.list]}>
-          {projects.map((p) => (
-            <ProjectRow key={p.id} project={p} />
+          {projects.map((p, i) => (
+            <Animated.View key={p.id} entering={FadeInDown.delay(40 * i).duration(350)}>
+              <ProjectRow project={p} />
+            </Animated.View>
           ))}
         </View>
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 8 }]}>
         <GradientButton
-          title={allReady ? 'Export all' : `Export all (${readyCount}/${projects.length} ready)`}
+          title={allReady ? 'Export all to Photos' : `Export all · ${readyCount}/${projects.length} ready`}
+          icon="square.and.arrow.down"
+          shape="pill"
           disabled={!allReady}
           onPress={() => router.push({ pathname: '/export/[projectId]', params: { projectId: projects[0].id } })}
         />
@@ -74,33 +82,32 @@ export default function ProcessingScreen() {
 function ProjectRow({ project: p }: { project: Project }) {
   const ready = p.status === 'ready' || p.status === 'done';
   const label =
-    p.status === 'queued' ? 'Queued' : p.status === 'analyzing' ? (p.stage ?? 'Analyzing') : ready ? 'Ready to edit' : p.status;
-  const eta = p.status === 'analyzing' ? `~${Math.max(1, Math.round((1 - p.progress) * 20))} s` : '';
+    p.status === 'queued' ? 'Waiting' : p.status === 'analyzing' ? (p.stage ?? 'Analyzing') : ready ? 'Ready to review' : p.status;
+  const eta = p.status === 'analyzing' ? `~${Math.max(1, Math.round((1 - p.progress) * 20))} s left` : formatDuration(p.durationSec);
 
   return (
     <PressableScale
       disabled={!ready}
+      scaleTo={0.97}
       accessibilityLabel={`${p.title}, ${label}`}
-      onPress={() => router.push({ pathname: '/editor/[projectId]', params: { projectId: p.id } })}>
-      <GlassCard style={styles.row} padded={false}>
-        <View style={styles.rowInner}>
-          <View style={[styles.thumb, { backgroundColor: p.thumbColor }]} />
-          <View style={styles.rowText}>
-            <AppText variant="bodyStrong" numberOfLines={1}>
-              {p.title}
-            </AppText>
-            <View style={styles.meta}>
-              <AppText variant="caption" color={ready ? colors.success : colors.textSecondary}>
-                {label}
-              </AppText>
-              <AppText variant="caption" color={colors.textMuted}>
-                {eta || formatDuration(p.durationSec)}
-              </AppText>
-            </View>
-            <ProgressBar progress={p.progress} />
-          </View>
+      onPress={() => router.push({ pathname: '/editor/[projectId]', params: { projectId: p.id } })}
+      style={styles.row}>
+      <Thumb seed={p.thumbSeed} style={styles.thumb} />
+      <View style={styles.rowText}>
+        <AppText variant="bodyStrong" numberOfLines={1}>
+          {p.title}
+        </AppText>
+        <View style={styles.meta}>
+          <AppText variant="label" color={ready ? colors.success : p.status === 'queued' ? colors.textMuted : '#C9B6FF'}>
+            {label}
+          </AppText>
+          <AppText variant="label" color={colors.textMuted}>
+            {eta}
+          </AppText>
         </View>
-      </GlassCard>
+        {!ready && <ProgressBar progress={p.progress} height={4} />}
+      </View>
+      {ready && <SymbolView name="chevron.right" size={14} tintColor={colors.textMuted} />}
     </PressableScale>
   );
 }
@@ -108,21 +115,23 @@ function ProjectRow({ project: p }: { project: Project }) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   gutter: { paddingHorizontal: spacing.gutter },
-  summary: { alignItems: 'center', gap: spacing.sm },
-  actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
-  secondary: {
-    paddingHorizontal: 20,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    backgroundColor: 'rgba(22,26,48,0.6)',
+  summary: { alignItems: 'center', gap: spacing.lg },
+  summaryText: { alignItems: 'center', gap: 4 },
+  onDevice: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  actions: { flexDirection: 'row', gap: spacing.md, alignSelf: 'stretch' },
+  list: { gap: 10 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 10,
+    borderRadius: radii.tile,
+    borderCurve: 'continuous',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.glassBorder,
+    borderColor: colors.border,
   },
-  list: { gap: spacing.md },
-  row: { borderRadius: 24 },
-  rowInner: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 12 },
-  thumb: { width: 54, height: 80, borderRadius: radii.thumb - 4 },
+  thumb: { width: 52, height: 76, borderRadius: 12 },
   rowText: { flex: 1, gap: 6 },
   meta: { flexDirection: 'row', justifyContent: 'space-between' },
   footer: {
@@ -132,6 +141,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: spacing.gutter,
     paddingTop: 12,
-    backgroundColor: 'rgba(15,18,34,0.85)',
+    backgroundColor: 'rgba(10,9,14,0.92)',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
 });

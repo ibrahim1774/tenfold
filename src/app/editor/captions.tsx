@@ -3,13 +3,13 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CAPTION_COLORS, CAPTION_FONTS, CAPTION_PRESETS, type CaptionPreset } from '@/captions/presets';
-import { AppText, Chip, GradientButton, IconButton, OptionLabel, PressableScale } from '@/design/components';
+import { CAPTION_COLORS, CAPTION_FONTS, CAPTION_PRESETS } from '@/captions/presets';
+import { AppText, Chip, GradientButton, IconButton, OptionLabel, PressableScale, StyleTile, Thumb } from '@/design/components';
 import { colors, fonts, radii, spacing } from '@/design/tokens';
 import type { CaptionFont, CaptionStyleId } from '@/engine/types';
 import { useEntitlements } from '@/state/entitlements';
 
-// M0 static thumbnails. In M2 each tile is a still rendered by the native CaptionLayerBuilder
+// M0 illustrative tiles. In M2 each tile is a still rendered by the native CaptionLayerBuilder
 // from the project's own words, so what you see here matches export.
 export default function CaptionStyleSheet() {
   const insets = useSafeAreaInsets();
@@ -25,21 +25,22 @@ export default function CaptionStyleSheet() {
       <AppText variant="title">Caption style</AppText>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tiles}>
-        {CAPTION_PRESETS.map((p) => {
+        {CAPTION_PRESETS.map((p, i) => {
           const locked = !isPro && !p.free;
           return (
-            <PressableScale
+            <StyleTile
               key={p.id}
-              accessibilityLabel={locked ? `${p.name}, Pro` : p.name}
-              accessibilityState={{ selected: styleId === p.id }}
+              name={p.name}
+              seed={i + 3}
+              sample="three tips that work"
+              highlight={p.animation === 'pop' || p.animation === 'karaoke' ? color : '#FFFFFF'}
+              uppercase={p.uppercase}
+              boxed={p.animation === 'box'}
+              locked={locked}
+              selected={styleId === p.id}
+              width={104}
               onPress={() => (locked ? router.push('/paywall') : setStyleId(p.id))}
-              style={[styles.tile, styleId === p.id && styles.tileSelected]}>
-              <StyleTile preset={p} />
-              <AppText variant="caption" style={styles.tileLabel}>
-                {p.name}
-                {locked ? ' · PRO' : ''}
-              </AppText>
-            </PressableScale>
+            />
           );
         })}
       </ScrollView>
@@ -73,13 +74,13 @@ export default function CaptionStyleSheet() {
 
       <OptionLabel>Position</OptionLabel>
       <View style={styles.frameRow}>
-        <View style={styles.miniFrame}>
+        <Thumb seed={0} style={styles.miniFrame}>
           <View style={[styles.zone, { top: 0, height: '12%' }]} />
           <View style={[styles.zone, { bottom: 0, height: '30%' }]} />
           <View style={[styles.handle, { top: `${posY * 100 - 4}%` }]}>
             <AppText style={[styles.handleText, { color }]}>Aa</AppText>
           </View>
-        </View>
+        </Thumb>
         <View style={styles.posButtons}>
           <IconButton icon="arrow.up" label="Move captions up" onPress={() => setPosY((y) => Math.max(0.12, y - 0.04))} />
           <IconButton icon="arrow.down" label="Move captions down" onPress={() => setPosY((y) => Math.min(0.7, y + 0.04))} />
@@ -89,56 +90,21 @@ export default function CaptionStyleSheet() {
         </View>
       </View>
 
-      <GradientButton title="Apply" icon={false} onPress={() => router.back()} />
+      <GradientButton title="Apply" icon={false} shape="pill" onPress={() => router.back()} />
     </ScrollView>
-  );
-}
-
-function StyleTile({ preset }: { preset: CaptionPreset }) {
-  const text = preset.uppercase ? 'THE THREE' : 'the three';
-  return (
-    <View style={styles.tilePreview}>
-      <View style={preset.animation === 'box' ? styles.box : undefined}>
-        <AppText
-          style={[
-            styles.tileText,
-            preset.strokeWidth > 0 && styles.stroke,
-            preset.id === 'outline' && styles.outline,
-            preset.id === 'subtle' && styles.subtle,
-          ]}>
-          {text} <AppText style={[styles.tileText, { color: preset.colors.active }]}>things</AppText>
-        </AppText>
-      </View>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.md },
   tiles: { gap: 10, paddingVertical: 4 },
-  tile: { width: 108, borderRadius: 20, padding: 4, borderWidth: 2, borderColor: 'transparent' },
-  tileSelected: { borderColor: '#FFFFFF' },
-  tilePreview: {
-    height: 150,
-    borderRadius: 16,
-    backgroundColor: '#3A5BA8',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 6,
-  },
-  tileLabel: { textAlign: 'center', marginTop: 6 },
-  tileText: { fontFamily: fonts.bold, fontSize: 14, color: '#FFFFFF', textAlign: 'center' },
-  stroke: { textShadowColor: '#000', textShadowRadius: 3 },
-  outline: { fontSize: 17, letterSpacing: 0.5, textShadowColor: '#000', textShadowRadius: 5 },
-  subtle: { fontFamily: fonts.medium, fontSize: 11 },
-  box: { backgroundColor: 'rgba(15,18,34,0.85)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
   row: { flexDirection: 'row', gap: 10 },
   dot: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)' },
   dotSelected: { borderColor: '#FFFFFF', borderWidth: 3 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 20 },
   frameRow: { flexDirection: 'row', gap: spacing.lg },
-  miniFrame: { width: 110, aspectRatio: 9 / 16, borderRadius: radii.thumb, backgroundColor: '#3A5BA8', overflow: 'hidden' },
-  zone: { position: 'absolute', left: 0, right: 0, backgroundColor: 'rgba(255,90,110,0.3)' },
+  miniFrame: { width: 110, aspectRatio: 9 / 16, borderRadius: radii.thumb },
+  zone: { position: 'absolute', left: 0, right: 0, backgroundColor: 'rgba(255,90,110,0.22)' },
   handle: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   handleText: { fontFamily: fonts.bold, fontSize: 16 },
   posButtons: { flex: 1, gap: 10 },

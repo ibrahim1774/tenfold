@@ -1,174 +1,218 @@
-import { FlashList } from '@shopify/flash-list';
-import { Redirect, router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useMemo, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   AppText,
   Background,
-  GlassCard,
+  Card,
   GradientButton,
-  IconButton,
+  OutlineButton,
   PressableScale,
-  ProgressRing,
+  ProgressBar,
+  useTabBarSpace,
 } from '@/design/components';
-import { colors, fonts, radii, spacing } from '@/design/tokens';
-import type { Batch } from '@/engine/types';
-import { mockBatches, projectsForBatch } from '@/mock/data';
+import { colors, gradients, spacing } from '@/design/tokens';
+import { BatchCard } from '@/library/BatchCard';
+import { mockBatches } from '@/mock/data';
+import { useEntitlements } from '@/state/entitlements';
+import { startModelDownload } from '@/state/modelDownload';
 import { useSettings } from '@/state/settings';
 
-export default function LibraryScreen() {
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 5) return 'Up late';
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const onboarded = useSettings((s) => s.onboarded);
-  const speechModel = useSettings((s) => s.speechModel);
-  const [query, setQuery] = useState('');
-  const [showEmpty, setShowEmpty] = useState(false);
-
-  const batches = useMemo(
-    () => (showEmpty ? [] : mockBatches.filter((b) => b.title.toLowerCase().includes(query.toLowerCase()))),
-    [query, showEmpty],
-  );
-
-  if (!onboarded) return <Redirect href="/onboarding" />;
+  const bottom = useTabBarSpace();
+  const isPro = useEntitlements((s) => s.isPro);
+  const { speechModel, modelProgress } = useSettings();
+  const batches = mockBatches;
+  const recent = batches.slice(0, 4);
 
   return (
     <View style={styles.flex}>
       <Background />
-      <FlashList
-        data={batches}
-        numColumns={2}
-        keyExtractor={(b) => b.id}
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 100, paddingHorizontal: 10 }}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <View style={styles.titleRow}>
-              <AppText variant="display" color={colors.textOnLight}>
-                Tenfold
-              </AppText>
-              <IconButton icon="plus" label="New batch" tone="light" onPress={() => router.push('/import')} />
-            </View>
-            <View style={styles.search}>
-              <SymbolView name="magnifyingglass" size={16} tintColor={colors.textOnLightMuted} />
-              <TextInput
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Search batches"
-                placeholderTextColor={colors.textOnLightMuted}
-                style={styles.searchInput}
-                accessibilityLabel="Search batches"
-              />
-            </View>
-            {speechModel !== 'installed' && (
-              <PressableScale onPress={() => router.push('/settings')} style={styles.banner}>
-                <SymbolView name="arrow.down.circle" size={18} tintColor={colors.textPrimary} />
-                <AppText variant="caption" style={styles.flex}>
-                  Using Apple speech. Download the Tenfold model for word-perfect timing and filler removal.
-                </AppText>
-              </PressableScale>
-            )}
-          </View>
-        }
-        ListEmptyComponent={<EmptyState />}
-        renderItem={({ item }) => <BatchCard batch={item} />}
-        ListFooterComponent={
-          <PressableScale haptic={false} onPress={() => setShowEmpty((v) => !v)} style={styles.devToggle}>
-            <AppText variant="caption" color={colors.textMuted}>
-              {showEmpty ? 'Show mock batches' : 'Preview empty state'}
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12, paddingBottom: bottom }]}
+        showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
+          <LinearGradient colors={gradients.cta} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.mark}>
+            <AppText style={styles.markText}>10</AppText>
+          </LinearGradient>
+          <View style={styles.flex}>
+            <AppText variant="label" color={colors.textSecondary}>
+              {greeting()}
             </AppText>
-          </PressableScale>
-        }
-      />
+            <AppText variant="bodyStrong" style={styles.brand}>
+              Tenfold
+            </AppText>
+          </View>
+          {isPro ? (
+            <View style={styles.proPill}>
+              <SymbolView name="crown.fill" size={15} tintColor="#FFC24D" />
+              <AppText variant="chip">Pro</AppText>
+            </View>
+          ) : (
+            <PressableScale onPress={() => router.push('/paywall')} style={styles.proPill} accessibilityRole="button" accessibilityLabel="Get Pro">
+              <SymbolView name="crown" size={15} tintColor={colors.textPrimary} />
+              <AppText variant="chip">Pro</AppText>
+            </PressableScale>
+          )}
+        </Animated.View>
+
+        {/* Hero */}
+        <Animated.View entering={FadeInDown.delay(60).duration(450)} style={styles.hero}>
+          <AppText variant="hero">
+            Ten clips in.{'\n'}Ten videos out.
+          </AppText>
+          <AppText variant="label" color={colors.textSecondary} style={styles.heroSub}>
+            Cuts, captions and zooms for every clip, edited on your iPhone.
+          </AppText>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(120).duration(450)} style={styles.ctaRow}>
+          <GradientButton title="Edit a batch" onPress={() => router.push('/import')} style={styles.flex} height={58} />
+          <OutlineButton title="One video" icon="plus" onPress={() => router.push('/import')} style={styles.flex} height={58} />
+        </Animated.View>
+
+        {/* Speech model status */}
+        {speechModel !== 'installed' && (
+          <Animated.View entering={FadeInDown.delay(160).duration(450)}>
+            <Card style={styles.modelCard} padded={false}>
+              <View style={styles.modelRow}>
+                <View style={styles.modelIcon}>
+                  <SymbolView name="waveform" size={18} tintColor="#C9B6FF" />
+                </View>
+                <View style={styles.flex}>
+                  <AppText variant="bodyStrong">
+                    {speechModel === 'downloading' ? 'Setting up word-perfect captions' : 'Get word-perfect captions'}
+                  </AppText>
+                  <AppText variant="caption" color={colors.textSecondary}>
+                    {speechModel === 'downloading'
+                      ? `${Math.round(modelProgress * 100)}% · you can keep editing meanwhile`
+                      : 'One-time 600 MB download. Enables filler-word removal.'}
+                  </AppText>
+                </View>
+                {speechModel === 'notDownloaded' && (
+                  <OutlineButton title="Get" height={36} onPress={startModelDownload} style={styles.getBtn} />
+                )}
+              </View>
+              {speechModel === 'downloading' && <ProgressBar progress={modelProgress} height={4} />}
+            </Card>
+          </Animated.View>
+        )}
+
+        {/* Recent */}
+        <Animated.View entering={FadeInDown.delay(200).duration(450)} style={styles.sectionHead}>
+          <AppText variant="section">Recent batches</AppText>
+          {batches.length > 0 && (
+            <PressableScale haptic={false} onPress={() => router.push('/library')} accessibilityRole="link">
+              <AppText variant="label" color={colors.textSecondary}>
+                View all
+              </AppText>
+            </PressableScale>
+          )}
+        </Animated.View>
+
+        {recent.length === 0 ? (
+          <HowItWorks />
+        ) : (
+          <View style={styles.grid}>
+            {Array.from({ length: Math.ceil(recent.length / 2) }).map((_, row) => (
+              <Animated.View key={row} entering={FadeInDown.delay(240 + row * 60).duration(450)} style={styles.gridRow}>
+                <BatchCard batch={recent[row * 2]} />
+                {recent[row * 2 + 1] ? <BatchCard batch={recent[row * 2 + 1]} /> : <View style={styles.flex} />}
+              </Animated.View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
 
-function BatchCard({ batch }: { batch: Batch }) {
-  const projects = projectsForBatch(batch);
-  const done = projects.filter((p) => p.status === 'ready' || p.status === 'done').length;
-  const progress = batch.status === 'exported' ? 1 : projects.length ? done / projects.length : 0;
-  const cover = projects[0]?.thumbColor ?? colors.toolPanel;
-  const statusLabel =
-    batch.status === 'processing' ? 'Processing' : batch.status === 'ready' ? 'Ready to export' : 'Exported';
-
+function HowItWorks() {
+  const steps = [
+    { icon: 'photo.stack' as const, title: 'Pick up to 20 clips', body: 'Straight from your camera roll.' },
+    { icon: 'wand.and.stars' as const, title: 'Choose a style', body: 'Captions, cuts and zoom in one preset.' },
+    { icon: 'square.and.arrow.down' as const, title: 'Tap Edit all', body: 'Finished videos land in Photos.' },
+  ];
   return (
-    <PressableScale
-      style={styles.cardWrap}
-      accessibilityLabel={`${batch.title}, ${projects.length} videos, ${statusLabel}`}
-      onPress={() => router.push({ pathname: '/batch/[batchId]', params: { batchId: batch.id } })}>
-      <GlassCard padded={false}>
-        <View style={[styles.cover, { backgroundColor: cover }]}>
-          <View style={styles.countBadge}>
-            <AppText variant="caption">{projects.length} videos</AppText>
+    <Card style={styles.how}>
+      {steps.map((s, i) => (
+        <View key={s.title} style={styles.howRow}>
+          <View style={styles.howIcon}>
+            <SymbolView name={s.icon} size={18} tintColor={colors.textPrimary} weight="light" />
           </View>
-          <View style={styles.ring}>
-            <ProgressRing progress={progress} size={40} stroke={5} showLabel={false} />
+          <View style={styles.flex}>
+            <AppText variant="bodyStrong">
+              {i + 1}. {s.title}
+            </AppText>
+            <AppText variant="label" color={colors.textSecondary}>
+              {s.body}
+            </AppText>
           </View>
         </View>
-        <View style={styles.cardText}>
-          <AppText variant="bodyStrong" numberOfLines={1}>
-            {batch.title}
-          </AppText>
-          <AppText variant="caption" color={colors.textMuted}>
-            {statusLabel}
-          </AppText>
-        </View>
-      </GlassCard>
-    </PressableScale>
-  );
-}
-
-function EmptyState() {
-  return (
-    <GlassCard style={styles.empty}>
-      <AppText variant="title" style={styles.center}>
-        Drop in 10 clips.{'\n'}Get 10 finished videos.
-      </AppText>
-      <AppText variant="body" color={colors.textSecondary} style={styles.center}>
-        Silences, filler words, zooms and captions, done on your iPhone.
-      </AppText>
-      <GradientButton title="New batch" onPress={() => router.push('/import')} />
-    </GlassCard>
+      ))}
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { paddingHorizontal: 6, gap: spacing.md, marginBottom: spacing.md },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  search: {
+  content: { paddingHorizontal: spacing.gutter, gap: spacing.xl },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  mark: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  markText: { fontFamily: 'Poppins-Bold', fontSize: 17, lineHeight: 22, color: '#FFFFFF', letterSpacing: -0.5 },
+  brand: { fontSize: 19, lineHeight: 24 },
+  proPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    height: 44,
-    borderRadius: 22,
+    height: 40,
     paddingHorizontal: 16,
-    backgroundColor: 'rgba(255,255,255,0.55)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: 'rgba(21,20,27,0.5)',
   },
-  searchInput: { flex: 1, fontFamily: fonts.regular, fontSize: 16, color: colors.textOnLight },
-  banner: {
-    flexDirection: 'row',
+  hero: { gap: spacing.sm, marginTop: spacing.sm },
+  heroSub: { maxWidth: 300 },
+  ctaRow: { flexDirection: 'row', gap: spacing.md },
+  modelCard: { overflow: 'hidden' },
+  modelRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  modelIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
-    gap: 10,
-    padding: 12,
-    borderRadius: 18,
-    backgroundColor: 'rgba(22,26,48,0.7)',
+    justifyContent: 'center',
+    backgroundColor: colors.violetSoft,
   },
-  cardWrap: { padding: 6 },
-  cover: { height: 190, borderTopLeftRadius: radii.card, borderTopRightRadius: radii.card },
-  countBadge: {
-    position: 'absolute',
-    left: 10,
-    top: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: 'rgba(15,18,34,0.6)',
+  getBtn: { paddingHorizontal: 6 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: -spacing.sm },
+  grid: { gap: spacing.md },
+  gridRow: { flexDirection: 'row', gap: spacing.md },
+  how: { gap: spacing.lg },
+  howRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  howIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.cardHigh,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  ring: { position: 'absolute', right: 10, bottom: 10 },
-  cardText: { padding: 14, gap: 2 },
-  empty: { marginHorizontal: 6, marginTop: 40, gap: spacing.lg },
-  center: { textAlign: 'center' },
-  devToggle: { alignSelf: 'center', padding: 16 },
 });

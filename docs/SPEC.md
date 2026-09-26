@@ -241,19 +241,20 @@ Two actors: `AnalysisQueue` (serial) and `ExportQueue` (serial). A batch = list 
 
 ## 5. App (React Native / Expo)
 
-### 5.1 Design system (derived from the reference screens)
+### 5.1 Design system (dark cinematic theme, updated 2026-09-26)
 
-The reference shows three phones on a soft pastel gradient: a full-bleed video preview with a timeline and four round tool buttons; a dark glass "settings" card stack with pill chips and a gradient **Generate** button; and a dark glass paywall titled "AI Video Without Limits". Reproduce that language exactly:
+> Supersedes the original pastel glassmorphism direction. Reference: `docs/design-reference-v2.png` (kept locally, not committed). Tokens: `src/design/tokens.ts`.
 
-- **Background:** diagonal mesh gradient, top-left peach `#F6D7C3` → centre lavender `#D9CDF2` → bottom-right sky `#C9E4F6`. Implement with two stacked `expo-linear-gradient` layers plus a soft radial blob. Dark mode variant: `#0F1222` → `#1B1E3A`.
-- **Glass card:** `expo-blur` intensity 40 (dark tint) under a fill `rgba(22,26,48,0.55)`, 1 px border `rgba(255,255,255,0.14)`, radius **28**, inner padding 20, shadow `0 18 40 rgba(10,12,30,0.35)`. Section headers inside cards are 22 pt SemiBold white (reference: "Model", "Style", "Audio" → ours: "Preset", "Captions", "Cleanup", "Zoom & Crop", "Audio") with a circular chevron button on the right.
-- **Chips:** height 44, radius 22, fill `rgba(42,50,86,0.9)`, text 15 SemiBold `#E8ECFF`; selected chip fill `#FFFFFF`, text `#151A33`.
-- **Gradient CTA:** height 60, radius 30, gradient left→right `#4DD8FF` → `#B07CFF` → `#FF7A59` → `#FFC24D` (the reference's blue→pink→orange), text 18 Bold white, sparkle icon at left. Press: scale 0.97 with haptic.
-- **Round tools:** 64 pt circles, fill `rgba(60,90,220,0.35)` on a blue panel `#4C8BFF`, white line icons (reference: scissors, music, share, grid-plus → ours: **Cuts, Captions, Zoom, Export**).
-- **Timeline strip:** filmstrip thumbnails, radius 14, white 2 px frame, white playhead line with a dot at top and bottom, time ruler above in 13 pt `rgba(255,255,255,0.8)`.
-- **Type:** Poppins. Display 34 Bold (paywall title), Title 26 SemiBold, Section 22 SemiBold, Body 16 Regular, Caption 13 Medium. Letter-spacing −0.3 on display.
-- **Toggle pill:** as in the reference "Monthly | Yearly 50%": segmented control on white, selected segment white with dark text, orange badge `#FF7A3D` for the discount.
-- Motion: `reanimated` springs (damping 18, stiffness 160), sheets slide up, chips scale on select, progress rings animate.
+- **Canvas:** near-black `#0A090E` with a soft plum `rgba(120,36,92,0.55)` / violet `rgba(76,40,140,0.45)` glow bleeding in from the top (`Background`).
+- **Surfaces:** cards `#15141B` (raised `#1C1B23`), 1 px border `rgba(255,255,255,0.08)`, radius 24 (tiles 20), continuous corners. Dashed variant for the clip drop zone.
+- **Primary CTA:** gradient violet `#7C4DFF` → magenta `#C94FC0` → orange `#FF7A30`, 56 pt, radius 20 (or full pill for bottom CTAs), sparkles icon, optional trailing arrow.
+- **Secondary:** hairline outline buttons (`rgba(255,255,255,0.18)`), and a violet-tinted variant for suggestion actions.
+- **Controls:** outlined circle back button; chips 40 pt, dark fill with hairline border, selected = white with dark text; outlined pill toggles; line-icon tool buttons with small labels.
+- **Tiles:** image tiles with the label underneath; selected tile gets a violet `#A98BFF` border and glow.
+- **Navigation:** floating frosted pill tab bar (Home, Library, Create action, Settings); the active tab is a white rounded square.
+- **Type:** Poppins. Hero 32 SemiBold (−0.6 tracking), Display 30, Title 22 Medium, Section 19 Medium, Body 15, Label 13, Caption 12.
+- **Editor:** header (back, title, outlined Export, more), preview card with an "Auto-edited" badge, transport row (undo/redo, play, fullscreen), tool row (Cuts, Words, Captions, Zoom, Crop, Audio), timeline (ruler, keep-segment clips with a trim handle at every cut, caption track, waveform, white playhead), then a suggestion card or the active tool's panel.
+- **Motion:** reanimated springs (damping 18, stiffness 160), staggered `FadeInDown` on entry, press scale 0.97 with haptics, onboarding steps slide.
 
 ### 5.2 Screens
 

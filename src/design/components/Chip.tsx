@@ -25,8 +25,12 @@ export function Chip({ label, selected, onPress, disabled, locked }: ChipProps) 
       style={[styles.chip, selected && styles.selected, disabled && styles.disabled]}>
       <AppText variant="chip" color={selected ? colors.chipSelectedText : colors.chipText}>
         {label}
-        {locked ? '  PRO' : ''}
       </AppText>
+      {locked ? (
+        <View style={styles.pro}>
+          <AppText style={styles.proText}>PRO</AppText>
+        </View>
+      ) : null}
     </PressableScale>
   );
 }
@@ -39,19 +43,17 @@ const styles = StyleSheet.create({
   chip: {
     height: sizes.chipHeight,
     borderRadius: radii.chip,
-    paddingHorizontal: 22,
-    justifyContent: 'center',
-    backgroundColor: colors.chipFill,
-  },
-  selected: {
-    backgroundColor: colors.chipSelectedFill,
-  },
-  disabled: {
-    opacity: 0.45,
-  },
-  group: {
+    paddingHorizontal: 18,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.chipFill,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
+  selected: { backgroundColor: colors.chipSelectedFill, borderColor: colors.chipSelectedFill },
+  disabled: { opacity: 0.4 },
+  pro: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 6, backgroundColor: colors.violetSoft },
+  proText: { fontSize: 9, lineHeight: 12, color: '#C9B6FF', fontWeight: '700' },
+  group: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });
