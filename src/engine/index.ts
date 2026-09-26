@@ -23,9 +23,12 @@ export class EngineUnavailableError extends Error {
 }
 
 function engine() {
-  if (!TenfoldEngine) throw new EngineUnavailableError();
+  if (!TenfoldEngine || !engineAvailable()) throw new EngineUnavailableError();
   return TenfoldEngine;
 }
+
+/** The native module only when this build has the full engine (older dev builds shipped a stub). */
+const live = () => (engineAvailable() ? TenfoldEngine : null);
 
 export function engineAvailable(): boolean {
   try {
@@ -63,19 +66,19 @@ export const Engine = {
   projectExists: (projectId: string) => engine().projectExists(projectId),
   storageBytes: () => engine().storageBytes(),
   clearExports: () => engine().clearExports(),
-  setKeepAwake: (on: boolean) => TenfoldEngine?.setKeepAwake(on) ?? Promise.resolve(),
-  thermalState: () => TenfoldEngine?.thermalState() ?? 'nominal',
-  isLowPowerMode: () => TenfoldEngine?.isLowPowerMode() ?? false,
-  freeDiskBytes: () => TenfoldEngine?.freeDiskBytes() ?? 0,
+  setKeepAwake: (on: boolean) => live()?.setKeepAwake(on) ?? Promise.resolve(),
+  thermalState: () => live()?.thermalState() ?? 'nominal',
+  isLowPowerMode: () => live()?.isLowPowerMode() ?? false,
+  freeDiskBytes: () => live()?.freeDiskBytes() ?? 0,
 };
 
 type Sub = { remove(): void };
 const noop: Sub = { remove() {} };
 
 export const EngineEvents = {
-  onJobProgress: (cb: (e: JobProgressPayload) => void): Sub => TenfoldEngine?.addListener('onJobProgress', cb) ?? noop,
+  onJobProgress: (cb: (e: JobProgressPayload) => void): Sub => live()?.addListener('onJobProgress', cb) ?? noop,
   onModelDownloadProgress: (cb: (e: { fraction: number }) => void): Sub =>
-    TenfoldEngine?.addListener('onModelDownloadProgress', cb) ?? noop,
+    live()?.addListener('onModelDownloadProgress', cb) ?? noop,
   onImportProgress: (cb: (e: { index: number; total: number }) => void): Sub =>
-    TenfoldEngine?.addListener('onImportProgress', cb) ?? noop,
+    live()?.addListener('onImportProgress', cb) ?? noop,
 };
