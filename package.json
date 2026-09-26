@@ -43,6 +43,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
+    "qrcode-terminal": "^0.12.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -53,7 +54,8 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test:queue": "node tests/queue/run.mjs",
-    "test:engine": "modules/tenfold-engine/scripts/test-core.sh"
+    "test:engine": "modules/tenfold-engine/scripts/test-core.sh",
+    "phone": "node scripts/latest-build.mjs"
   },
   "private": true
 }
