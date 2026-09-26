@@ -363,3 +363,20 @@ Info.plist: `NSPhotoLibraryAddUsageDescription` ("Tenfold saves your finished vi
 - Speech engine order is under review (2026-09-26): the owner prefers Apple's built-in `SpeechTranscriber` (no 600 MB download). M1 builds the Apple engine first and measures word-timing accuracy and filler retention on the owner's fixture clips; Parakeet is added only if Apple falls short.
 - Parakeet TDT v3 via FluidAudio was the planned primary engine; if its licence or size turns out unacceptable, WhisperKit (`whisperkit` Swift package, `DecodingOptions(wordTimestamps: true)`, `large-v3-turbo` or `base` model) is the drop-in replacement behind the same `Transcriber` protocol.
 - Apple's `SpeechTranscriber` gives phrase-level `audioTimeRange` on iOS 26; if a later iOS exposes true per-word ranges, set `wordTimingIsExact = true` for it and re-enable filler removal on that engine.
+
+---
+
+## 13. Implementation notes (deviations, 2026-09-26)
+
+Decided during the build; each keeps the spec's intent.
+
+- **Speech:** Apple `SpeechAnalyzer` + `SpeechTranscriber` only (owner's choice; no 600 MB download). Word timing is taken from per-run `audioTimeRange`; `wordTimingIsExact` is set when ≥ 90 % of timed runs are single words, which is measured per clip and shown in the editor's ⋯ sheet (runs, % single-word, fillers found). Parakeet can still be added behind the `Transcriber` protocol.
+- **Bridge:** structured values cross the Expo bridge as JSON strings (Swift `Codable` ↔ TS types) instead of Expo `Record`s.
+- **Queue:** orchestrated in JS (`src/batch/queue.ts`) with two serial lanes (analysis, export), resume after kill and thermal pause; native functions are plain `AsyncFunction`s, cancellable by project id.
+- **Storage:** the batch/project/edit index is a zustand store persisted in `expo-sqlite/kv-store`; per-project media, analysis JSON, thumbnails and exports live in `Application Support/Tenfold/projects/<id>/`.
+- **Zoom and crop:** rendered as `AVMutableVideoCompositionLayerInstruction` transforms (instant at cuts, eased at sentence punch-ins, face-follow pans), shared by the preview player item and the export, instead of Core Animation keyframes on a container layer.
+- **Captions:** each word is rasterised with CoreText into an image-backed `CALayer`, because `CATextLayer` does not render in offline `AVVideoCompositionCoreAnimationTool` exports. The same tree is built for the preview (`AVSynchronizedLayer`) and the export.
+- **Planning:** the plan (keep segments, zoom events, caption cards) is computed natively (`plan`) and used by the JS timeline, so the timeline can't drift from what is rendered. `suggestCuts` re-runs silence/filler detection at a new strength without re-transcribing.
+- **Photos:** saved with add-only access to the camera roll; the "Tenfold" album isn't created (add-only can't create albums).
+- **Routes** live in `src/app/` (SDK 57 template).
+- **Tests:** `modules/tenfold-engine/scripts/test-core.sh` (55 checks on the pure core) and `scripts/test-render.sh` (synthetic clip → analysis → HEVC export with every caption style) run on a Mac without Xcode.
