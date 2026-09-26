@@ -50,7 +50,9 @@
             "./assets/fonts/Poppins_700Bold.ttf",
             "./assets/fonts/Inter_900Black.ttf",
             "./assets/fonts/BebasNeue_400Regular.ttf",
-            "./assets/fonts/Montserrat_800ExtraBold.ttf"
+            "./assets/fonts/Montserrat_800ExtraBold.ttf",
+            "./assets/fonts/TikTokSans_800ExtraBold.ttf",
+            "./assets/fonts/TikTokSans_600SemiBold.ttf"
           ]
         }
       ],

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Rendering behaviour per caption style (mirrors src/captions/presets.ts).
-public enum CaptionAnimation: String, Sendable { case pop, karaoke, box, none, underline }
+public enum CaptionAnimation: String, Sendable { case pop, karaoke, box, none, underline, highlight, neon, reveal, classic }
 
 public struct CaptionStyle: Sendable, Equatable {
   public var id: String
@@ -18,6 +18,12 @@ public struct CaptionStyle: Sendable, Equatable {
     case "outline": return CaptionStyle(id: id, sizeRatio: 0.07, strokeWidth: 10, shadow: false, animation: .none, emphasis: false)
     case "minimal": return CaptionStyle(id: id, sizeRatio: 0.045, strokeWidth: 0, shadow: true, animation: .underline, emphasis: false)
     case "subtle": return CaptionStyle(id: id, sizeRatio: 0.036, strokeWidth: 0, shadow: true, animation: .none, emphasis: false)
+    case "tiktok": return CaptionStyle(id: id, sizeRatio: 0.046, strokeWidth: 0, shadow: false, animation: .classic, emphasis: false)
+    case "highlight": return CaptionStyle(id: id, sizeRatio: 0.054, strokeWidth: 0, shadow: true, animation: .highlight, emphasis: false)
+    case "neon": return CaptionStyle(id: id, sizeRatio: 0.056, strokeWidth: 0, shadow: false, animation: .neon, emphasis: true)
+    case "typewriter": return CaptionStyle(id: id, sizeRatio: 0.046, strokeWidth: 0, shadow: true, animation: .reveal, emphasis: false)
+    case "oneword": return CaptionStyle(id: id, sizeRatio: 0.095, strokeWidth: 8, shadow: true, animation: .pop, emphasis: false)
+    case "handwritten": return CaptionStyle(id: id, sizeRatio: 0.058, strokeWidth: 0, shadow: true, animation: .none, emphasis: false)
     default: return CaptionStyle(id: "pop", sizeRatio: 0.052, strokeWidth: 6, shadow: true, animation: .pop, emphasis: true)
     }
   }
@@ -29,6 +35,10 @@ public struct CaptionStyle: Sendable, Equatable {
     case "bebas": return "BebasNeue-Regular"
     case "montserrat": return "Montserrat-ExtraBold"
     case "sfRounded": return ".SFUI-Bold" // resolved to the rounded system font at render time
+    case "tiktok": return "TikTokSans-ExtraBold"
+    case "typewriter": return "AmericanTypewriter-Bold"  // iOS system font (TikTok "Typewriter")
+    case "handwriting": return "Noteworthy-Bold"  // iOS system font (TikTok "Handwriting")
+    case "serif": return "Georgia-Bold"  // iOS system font (TikTok "Serif")
     default: return "Poppins-Bold"
     }
   }

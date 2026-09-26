@@ -58,11 +58,16 @@ public enum CaptionGrouper {
     }
     flush()
 
-    // Minimum on-screen time, without overlapping the next card.
+    // Minimum on-screen time, without overlapping the next card or running past the clip.
     for i in cards.indices where cards[i].end - cards[i].start < minCardSec {
       let limit = i + 1 < cards.count ? cards[i + 1].start : cards[i].start + minCardSec
       cards[i].end = min(cards[i].start + minCardSec, max(cards[i].end, limit))
     }
-    return cards
+    let end = mapper.compDuration
+    return cards.compactMap { c in
+      var c = c
+      c.end = min(c.end, end)
+      return c.end > c.start ? c : nil
+    }
   }
 }

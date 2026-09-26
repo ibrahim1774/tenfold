@@ -86,31 +86,34 @@ public enum CaptionLayerBuilder {
 
   // MARK: - Animation helpers (composition time; begin at AVCoreAnimationBeginTimeAtZero)
 
-  static func norm(_ t: Double, _ total: Double) -> NSNumber {
-    NSNumber(value: min(1, max(0, t / max(total, 0.001))))
+  /// Composition time → Core Animation begin time (0 must be AVCoreAnimationBeginTimeAtZero).
+  static func begin(_ t: Double) -> CFTimeInterval {
+    t <= 0.0001 ? AVCoreAnimationBeginTimeAtZero : t
   }
 
-  /// Discrete "visible during [start, end)" opacity track.
-  static func visibility(_ start: Double, _ end: Double, total: Double, on: Float = 1) -> CAKeyframeAnimation {
-    let a = CAKeyframeAnimation(keyPath: "opacity")
-    a.calculationMode = .discrete
-    a.values = [0, on, 0]
-    a.keyTimes = [0, norm(start, total), norm(end, total), 1]
-    return finish(a, total)
-  }
-
-  static func pop(_ start: Double, total: Double) -> CAKeyframeAnimation {
-    let a = CAKeyframeAnimation(keyPath: "transform.scale")
-    a.values = [1, 1, 1.08, 1, 1]
-    a.keyTimes = [0, norm(start, total), norm(start + 0.06, total), norm(start + 0.12, total), 1]
-    return finish(a, total)
-  }
-
-  static func finish(_ a: CAKeyframeAnimation, _ total: Double) -> CAKeyframeAnimation {
-    a.beginTime = AVCoreAnimationBeginTimeAtZero
-    a.duration = max(total, 0.001)
+  /// Shows a layer (model opacity 0) only during [start, end): one short animation per window.
+  /// This is the robust AVFoundation pattern; long keyframe tracks spanning the whole clip were
+  /// dropped by Core Animation when their key times touched the clip edges.
+  static func visibility(_ start: Double, _ end: Double, total: Double, on: Float = 1) -> CAAnimation {
+    let a = CABasicAnimation(keyPath: "opacity")
+    a.fromValue = on
+    a.toValue = on
+    a.beginTime = begin(max(0, start))
+    a.duration = max(0.02, min(end, total) - max(0, start))
     a.isRemovedOnCompletion = false
-    a.fillMode = .both
+    a.fillMode = .removed
+    return a
+  }
+
+  static func pop(_ start: Double, total: Double) -> CAAnimation? {
+    guard start + 0.12 < total else { return nil }
+    let a = CAKeyframeAnimation(keyPath: "transform.scale")
+    a.values = [1, 1.08, 1]
+    a.keyTimes = [0, 0.5, 1]
+    a.beginTime = begin(max(0, start))
+    a.duration = 0.12
+    a.isRemovedOnCompletion = false
+    a.fillMode = .removed
     return a
   }
 
@@ -157,6 +160,19 @@ public enum CaptionLayerBuilder {
           cardLayer.addSublayer(shape)
         }
 
+        if style.animation == .classic {
+          // TikTok "text background": one rounded box per line.
+          let lines = Dictionary(grouping: words, by: { Int($0.frame.minY.rounded()) }).values
+          for line in lines {
+            let rect = line.map(\.frame).reduce(line[0].frame) { $0.union($1) }
+            let pad = rect.height * 0.22
+            let shape = CAShapeLayer()
+            shape.path = CGPath(roundedRect: rect.insetBy(dx: -pad * 1.3, dy: -pad * 0.35), cornerWidth: pad, cornerHeight: pad, transform: nil)
+            shape.fillColor = bg
+            cardLayer.addSublayer(shape)
+          }
+        }
+
         for lw in words {
           let frame = lw.frame
           let container = CALayer()
@@ -168,10 +184,38 @@ public enum CaptionLayerBuilder {
             container.shadowOffset = CGSize(width: 0, height: CTFontGetSize(lw.font) * 0.04)
           }
           let local = CGRect(origin: .zero, size: frame.size)
-          container.addSublayer(text(lw.word.text, font: lw.font, fill: base, stroke: stroke, strokeWidth: strokeW, origin: .zero, scale: contentsScale))
-
           let w = lw.word
+          if style.animation == .highlight {
+            // Coloured pill behind the word being spoken.
+            let size = CTFontGetSize(lw.font)
+            let pill = CALayer()
+            pill.frame = local.insetBy(dx: -size * 0.18, dy: size * 0.02)
+            pill.backgroundColor = active
+            pill.cornerRadius = size * 0.22
+            pill.opacity = 0
+            pill.add(visibility(w.start, w.end, total: total), forKey: "active")
+            container.addSublayer(pill)
+          }
+          if style.animation == .neon {
+            container.shadowColor = active
+            container.shadowOpacity = 1
+            container.shadowRadius = CTFontGetSize(lw.font) * 0.35
+            container.shadowOffset = .zero
+          }
+          if style.animation == .reveal {
+            // Typewriter: each word appears when it's spoken and stays for the rest of the card.
+            container.opacity = 0
+            container.add(visibility(w.start, card.end, total: total), forKey: "reveal")
+          }
+          let baseFill = style.animation == .neon ? active : base
+          container.addSublayer(text(w.text, font: lw.font, fill: baseFill, stroke: stroke, strokeWidth: strokeW, origin: .zero, scale: contentsScale))
+
           switch style.animation {
+          case .neon:
+            let hl = text(w.text, font: lw.font, fill: ColorParser.white, stroke: nil, strokeWidth: 0, origin: .zero, scale: contentsScale)
+            hl.opacity = 0
+            hl.add(visibility(w.start, w.end, total: total), forKey: "active")
+            container.addSublayer(hl)
           case .pop, .karaoke, .box:
             let hl = text(w.text, font: lw.font, fill: active, stroke: stroke, strokeWidth: strokeW, origin: .zero, scale: contentsScale)
             hl.opacity = 0
@@ -185,7 +229,7 @@ public enum CaptionLayerBuilder {
               hl.shadowOffset = .zero
             }
             container.addSublayer(hl)
-            if style.animation == .pop { container.add(pop(w.start, total: total), forKey: "pop") }
+            if style.animation == .pop, let p = pop(w.start, total: total) { container.add(p, forKey: "pop") }
           case .underline:
             let bar = CALayer()
             let h = max(2, CTFontGetSize(lw.font) * 0.08)
@@ -195,7 +239,7 @@ public enum CaptionLayerBuilder {
             bar.opacity = 0
             bar.add(visibility(w.start, w.end, total: total), forKey: "active")
             container.addSublayer(bar)
-          case .none:
+          case .none, .highlight, .reveal, .classic:
             break
           }
           cardLayer.addSublayer(container)

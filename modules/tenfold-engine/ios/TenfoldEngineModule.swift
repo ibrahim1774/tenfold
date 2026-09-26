@@ -115,7 +115,12 @@ public class TenfoldEngineModule: Module {
           throw EngineError.message("Not enough free space on your iPhone to export this video.")
         }
 
-        let bg = await MainActor.run { UIApplication.shared.beginBackgroundTask(withName: "tenfold-export") }
+        // If iOS ends our background time, cancel the export cleanly instead of being killed.
+        let bg = await MainActor.run {
+          UIApplication.shared.beginBackgroundTask(withName: "tenfold-export") {
+            JobRegistry.shared.cancel(prefix: "\(projectId):export")
+          }
+        }
         defer { Task { @MainActor in UIApplication.shared.endBackgroundTask(bg) } }
 
         self.sendEvent("onJobProgress", ["projectId": projectId, "stage": "rendering", "fraction": 0])
