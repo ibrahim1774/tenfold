@@ -80,7 +80,7 @@ export default function EditorScreen() {
   // Selection is tied to the document it was made on, so any edit (or undo) clears it.
   const [selection, setSelection] = useState<{ region: Region; key: string } | null>(null);
   // Shape reported by the native preview, remembered with the aspect setting that produced it.
-  const [rendered, setRendered] = useState<{ aspect: string; value: number } | null>(null);
+  const [rendered, setRendered] = useState<{ aspect: string; value: number; size: string } | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const levelsRequest = useRef(0);
   const preview = useRef<TenfoldPreviewViewRef>(null);
@@ -287,6 +287,7 @@ export default function EditorScreen() {
       t ? `Filler words found: ${t.stats.lexicalFillerCount}` : '',
       t ? `Transcribed in ${t.stats.elapsedSec.toFixed(1)} s` : '',
       analysis ? `Speech coverage: ${(analysis.speechCoverage * 100).toFixed(0)}%` : '',
+      rendered ? `Output frame: ${rendered.size} (${rendered.aspect === 'original' ? 'original shape' : rendered.aspect})` : '',
       project?.media ? `${Math.round(project.media.fps)} fps · ${project.media.isHDR ? 'HDR source, exported as SDR' : 'SDR'}` : '',
       ...(analysis?.warnings ?? []),
     ].filter(Boolean);
@@ -388,7 +389,14 @@ export default function EditorScreen() {
                   setPreviewReady(true);
                   setPreviewError(null);
                   const { width, height } = e.nativeEvent;
-                  if (width > 0 && height > 0) setRendered({ aspect, value: width / height });
+                  if (!(width > 0 && height > 0)) return;
+                  // An older installed build ignores the aspect setting and keeps rendering the clip's own shape.
+                  // Say so, instead of silently snapping the frame back.
+                  if (aspect !== 'original' && Math.abs(width / height - aspectRatioValue(aspect)) > 0.02) {
+                    setPreviewError('This installed build of Tenfold can’t change the frame. Install the latest build.');
+                    return;
+                  }
+                  setRendered({ aspect, value: width / height, size: `${Math.round(width)}×${Math.round(height)}` });
                 }}
                 onEnd={() => setPlaying(false)}
                 onPlayingChange={(e) => setPlaying(e.nativeEvent.playing)}
