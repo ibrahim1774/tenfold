@@ -20,16 +20,20 @@ export function batchAspect(preset: BatchPreset): Exclude<AspectRatio, 'original
   return a === 'original' ? '9:16' : a;
 }
 
-/** Defaults for a video that has no selection yet (older batches, clips added later). */
-export function defaultEdits(batch: Batch): EditSelection {
-  const p = batch.preset;
+/** Checks a new video starts with, from the batch style. */
+export function editsForPreset(p: BatchPreset, captionsOff = false): EditSelection {
   return {
-    captions: !batch.captionsOff,
+    captions: !captionsOff,
     fillers: p.analysis.fillers !== 'off',
     pauses: p.analysis.silence !== 'off',
     zoom: p.zoom.mode !== 'off',
     reframe: (p.crop.aspect ?? (p.crop.auto916 ? '9:16' : 'original')) !== 'original',
   };
+}
+
+/** Defaults for a video saved before per-video edits existed. */
+export function defaultEdits(batch: Batch): EditSelection {
+  return editsForPreset(batch.preset, batch.captionsOff);
 }
 
 export function editsOf(project: Pick<Project, 'edits'>, batch: Batch): EditSelection {

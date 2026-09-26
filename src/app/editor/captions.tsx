@@ -35,9 +35,10 @@ export default function CaptionStyleSheet() {
   const [posY, setPosY] = useState(initial.position.y);
   const [uppercase, setUppercase] = useState(initial.uppercase);
   const [maxWords, setMaxWords] = useState(initial.maxWords);
-  const [enabled, setEnabled] = useState(
+  const [initialEnabled] = useState(() =>
     doc ? doc.captions.enabled : batch ? batch.projectIds.some((id) => editsOf(useLibrary.getState().projects[id] ?? {}, batch).captions) : true,
   );
+  const [enabled, setEnabled] = useState(initialEnabled);
   const [sample, setSample] = useState('three tips that work');
 
   useEffect(() => {
@@ -76,7 +77,8 @@ export default function CaptionStyleSheet() {
     if (projectId && doc) commitDoc(projectId, { ...doc, captions: next });
     if (batchId && batch) {
       updateBatch(batchId, { preset: { ...batch.preset, presetId: 'custom', captions: next } });
-      setEdit(batchId, 'captions', enabled);
+      // Only flip the per-video checks when the switch was actually changed here.
+      if (enabled !== initialEnabled) setEdit(batchId, 'captions', enabled);
     }
     router.back();
   };

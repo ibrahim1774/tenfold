@@ -402,9 +402,12 @@ export default function EditorScreen() {
       zoom: mode === 'auto' ? { ...doc.zoom, faceFollow: true } : doc.zoom,
     });
   const commitPlacement = (p: Placement) => {
-    const c = doc.crop;
+    // Pinch and pan can both end on one lift; compare with the saved document, not this render's copy.
+    const latest = useLibrary.getState().docs[projectId];
+    if (!latest) return;
+    const c = latest.crop;
     if (c.scale === p.scale && (c.offsetX ?? 0) === p.offsetX && (c.offsetY ?? 0) === p.offsetY) return;
-    commit({ ...doc, crop: { auto916: aspect === '9:16', aspect, scale: p.scale, offsetX: p.offsetX, offsetY: p.offsetY } });
+    commit({ ...latest, crop: { auto916: aspect === '9:16', aspect, scale: p.scale, offsetX: p.offsetX, offsetY: p.offsetY } });
   };
   const sourceDuration = project.media?.durationSec ?? total;
   const untouched = !doc.cuts.some((c) => c.accepted) && !doc.captions.enabled && doc.zoom.mode === 'off' && aspect === 'original';
@@ -447,6 +450,7 @@ export default function EditorScreen() {
             placement={placement}
             renderTick={renderTick}
             onCommit={commitPlacement}
+            onAdjustStart={() => setPlaying(false)}
             onTap={() => setPlaying((p) => !p)}
             onDoubleTap={() => setFrame(frameMode === 'fit' ? 'fill' : 'fit')}>
             <TenfoldPreviewView

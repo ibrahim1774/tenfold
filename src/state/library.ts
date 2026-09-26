@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 import type { Analysis, Batch, BatchPreset, BatchStatus, EditDocument, EditSelection, ImportedAsset, Project } from '../engine/types';
-import { batchAspect, defaultEdits, effectiveLevels, effectiveZoom } from '../batch/edits';
+import { batchAspect, defaultEdits, editsForPreset, effectiveLevels, effectiveZoom } from '../batch/edits';
 import { persistStorage } from './storage';
 
 // Batches, projects and edit documents. Heavy per-project data (source video, transcript,
@@ -41,6 +41,7 @@ export const useLibrary = create<LibraryState>()(
             media: a.media,
             status: 'pending',
             progress: 0,
+            edits: editsForPreset(preset),
             createdAt: now + i,
           };
         });
@@ -69,6 +70,8 @@ export const useLibrary = create<LibraryState>()(
               media: a.media,
               status: 'pending',
               progress: 0,
+              // New clips join with the same checks as the rest of the batch.
+              edits: editsForPreset(batch.preset, batch.captionsOff),
               createdAt: Date.now() + i,
             };
           });

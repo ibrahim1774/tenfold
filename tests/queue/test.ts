@@ -2,7 +2,7 @@ import { calls, control, running } from './mockEngine';
 import { AppState } from './rnMock';
 import { cancelBatch, queueExports, retryProject, setPaused, startBatch, startQueue, useQueueUI } from '@/batch/queue';
 import { clampPlacement, fillUserScale, fitScale, MAX_SCALE, MIN_SCALE } from '@/editor/frame';
-import { setAllEdits, setEdit } from '@/state/batchSetup';
+import { setAllEdits, setEdit, setPresetId } from '@/state/batchSetup';
 import { useEntitlements } from '@/state/entitlements';
 import { projectsOf, useLibrary } from '@/state/library';
 import { batchPreset } from '@/state/presets';
@@ -176,6 +176,18 @@ async function main() {
   check(await until(() => statuses(b).every((s) => s === 'ready')), 'ready');
   const d = lib().docs[lib().batches[b].projectIds[0]];
   check(!d.captions.enabled && d.zoom.mode === 'off' && d.crop.aspect === 'original' && d.levels?.fillers === 'off', 'untouched edit');
+
+  console.log('• changing the preset keeps every video\'s checks in agreement');
+  b = newBatch(3);
+  const [q1, q2] = lib().batches[b].projectIds;
+  check(lib().projects[q1].edits?.captions === true, 'new clips get explicit checks');
+  setEdit(b, 'captions', false, [q1]);
+  setPresetId(b, 'podcast');
+  const ed = lib().batches[b].projectIds.map((id) => lib().projects[id].edits!);
+  check(ed.every((e) => e.zoom === false && e.reframe === false), `podcast turns zoom and reframe off everywhere (${JSON.stringify(ed.map((e) => [e.zoom, e.reframe]))})`);
+  check(lib().projects[q1].edits?.captions === false && lib().projects[q2].edits?.captions === true, 'per-video caption choice survives the preset change');
+  setPresetId(b, 'punchy');
+  check(lib().batches[b].projectIds.every((id) => lib().projects[id].edits!.zoom === true), 'punchy turns zoom back on everywhere');
 
   console.log('• framing math matches the engine (same numbers as CoreTests)');
   const near = (a: number, b: number, e = 1e-6) => Math.abs(a - b) < e;

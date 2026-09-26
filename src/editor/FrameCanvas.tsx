@@ -19,6 +19,8 @@ type Props = {
   /** Increments whenever the native preview has rendered a new document; the live transform then resets. */
   renderTick: number;
   onCommit: (p: Placement) => void;
+  /** A pinch or drag began (the editor pauses playback, like CapCut). */
+  onAdjustStart: () => void;
   onTap: () => void;
   onDoubleTap: () => void;
   children: ReactNode;
@@ -31,7 +33,7 @@ const SNAP = 0.015; // offsets this close to centre snap to it
  * down, the already-rendered preview is transformed on the UI thread (exactly, since the preview is the
  * canvas); on release the placement is committed and the engine re-renders it for real.
  */
-export function FrameCanvas({ width, height, videoW, videoH, placement, renderTick, onCommit, onTap, onDoubleTap, children }: Props) {
+export function FrameCanvas({ width, height, videoW, videoH, placement, renderTick, onCommit, onAdjustStart, onTap, onDoubleTap, children }: Props) {
   // What the native preview shows (base) and where the fingers have taken it (live).
   const base = useSharedValue(placement);
   const live = useSharedValue(placement);
@@ -55,6 +57,7 @@ export function FrameCanvas({ width, height, videoW, videoH, placement, renderTi
   const pinch = Gesture.Pinch()
     .onStart(() => {
       start.set(live.get());
+      scheduleOnRN(onAdjustStart);
     })
     .onUpdate((e) => {
       const s = start.get();
@@ -68,6 +71,7 @@ export function FrameCanvas({ width, height, videoW, videoH, placement, renderTi
     .onStart(() => {
       start.set(live.get());
       snapped.set(false);
+      scheduleOnRN(onAdjustStart);
     })
     .onUpdate((e) => {
       const s = start.get();

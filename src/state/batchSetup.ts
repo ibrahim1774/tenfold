@@ -1,5 +1,5 @@
 import { captionSettingsFromPreset } from '../captions/presets';
-import { ALL_OFF, ALL_ON, editsOf } from '../batch/edits';
+import { ALL_OFF, ALL_ON, editsForPreset, editsOf } from '../batch/edits';
 import type { BatchPreset, CaptionStyleId, EditKey, PresetId } from '../engine/types';
 import { useLibrary } from './library';
 import { useSettings } from './settings';
@@ -9,8 +9,17 @@ import { batchPreset } from './presets';
 
 const lib = () => useLibrary.getState();
 
+/** A preset sets the style and re-checks Zoom and Reframe to match it on every video. */
 export function setPresetId(batchId: string, id: PresetId) {
-  lib().updateBatch(batchId, { preset: batchPreset(id, useSettings.getState().platforms), captionsOff: false });
+  const preset = batchPreset(id, useSettings.getState().platforms);
+  lib().updateBatch(batchId, { preset, captionsOff: false });
+  const b = lib().batches[batchId];
+  if (!b) return;
+  const fresh = editsForPreset(preset);
+  for (const pid of b.projectIds) {
+    const p = lib().projects[pid];
+    if (p) lib().updateProject(pid, { edits: { ...editsOf(p, b), zoom: fresh.zoom, reframe: fresh.reframe } });
+  }
 }
 
 /** Any manual change turns the preset into "Custom". */
