@@ -78,6 +78,7 @@ class TenfoldPreviewView: ExpoView {
   func setPlaying(_ playing: Bool) {
     wantsPlaying = playing
     if playing {
+      Self.activatePlaybackAudio()
       if let item = player.currentItem, item.duration.isNumeric, CMTimeCompare(player.currentTime(), item.duration) >= 0 {
         player.seek(to: .zero)
       }
@@ -85,6 +86,15 @@ class TenfoldPreviewView: ExpoView {
     } else {
       player.pause()
     }
+  }
+
+  /// The default session (soloAmbient) is silenced by the Ring/Silent switch; an editor preview should always be heard.
+  private static func activatePlaybackAudio() {
+    let session = AVAudioSession.sharedInstance()
+    if session.category != .playback {
+      try? session.setCategory(.playback, mode: .moviePlayback)
+    }
+    try? session.setActive(true)
   }
 
   func setMuted(_ muted: Bool) {

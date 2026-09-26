@@ -278,9 +278,10 @@ export default function EditorScreen() {
       <View style={[styles.flex, { paddingTop: insets.top + 4 }]}>
         <View style={styles.gutter}>
           <ScreenHeader
-            title="Video Editor"
+            title="Tenfold Editor"
             right={
               <>
+                <IconButton icon="ellipsis" label="Video info" size={40} iconScale={0.5} onPress={showInfo} />
                 <OutlineButton
                   title="Export"
                   height={40}
@@ -289,7 +290,6 @@ export default function EditorScreen() {
                     router.push({ pathname: '/export/[projectId]', params: { projectId } });
                   }}
                 />
-                <IconButton icon="ellipsis" label="Video info" tone="ghost" size={32} iconScale={0.55} onPress={showInfo} />
               </>
             }
           />
