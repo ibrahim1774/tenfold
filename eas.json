@@ -23,12 +23,7 @@
   },
   "submit": {
     "production": {
-      "ios": {
-        "ascApiKeyPath": "/Users/ibrahim/.private_keys/AuthKey_5YX524BBAM.p8",
-        "ascApiKeyIssuerId": "8e2cad29-fcba-4f15-baf7-23b9cbcd6c24",
-        "ascApiKeyId": "5YX524BBAM",
-        "appleTeamId": "Q5U5W6788K"
-      }
+      "ios": {}
     }
   }
 }
