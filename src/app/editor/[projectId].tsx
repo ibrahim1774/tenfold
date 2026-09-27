@@ -292,13 +292,14 @@ export default function EditorScreen() {
     preview.current?.seek(t).catch(() => {});
   };
 
-  const applyLevels = async (next: { silence: SilenceLevel; fillers: FillerLevel }) => {
+  const applyLevels = async (next: { silence: SilenceLevel; fillers: FillerLevel; retakes?: boolean }) => {
     // Only the newest tap wins, and it applies to the document as it is when the result arrives.
     const request = ++levelsRequest.current;
     try {
       const suggested = await Engine.suggestCuts(projectId, {
         silence: next.silence,
         fillers: next.fillers,
+        retakes: next.retakes ?? true,
         language: analysis?.transcript?.language ?? 'auto',
       });
       const latest = useLibrary.getState().docs[projectId];
@@ -410,11 +411,15 @@ export default function EditorScreen() {
     );
   }
 
-  const candidates = doc.cuts.filter((c) => !c.accepted && c.reason === 'filler' && c.confidence < 0.9);
+  // Suggestions Tenfold wasn't sure enough about to apply: possible fillers and possible retakes.
+  const fillerCandidates = doc.cuts.filter((c) => !c.accepted && c.reason === 'filler' && c.confidence < 0.9);
+  const retakeCandidates = doc.cuts.filter((c) => !c.accepted && c.reason === 'retake');
+  const candidates = [...fillerCandidates, ...retakeCandidates];
   const acceptedFillers = doc.cuts.filter((c) => c.accepted && c.reason === 'filler').length;
   const acceptedPauses = doc.cuts.filter((c) => c.accepted && c.reason === 'silence').length;
+  const acceptedRetakes = doc.cuts.filter((c) => c.accepted && c.reason === 'retake').length;
   const acceptedManual = doc.cuts.filter((c) => c.accepted && c.reason === 'manual').length;
-  const anyAccepted = acceptedFillers + acceptedPauses + acceptedManual > 0;
+  const anyAccepted = acceptedFillers + acceptedPauses + acceptedRetakes + acceptedManual > 0;
   const total = plan?.compDuration ?? project.media?.durationSec ?? 0;
   const muted = doc.audio.mode === 'mute';
   const aspect = aspectOf(doc.crop);
@@ -456,9 +461,10 @@ export default function EditorScreen() {
   };
   const sourceDuration = project.media?.durationSec ?? total;
   const untouched = !doc.cuts.some((c) => c.accepted) && !doc.captions.enabled && doc.zoom.mode === 'off' && aspect === 'original';
-  const currentLevels = doc.levels ?? {
-    silence: batch?.preset.analysis.silence ?? 'medium',
-    fillers: batch?.preset.analysis.fillers ?? 'standard',
+  const currentLevels = {
+    silence: doc.levels?.silence ?? batch?.preset.analysis.silence ?? 'medium',
+    fillers: doc.levels?.fillers ?? batch?.preset.analysis.fillers ?? 'standard',
+    retakes: doc.levels?.retakes ?? batch?.preset.analysis.retakes ?? true,
   };
   const removedSec = plan?.removedSec ?? 0;
   // Facts about this edit, e.g. "Removed 14 s · 6 filler words · 3 pauses".
@@ -471,6 +477,7 @@ export default function EditorScreen() {
           `Removed ${seconds(removedSec)}`,
           acceptedFillers > 0 ? plural(acceptedFillers, 'filler word', 'filler words') : '',
           acceptedPauses > 0 ? plural(acceptedPauses, 'pause', 'pauses') : '',
+          acceptedRetakes > 0 ? plural(acceptedRetakes, 'retake', 'retakes') : '',
           acceptedManual > 0 ? plural(acceptedManual, 'cut by hand', 'cuts by hand') : '',
         ]
           .filter(Boolean)
@@ -653,7 +660,21 @@ export default function EditorScreen() {
                 {!analysis.noSpeech && candidates.length > 0 && (
                   <>
                     <AppText variant="label" color={colors.textSecondary}>
-                      {candidates.length === 1 ? '1 more spot sounds like a filler word.' : `${candidates.length} more spots sound like filler words.`}
+                      {[
+                        fillerCandidates.length > 0
+                          ? fillerCandidates.length === 1
+                            ? '1 more spot sounds like a filler word'
+                            : `${fillerCandidates.length} more spots sound like filler words`
+                          : '',
+                        retakeCandidates.length > 0
+                          ? retakeCandidates.length === 1
+                            ? '1 sentence may be a retake'
+                            : `${retakeCandidates.length} sentences may be retakes`
+                          : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                      .
                     </AppText>
                     <View style={styles.buttonRow}>
                       <OutlineButton
@@ -710,7 +731,7 @@ export default function EditorScreen() {
                           onPress={() => toggleWord(i)}
                           onLongPress={() => startEditingWord(i)}
                           accessibilityRole="button"
-                          accessibilityLabel={`${text}${removed ? ', removed' : candidate ? ', possible filler' : ''}`}
+                          accessibilityLabel={`${text}${removed ? ', removed' : candidate ? (cut?.reason === 'retake' ? ', possible retake' : ', possible filler') : ''}`}
                           accessibilityHint={removed ? 'Restores the word.' : 'Cuts the word.'}
                           accessibilityActions={[{ name: 'fixSpelling', label: 'Fix spelling' }]}
                           onAccessibilityAction={(e) => e.nativeEvent.actionName === 'fixSpelling' && startEditingWord(i)}
@@ -735,10 +756,11 @@ export default function EditorScreen() {
             )}
 
             {tool === 'cuts' && (
-              <Panel title="Cuts" detail="Pauses and filler words taken out of this video.">
+              <Panel title="Cuts" detail="Pauses, filler words and retakes taken out of this video.">
                 <View style={styles.statRow}>
                   <Stat value={String(acceptedPauses)} label="Pauses" />
-                  <Stat value={String(acceptedFillers)} label="Filler words" />
+                  <Stat value={String(acceptedFillers)} label="Fillers" />
+                  <Stat value={String(acceptedRetakes)} label="Retakes" />
                   <Stat value={String(acceptedManual)} label="By hand" />
                   <Stat value={removedSec.toFixed(1)} label="Seconds" />
                 </View>
@@ -757,6 +779,16 @@ export default function EditorScreen() {
                       <Chip key={o.v} label={o.l} selected={currentLevels.fillers === o.v} onPress={() => applyLevels({ ...currentLevels, fillers: o.v })} />
                     ))}
                   </ChipGroup>
+                </View>
+                <View style={styles.group}>
+                  <OptionLabel>Retakes</OptionLabel>
+                  <ChipGroup>
+                    <Chip label="Off" selected={!currentLevels.retakes} onPress={() => applyLevels({ ...currentLevels, retakes: false })} />
+                    <Chip label="On" selected={currentLevels.retakes} onPress={() => applyLevels({ ...currentLevels, retakes: true })} />
+                  </ChipGroup>
+                  <AppText variant="caption" color={colors.textMuted}>
+                    When a sentence is said twice, the first attempt is removed. Only near-exact repeats are cut without asking.
+                  </AppText>
                 </View>
                 {levelsError && (
                   <AppText variant="label" color={colors.danger}>

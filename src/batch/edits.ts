@@ -6,13 +6,14 @@ import type { AspectRatio, Batch, BatchPreset, EditKey, EditSelection, FillerLev
 export const EDITS: { key: EditKey; label: string; detail: string }[] = [
   { key: 'captions', label: 'Captions', detail: 'Word-by-word, synced to speech' },
   { key: 'fillers', label: 'Filler words', detail: 'Removes um, uh, like' },
-  { key: 'pauses', label: 'Pauses', detail: 'Removes dead air' },
+  { key: 'pauses', label: 'Pauses', detail: 'Shortens dead air to a natural beat' },
+  { key: 'retakes', label: 'Retakes', detail: 'Removes repeated attempts at a sentence' },
   { key: 'zoom', label: 'Zoom', detail: 'Punch-ins that hide the cuts' },
   { key: 'reframe', label: 'Reframe', detail: 'Crops to the batch frame, follows the speaker' },
 ];
 
-export const ALL_ON: EditSelection = { captions: true, fillers: true, pauses: true, zoom: true, reframe: true };
-export const ALL_OFF: EditSelection = { captions: false, fillers: false, pauses: false, zoom: false, reframe: false };
+export const ALL_ON: EditSelection = { captions: true, fillers: true, pauses: true, retakes: true, zoom: true, reframe: true };
+export const ALL_OFF: EditSelection = { captions: false, fillers: false, pauses: false, retakes: false, zoom: false, reframe: false };
 
 /** Frame ratio used when Reframe is on. */
 export function batchAspect(preset: BatchPreset): Exclude<AspectRatio, 'original'> {
@@ -26,6 +27,7 @@ export function editsForPreset(p: BatchPreset, captionsOff = false): EditSelecti
     captions: !captionsOff,
     fillers: p.analysis.fillers !== 'off',
     pauses: p.analysis.silence !== 'off',
+    retakes: p.analysis.retakes ?? true,
     zoom: p.zoom.mode !== 'off',
     reframe: (p.crop.aspect ?? (p.crop.auto916 ? '9:16' : 'original')) !== 'original',
   };
@@ -41,10 +43,10 @@ export function editsOf(project: Pick<Project, 'edits'>, batch: Batch): EditSele
 }
 
 /** Strengths the analysis runs with: the batch's strength when the edit is on, 'off' when it isn't. */
-export function effectiveLevels(preset: BatchPreset, edits: EditSelection): { silence: SilenceLevel; fillers: FillerLevel } {
+export function effectiveLevels(preset: BatchPreset, edits: EditSelection): { silence: SilenceLevel; fillers: FillerLevel; retakes: boolean } {
   const silence = preset.analysis.silence === 'off' ? 'medium' : preset.analysis.silence;
   const fillers = preset.analysis.fillers === 'off' ? 'standard' : preset.analysis.fillers;
-  return { silence: edits.pauses ? silence : 'off', fillers: edits.fillers ? fillers : 'off' };
+  return { silence: edits.pauses ? silence : 'off', fillers: edits.fillers ? fillers : 'off', retakes: edits.retakes };
 }
 
 export function effectiveZoom(preset: BatchPreset, edits: EditSelection): ZoomMode {

@@ -163,6 +163,8 @@ async function main() {
   const opts = (id: string) => calls.filter((c) => c.fn === 'analyze' && c.id === id).at(-1)?.opts;
   check(opts(e1)?.silence === 'off' && opts(e1)?.fillers !== 'off', `pauses off → no silence detection (${JSON.stringify(opts(e1))})`);
   check(opts(e2)?.silence !== 'off', 'others keep pause cutting');
+  setEdit(b, 'retakes', false, [e3]);
+  check(lib().projects[e3].edits?.retakes === false && opts(e1)?.retakes === true, 'retakes on by default, off per video when unchecked');
   check(lib().docs[e1].captions.enabled === false && lib().docs[e2].captions.enabled === true, 'captions follow the checks');
   check(lib().docs[e1].levels?.silence === 'off' && lib().docs[e2].levels?.silence !== 'off', 'levels match what ran');
   check(lib().docs[e2].crop.aspect === 'original' && lib().docs[e3].crop.aspect === '9:16', 'reframe follows the checks');

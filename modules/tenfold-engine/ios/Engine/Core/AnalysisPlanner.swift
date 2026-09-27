@@ -32,6 +32,15 @@ public enum AnalysisPlanner {
       return c
     }
     cuts += fillerCuts
+    if options.retakesOn {
+      // Retake cuts span whole words, so loose timings only downgrade them to suggestions.
+      let retakes = RetakeDetector.detect(words: f.words)
+      cuts += wordTimingIsExact ? retakes : retakes.map { c -> Cut in
+        var c = c
+        c.accepted = false
+        return c
+      }
+    }
     return Result(words: f.words, cuts: cuts.sorted { $0.start < $1.start }, levels: levels, noSpeech: false, lexicalFillers: f.lexicalCount)
   }
 }

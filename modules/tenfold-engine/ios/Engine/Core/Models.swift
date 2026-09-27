@@ -6,7 +6,7 @@ public enum SilenceLevel: String, Codable, Sendable { case off, light, medium, a
 public enum FillerLevel: String, Codable, Sendable { case off, standard, aggressive }
 public enum ZoomMode: String, Codable, Sendable { case off, subtle, dynamic }
 public enum AudioMode: String, Codable, Sendable { case original, normalize, mute }
-public enum CutReason: String, Codable, Sendable { case silence, filler, manual }
+public enum CutReason: String, Codable, Sendable { case silence, filler, retake, manual }
 
 public struct Word: Codable, Sendable, Equatable {
   public var text: String
@@ -119,13 +119,18 @@ public struct MediaInfo: Codable, Sendable, Equatable {
 public struct AnalysisOptions: Codable, Sendable, Equatable {
   public var silence: SilenceLevel
   public var fillers: FillerLevel
+  /// Remove repeated attempts at a sentence (absent in older documents = on).
+  public var retakes: Bool?
   public var language: String
 
-  public init(silence: SilenceLevel = .medium, fillers: FillerLevel = .standard, language: String = "auto") {
+  public init(silence: SilenceLevel = .medium, fillers: FillerLevel = .standard, retakes: Bool? = true, language: String = "auto") {
     self.silence = silence
     self.fillers = fillers
+    self.retakes = retakes
     self.language = language
   }
+
+  public var retakesOn: Bool { retakes ?? true }
 }
 
 public struct Analysis: Codable, Sendable {

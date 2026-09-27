@@ -28,7 +28,7 @@ export type CaptionFont =
   | 'montserrat'
   | 'sfRounded';
 export type PresetId = 'cleanTalk' | 'punchy' | 'podcast' | 'story' | 'custom';
-export type CutReason = 'silence' | 'filler' | 'manual';
+export type CutReason = 'silence' | 'filler' | 'retake' | 'manual';
 
 export type Word = { text: string; start: number; end: number; confidence: number; isFiller: boolean };
 
@@ -97,7 +97,7 @@ export type EditDocument = {
   /** Split points (source seconds) the user added on the timeline. UI only: the engine ignores them. */
   splits?: number[];
   /** Pause/filler strength last picked in the editor (UI only). */
-  levels?: { silence: SilenceLevel; fillers: FillerLevel };
+  levels?: { silence: SilenceLevel; fillers: FillerLevel; retakes?: boolean };
 };
 
 export type AspectRatio = 'original' | '9:16' | '1:1' | '4:5' | '16:9';
@@ -114,7 +114,7 @@ export type CropSettings = {
   offsetY?: number;
 };
 
-export type AnalysisOptions = { silence: SilenceLevel; fillers: FillerLevel; language: string };
+export type AnalysisOptions = { silence: SilenceLevel; fillers: FillerLevel; retakes?: boolean; language: string };
 
 export type BatchPreset = {
   presetId: PresetId;
@@ -195,7 +195,7 @@ export type Project = {
   createdAt: number;
 };
 
-export type EditKey = 'captions' | 'fillers' | 'pauses' | 'zoom' | 'reframe';
+export type EditKey = 'captions' | 'fillers' | 'pauses' | 'retakes' | 'zoom' | 'reframe';
 export type EditSelection = Record<EditKey, boolean>;
 
 export type BatchStatus = 'setup' | 'processing' | 'ready' | 'exported';

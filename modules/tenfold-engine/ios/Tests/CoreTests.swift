@@ -50,7 +50,7 @@ struct CoreTests {
       check(near(l.coverage, 0.6, 0.01), "60% speech")
     }
 
-    test("silence detector: medium level cuts long pauses, keeps breathing room") {
+    test("silence detector: pauses are shortened to a natural beat, not deleted") {
       // speech 0–2, pause 2–3, speech 3–5, short pause 5–5.3, speech 5.3–7
       let e = env([(2, -20), (1, -70), (2, -20), (0.3, -70), (1.7, -20)])
       let words = [w("a", 0.1, 1.9), w("b", 3.1, 4.9), w("c", 5.4, 6.9)]
@@ -58,15 +58,46 @@ struct CoreTests {
       let cuts = SilenceDetector.detect(envelope: e, levels: l, words: words, params: SilenceParams.forLevel(.medium)!)
       check(cuts.count == 1, "one cut, got \(cuts.count)")
       if let c = cuts.first {
-        check(near(c.start, 2.08), "starts after padding, got \(c.start)")
-        check(near(c.end, 2.92), "ends before padding, got \(c.end)")
+        check(near(c.start, 2.15), "medium keeps 0.3 s: starts at \(c.start)")
+        check(near(c.end, 2.85), "ends at \(c.end)")
         check(c.reason == .silence && c.accepted, "accepted silence")
       }
       let light = SilenceDetector.detect(envelope: e, levels: l, words: words, params: SilenceParams.forLevel(.light)!)
-      check(light.count == 1 && near(light[0].start, 2.12), "light pads 0.12")
+      check(light.count == 1 && near(light[0].start, 2.2), "light keeps 0.4 s")
       let aggr = SilenceDetector.detect(envelope: e, levels: l, words: words, params: SilenceParams.forLevel(.aggressive)!)
-      check(aggr.count == 2, "aggressive also cuts the 0.3 s pause, got \(aggr.count)")
-      if aggr.count == 2 { check(aggr[1].end - aggr[1].start < 0.3 - 0.149, "keeps ≥ 0.15 s of the pause") }
+      check(aggr.count == 1, "aggressive leaves the 0.3 s pause alone (min 0.3, keep 0.2), got \(aggr.count)")
+      // A pause after a sentence end keeps a longer beat.
+      let sentence = [w("done.", 0.1, 1.9), w("b", 3.1, 4.9), w("c", 5.4, 6.9)]
+      let sc = SilenceDetector.detect(envelope: e, levels: l, words: sentence, params: SilenceParams.forLevel(.medium)!)
+      check(sc.count == 1 && near(sc[0].start, 2.225), "sentence end keeps 0.45 s: starts at \(sc.first?.start ?? -1)")
+    }
+
+    test("retake detector: cuts the earlier attempt, ignores deliberate repetition") {
+      func line(_ text: String, from t0: Double, step: Double = 0.3) -> [Word] {
+        text.split(separator: " ").enumerated().map { i, t in w(String(t), t0 + Double(i) * step, t0 + Double(i) * step + 0.25) }
+      }
+      // Exact retake of 6 words → applied automatically.
+      var words = line("so today we are going to", from: 0) + line("so today we are going to talk about it.", from: 2.5)
+      var cuts = RetakeDetector.detect(words: words)
+      check(cuts.count == 1 && cuts[0].accepted && cuts[0].reason == .retake, "exact retake auto-applied (\(cuts.count))")
+      if let c = cuts.first { check(c.start < 0.1 && near(c.end, 2.47, 0.01), "cut spans the first attempt \(c.start)–\(c.end)") }
+      // False start with a stumble ("we we-"), then the full sentence.
+      words = line("so today we are we", from: 0) + line("so today we are going to talk.", from: 2.2)
+      cuts = RetakeDetector.detect(words: words)
+      check(cuts.count == 1, "stumbled false start found (\(cuts.count))")
+      check(cuts.first?.accepted == false, "a 4-word match is a suggestion, not applied")
+      // Deliberate repetition: too few distinct words.
+      cuts = RetakeDetector.detect(words: line("no no no no no no", from: 0))
+      check(cuts.isEmpty, "'no no no' is not a retake")
+      // Same sentence said again 20 s later is not a retake.
+      words = line("thanks for watching this one", from: 0) + line("thanks for watching this one", from: 25)
+      check(RetakeDetector.detect(words: words).isEmpty, "far-apart repeat is not a retake")
+      // Fillers between attempts don't break the match.
+      var withUm = line("so today we are going to", from: 0)
+      var um = w("um", 1.9, 2.1); um.isFiller = true
+      withUm.append(um)
+      withUm += line("so today we are going to talk.", from: 2.3)
+      check(RetakeDetector.detect(words: withUm).count == 1, "fillers are ignored when matching")
     }
 
     test("silence detector never cuts inside a word") {
