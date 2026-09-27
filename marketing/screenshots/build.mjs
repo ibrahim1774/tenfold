@@ -1,6 +1,8 @@
-// Builds the ten App Store screenshot pages (src/NN-slug.html) from one set of shared styles.
+// Builds the five App Store screenshot pages (src/NN-slug.html) from one set of shared styles.
 // Every screen is drawn at the iPhone 6.9" logical size (440 x 956 pt) with the app's own tokens
-// (src/design/tokens.ts), then scaled into the phone frame with CSS zoom. Run: node marketing/screenshots/build.mjs
+// (src/design/tokens.ts), then scaled into a phone frame with CSS zoom and tilted with CSS 3D transforms.
+// Video areas show frames from licensed stock footage (footage/, see FOOTAGE.md).
+// Run: node marketing/screenshots/build.mjs
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(here, 'src');
 fs.mkdirSync(OUT, { recursive: true });
+// Start clean so render.mjs only sees the pages written below.
+for (const f of fs.readdirSync(OUT)) if (f.endsWith('.html')) fs.unlinkSync(path.join(OUT, f));
 
 // ---------------------------------------------------------------------------------------------
 // Tokens (src/design/tokens.ts)
@@ -144,6 +148,31 @@ function clipArt(seed = 1, { frame = false, dim = 0 } = {}) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Footage: a still frame from a stock clip, filling its container (object-fit: cover).
+const FOOT = {
+  a1: 'mixkit-34487-1_8s', // vlogger with a phone on a gimbal, outdoors
+  a2: 'mixkit-34487-4_2s',
+  a3: 'mixkit-34487-6_0s',
+  a4: 'mixkit-34487-8_2s',
+  b2: 'mixkit-10457-4_8s', // man at a desk, window light
+  b4: 'mixkit-10457-9_2s',
+  c1: 'mixkit-4834-1_5s', // woman in a white coat, office
+  c2: 'mixkit-4834-6_0s',
+  c3: 'mixkit-4834-12_0s',
+  d1: 'mixkit-39813-0_5s', // woman with an earbud, balcony at dusk
+  d2: 'mixkit-39813-3_2s',
+  d3: 'mixkit-39813-7_0s',
+  d4: 'mixkit-39813-8_3s',
+  e1: 'mixkit-39814-3_0s', // same woman, a second take
+  e2: 'mixkit-39814-5_5s',
+  e3: 'mixkit-39814-6_5s',
+};
+const footSrc = (k) => `../footage/${FOOT[k]}.jpg`;
+function foot(k, pos = '50% 35%') {
+  return `<img class="foot" src="${footSrc(k)}" alt="" style="object-position:${pos}">`;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Shared CSS
 const CSS = `
 @font-face{font-family:'TikTok Sans';src:url('../../../assets/fonts/TikTokSans_800ExtraBold.ttf');font-weight:800}
@@ -152,16 +181,26 @@ const CSS = `
 @font-face{font-family:'Inter Black';src:url('../../../assets/fonts/Inter_900Black.ttf');font-weight:900}
 @font-face{font-family:'Bebas Neue';src:url('../../../assets/fonts/BebasNeue_400Regular.ttf');font-weight:400}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{background:#000}
+html,body{background:#0A0B0D}
 body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',Inter,system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased;overflow:hidden}
-.stage{position:relative;width:1320px;height:2868px;overflow:hidden;background:#000}
+.stage{position:relative;width:1320px;height:2868px;overflow:hidden;background:linear-gradient(180deg,#0F1114 0%,#0A0B0D 100%)}
 body.s67 .stage{zoom:0.977273;height:2861px}
-.head{position:absolute;left:64px;right:64px;top:0;height:548px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
-h1{font-size:90px;line-height:98px;font-weight:700;letter-spacing:-1.6px;text-wrap:balance;max-width:1190px}
+.head{position:absolute;left:96px;right:96px;top:168px;text-align:left;z-index:5}
+h1{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,sans-serif;font-size:96px;line-height:106px;font-weight:600;letter-spacing:-2px;color:#fff}
+h1 span{white-space:nowrap}
 h1 em{font-style:normal;color:${C.accent}}
-.sub{margin-top:26px;font-size:42px;line-height:52px;color:${C.text2};font-weight:500;letter-spacing:-0.2px;white-space:nowrap}
-.phone{position:absolute;left:50%;bottom:80px;transform:translateX(-50%);width:${SW * Z + 36}px;height:${SH * Z + 36}px;border-radius:112px;background:#000;border:3px solid #2A2A2E;padding:15px}
+.sub{margin-top:28px;font-size:40px;line-height:50px;color:#A0A3A8;font-weight:400;letter-spacing:-0.3px;white-space:nowrap}
+/* Phone: a flat device, tilted in 3D. The wrapper holds the perspective; the device carries the transform. */
+.pw{position:absolute;left:0;top:0;width:1320px;height:2868px;perspective:3400px;pointer-events:none}
+.phone{position:absolute;width:${SW * Z + 44}px;height:${SH * Z + 44}px;border-radius:118px;padding:22px;transform-style:preserve-3d;
+  background:linear-gradient(135deg,#3A3B40 0%,#1B1C20 18%,#121316 50%,#1B1C20 82%,#34353A 100%);
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.10),inset 0 0 0 7px #0B0B0D,inset 0 0 0 8px rgba(255,255,255,.05),0 80px 160px rgba(0,0,0,.55),0 30px 60px rgba(0,0,0,.45)}
+.phone .edge3d{position:absolute;inset:0;border-radius:118px;background:#0C0D0F;transform:translateZ(-26px);box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+.phone .btnL,.phone .btnR{position:absolute;width:8px;border-radius:4px;background:linear-gradient(90deg,#2A2B30,#44454B,#2A2B30)}
+.phone .glare{position:absolute;left:22px;top:22px;right:22px;bottom:22px;border-radius:${42 * Z}px;pointer-events:none;z-index:60;
+  background:linear-gradient(118deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,.035) 30%,rgba(255,255,255,0) 31%,rgba(255,255,255,0) 100%)}
 .scr{position:relative;width:${SW}px;height:${SH}px;zoom:${Z};overflow:hidden;border-radius:42px;background:#000;font-size:15px;line-height:20px}
+.foot{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:block}
 .abs{position:absolute}
 .fill{position:absolute;top:0;left:0;right:0;bottom:0}
 .clipart{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden}
@@ -246,7 +285,30 @@ function statusBar() {
   </div>`;
 }
 
-function page({ n, slug, h1, sub, screen }) {
+const PW = SW * Z + 44; // device width, px (before the 3D transform)
+const PH = SH * Z + 44;
+/**
+ * One device. `cx`/`cy` place its centre on the 1320 x 2868 stage; `t` is the 3D tilt, applied about that centre.
+ */
+function device({ screen, cx, cy, t, z = 1 }) {
+  return `<div class="phone" style="left:${cx - PW / 2}px;top:${cy - PH / 2}px;transform:${t};z-index:${z}">
+      <div class="edge3d"></div>
+      <div class="btnL" style="left:-5px;top:430px;height:120px"></div>
+      <div class="btnL" style="left:-5px;top:590px;height:190px"></div>
+      <div class="btnL" style="left:-5px;top:810px;height:190px"></div>
+      <div class="btnR" style="right:-5px;top:640px;height:300px"></div>
+      <div class="scr">
+        ${screen}
+        ${statusBar()}
+        <div class="island"></div>
+        <div class="home"></div>
+      </div>
+      <div class="glare"></div>
+    </div>`;
+}
+
+function page({ n, slug, lines, sub, phones }) {
+  const [l1, l2] = lines;
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -259,16 +321,11 @@ function page({ n, slug, h1, sub, screen }) {
 <body>
 <div class="stage">
   <div class="head">
-    <h1>${h1}</h1>
-    ${sub ? `<div class="sub">${sub}</div>` : ''}
+    <h1><span>${l1}</span><br><span><em>${l2}</em></span></h1>
+    <div class="sub">${sub}</div>
   </div>
-  <div class="phone">
-    <div class="scr">
-      ${screen}
-      ${statusBar()}
-      <div class="island"></div>
-      <div class="home"></div>
-    </div>
+  <div class="pw">
+    ${phones.map(device).join('\n')}
   </div>
 </div>
 <script>if(new URLSearchParams(location.search).get('size')==='6.7')document.body.classList.add('s67');</script>
@@ -341,7 +398,7 @@ const PPS = 46;
  * Tracks: ruler 24, clips 56, captions 4+34, original sound 4+48, added sounds 2 + rows*34 + 4.
  */
 function timeline(o) {
-  const { total, time, points = [], cards = [], selCard = -1, selRegion = null, originals = [[0, total]], sounds = [], clips = null, selClip = -1, addTile = false, seed = 3, muted = false } = o;
+  const { total, time, points = [], cards = [], selCard = -1, selRegion = null, originals = [[0, total]], sounds = [], clips = null, selClip = -1, addTile = false, seed = 3, muted = false, strip = null } = o;
   const pad = SW / 2;
   const x = (t) => pad + (t - time) * PPS;
   const soundRows = sounds.length ? Math.max(...sounds.map((s) => s.row)) + 1 : 0;
@@ -366,7 +423,12 @@ function timeline(o) {
     for (let k = 0; k < n; k++) {
       const a = 34 + Math.round(fr() * 10);
       const b = 22 + Math.round(fr() * 6);
-      frames += `<div class="frame" style="left:${k * 34}px;width:34px;background:linear-gradient(180deg,rgb(${a},${a},${a + 4}) 0%,rgb(${b},${b},${b + 3}) 100%)"></div>`;
+      // Filmstrip: the clip's own frames when footage is given, otherwise a neutral gradient.
+      const clipKey = clips ? clips.find((c) => s >= c.s - 1e-3 && s < c.e - 1e-3)?.strip : null;
+      const key = clipKey ? clipKey[k % clipKey.length] : strip ? strip[(i + k) % strip.length] : null;
+      frames += key
+        ? `<div class="frame" style="left:${k * 34}px;width:34px;background:url('${footSrc(key)}') center 30%/cover"></div>`
+        : `<div class="frame" style="left:${k * 34}px;width:34px;background:linear-gradient(180deg,rgb(${a},${a},${a + 4}) 0%,rgb(${b},${b},${b + 3}) 100%)"></div>`;
     }
     const isSel = selRegion && Math.abs(selRegion[0] - s) < 1e-3;
     h += `<div class="region" style="left:${x(s) + 1}px;width:${w}px">${frames}${isSel ? '<div class="fill" style="background:rgba(255,255,255,0.12)"></div>' : ''}</div>`;
@@ -499,19 +561,24 @@ function popCaption(words, active, { top, size = 21 }) {
     .join(' ')}</div>`;
 }
 
+// Extra SF Symbol stand-ins used by the export screen.
+ICONS.arrowUR = '<path d="M7 17L17 7M9 7h8v8"/>';
+ICONS.share = '<path d="M12 3.5v11M8 7.3l4-3.8 4 3.8"/><path d="M8.5 10H7a2 2 0 00-2 2v7a2 2 0 002 2h10a2 2 0 002-2v-7a2 2 0 00-2-2h-1.5"/>';
+
+// 3D tilts. Negative rotateY turns the screen toward the left of the canvas.
+const tilt = (ry, rx, rz, s) => `rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${rz}deg) scale(${s})`;
+
 // =============================================================================================
 // 01: Batch results
 {
   const cards = [
-    ['Take 1', '0:52 → 0:37', 1],
-    ['Take 2', '0:48 → 0:34', 2],
-    ['Take 3', '1:04 → 0:47', 3],
-    ['Take 4', '0:39 → 0:28', 4],
-    ['Take 5', '0:57 → 0:41', 5],
-    ['Take 6', '0:45 → 0:33', 6],
+    ['Take 1', '0:52 → 0:37', 'a1', '50% 20%'],
+    ['Take 2', '0:48 → 0:34', 'b2', '50% 20%'],
+    ['Take 3', '1:04 → 0:47', 'c1', '50% 25%'],
+    ['Take 4', '0:39 → 0:28', 'd3', '50% 30%'],
   ];
-  const tile = ([t, d, seed]) => `<div class="col" style="width:194px;gap:8px">
-      <div style="position:relative;width:194px;height:280px;border-radius:12px;overflow:hidden;border:.5px solid ${C.border}">${clipArt(seed * 5, { frame: true })}
+  const tile = ([t, d, k, pos]) => `<div class="col" style="width:194px;gap:8px">
+      <div style="position:relative;width:194px;height:230px;border-radius:12px;overflow:hidden;border:.5px solid ${C.border};background:${C.card}">${foot(k, pos)}
         <div class="abs t12 tab" style="left:8px;bottom:8px;padding:2px 6px;border-radius:6px;background:${C.overlay}">${d}</div>
       </div>
       <div class="col" style="gap:2px"><div class="t14">${t}</div><div class="t12 cm">Captions · Filler words · Pauses</div></div>
@@ -529,262 +596,18 @@ function popCaption(words, active, { top, size = 21 }) {
       <div class="t12 c2 tab" style="text-align:center">294 exports left this month</div>
       <div class="btn" style="height:52px;border-radius:26px">${ic('download', 18, '#000', 2)}<span>Export 6 videos</span></div>
     </div>`;
-  page({ n: '01', slug: 'batch-results', h1: 'Film ten takes. Post <em>ten videos.</em>', sub: 'Import a batch. Get finished videos back.', screen });
+  page({
+    n: '01',
+    slug: 'batch',
+    lines: ['Import ten takes.', 'It edits itself.'],
+    sub: 'Pauses, fillers and retakes, cut',
+    phones: [{ screen, cx: 680, cy: 1610, t: tilt(-15, 7, 2.5, 0.94) }],
+  });
 }
 
-// 02: Cuts
+// 02: Onboarding demo, running (src/onboarding/Demo.tsx, DemoPending)
 {
-  const scroll =
-    toolRow(toolBar('cuts')) +
-    timeline({ total: 34, time: 12.6, points: CUT_POINTS, cards: CARDS, selRegion: [11.2, 14.6], seed: 3 }) +
-    editBar({ del: true, hint: 'Part selected. Drag its ends to trim.' });
-  const screen = editor({ title: 'Take 2', scroll, time: '0:12', seed: 2 });
-  page({ n: '02', slug: 'cuts', h1: 'Pauses, fillers and retakes, <em>cut for you</em>', sub: 'Removed 14 s · 6 fillers · 3 pauses', screen });
-}
-
-// 03: Captions sheet
-{
-  const scroll = toolRow(toolBar(null)) + timeline({ total: 34, time: 13.1, points: CUT_POINTS, cards: CARDS, seed: 3 });
-  const cap = popCaption(['the', 'part', 'that', 'matters'], 3, { top: 250, size: 23 });
-  const base = editor({ title: 'Take 2', scroll, preview: cap, playButton: false, time: '0:13', seed: 2 });
-  const O = 146;
-  const sheet = `
-    <div class="fill" style="background:rgba(0,0,0,.12)"></div>
-    <div class="abs" style="left:0;right:0;top:${SH / 2}px;bottom:0;background:${C.bgRaised};border-radius:28px 28px 0 0;overflow:hidden">
-      <div style="transform:translateY(${-O}px);padding:28px 20px 0;display:flex;flex-direction:column;gap:20px">
-        <div class="row" style="align-items:flex-start;gap:12px"><div class="col" style="flex:1;gap:2px"><div class="t20">Captions</div><div class="t13 cm">Changes show in the preview straight away.</div></div><div class="t14 ca" style="min-height:44px;display:flex;align-items:center">Play 3 s</div></div>
-        <div class="group"><div class="grow"><span style="flex:1">Show captions</span><div class="toggle"><i></i></div></div></div>
-        <div>
-          <div class="glabel">LOOK</div>
-          <div class="group">
-            <div class="grow"><span style="flex:1">Style</span><span class="c2">Pop</span>${ic('chevR', 13, C.muted, 2.2)}</div>
-            <div class="div"></div>
-            <div class="grow"><span style="flex:1">Font</span><span class="c2">Poppins</span>${ic('chevR', 13, C.muted, 2.2)}</div>
-            <div class="div"></div>
-            <div class="col" style="padding:12px 16px;gap:8px"><span>Background</span><div class="seg"><div class="segi on">None</div><div class="segi">Box</div><div class="segi">Translucent</div><div class="segi">Highlight</div></div></div>
-            <div class="div"></div>
-            <div class="col" style="padding:12px 16px;gap:8px"><span>Outline</span><div class="seg"><div class="segi">None</div><div class="segi on">Thin</div><div class="segi">Thick</div></div></div>
-            <div class="div"></div>
-            <div class="grow"><span style="flex:1">Shadow</span><div class="toggle"><i></i></div></div>
-          </div>
-        </div>
-        <div>
-          <div class="glabel">COLOURS</div>
-          <div class="group">
-            <div class="grow"><span style="flex:1">Text colour</span><div style="width:28px;height:28px;border-radius:14px;background:#fff;border:1px solid ${C.borderStrong}"></div></div>
-            <div class="div"></div>
-            <div class="grow"><span style="flex:1">Highlight colour</span><div style="width:28px;height:28px;border-radius:14px;background:#FFE14D;border:1px solid ${C.borderStrong}"></div></div>
-          </div>
-        </div>
-      </div>
-      <div class="abs" style="top:5px;left:50%;margin-left:-18px;width:36px;height:5px;border-radius:3px;background:rgba(255,255,255,.28)"></div>
-    </div>`;
-  page({ n: '03', slug: 'captions', h1: 'Captions that follow <em>every word</em>', sub: '12 styles. Yours to restyle.', screen: base + sheet });
-}
-
-// 04: Text tool
-{
-  const frameH = Math.min(SH, SW / (9 / 16));
-  const fy = (SH - frameH) / 2;
-  const KB = 336;
-  const kbTop = SH - KB;
-  const bottomTop = kbTop - 86;
-  const styles = [
-    ['Classic', "'TikTok Sans'", 800, true],
-    ['Elegance', "Didot,'Bodoni 72',serif", 400],
-    ['Neon', "'Bebas Neue'", 400],
-    ['Retro', "'Bodoni 72','Bodoni 72 Oldstyle',serif", 700],
-    ['Comic Sans', "'Comic Neue'", 700],
-    ['Typewriter', "'American Typewriter'", 700],
-    ['Handwriting', 'Noteworthy', 700],
-    ['Serif', 'Georgia', 700],
-    ['Bold', "'Inter Black'", 900],
-  ];
-  const chips = styles
-    .map(([n, f, w, on]) => `<div style="height:36px;padding:0 14px;border-radius:18px;display:flex;align-items:center;background:rgba(40,40,44,.85);border:2px solid ${on ? '#fff' : 'transparent'};font-family:${f};font-weight:${w};font-size:15px;white-space:nowrap;flex:none">${n}</div>`)
-    .join('');
-  const hooks = ['POV:', 'Day 1', 'How to', 'Wait for it']
-    .map((h) => `<div class="t13" style="height:32px;padding:0 12px;border-radius:16px;display:flex;align-items:center;background:rgba(255,255,255,.14);flex:none">${h}</div>`)
-    .join('');
-  const fontSize = 0.09 * SW; // size 0.09 of the shorter side (MIN 0.03, MAX 0.2)
-  // Keyboard (iOS dark)
-  const kw = (SW - 8 - 9 * 6) / 10;
-  const key = (x, y, w, label, dark = false, size = 23) =>
-    `<div class="abs row" style="left:${x}px;top:${y}px;width:${w}px;height:45px;border-radius:8.5px;justify-content:center;background:${dark ? '#3A3A3D' : '#636367'};box-shadow:0 1px 0 rgba(0,0,0,.35);font-size:${size}px;line-height:28px;font-weight:400">${label}</div>`;
-  let kb = '';
-  const rows = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
-  rows[0].split('').forEach((c, i) => (kb += key(4 + i * (kw + 6), 52, kw, c)));
-  rows[1].split('').forEach((c, i) => (kb += key(4 + (kw + 6) / 2 + i * (kw + 6), 108, kw, c)));
-  const sw = kw * 1.28;
-  kb += key(4, 164, sw, ic('shift', 21, '#fff', 1.6), true);
-  rows[2].split('').forEach((c, i) => (kb += key(4 + (kw + 6) * 1.5 + i * (kw + 6), 164, kw, c)));
-  kb += key(SW - 4 - sw, 164, sw, ic('del', 22, '#fff', 1.6), true);
-  kb += key(4, 220, sw, '123', true, 16);
-  kb += key(4 + sw + 6, 220, sw, ic('smile', 21, '#fff', 1.6), true);
-  const retW = kw * 2.2;
-  kb += key(4 + 2 * (sw + 6), 220, SW - 8 - 2 * (sw + 6) - retW - 6, 'space', false, 16);
-  kb += key(SW - 4 - retW, 220, retW, 'return', true, 16);
-  const screen = `
-    <div class="abs" style="left:0;top:${fy}px;width:${SW}px;height:${frameH}px;overflow:hidden">${clipArt(9, { dim: 0.55 })}</div>
-    <div class="abs row" style="top:${TOP}px;left:0;right:0;height:56px;padding:0 8px;gap:2px">
-      <div class="ib">${ic('textSize', 24)}</div>
-      <div class="ib"><div style="width:24px;height:24px;border-radius:12px;border:2px solid #fff;background:#fff"></div></div>
-      <div class="ib">${ic('aSquare', 24)}</div>
-      <div class="ib">${ic('alignCenter', 22)}</div>
-      <div style="flex:1"></div>
-      <div class="t15b" style="height:44px;padding:0 12px;display:flex;align-items:center">Done</div>
-    </div>
-    <div class="abs row" style="top:${TOP + 56}px;left:16px;right:16px;height:${bottomTop - TOP - 56}px;justify-content:center">
-      <div style="font-family:'TikTok Sans';font-weight:800;font-size:${fontSize}px;line-height:${fontSize * 1.25}px;text-align:center;max-width:${SW * 0.9}px">POV: you stopped editing<span style="display:inline-block;width:2.5px;height:${fontSize * 1.05}px;background:${C.accent};vertical-align:-${fontSize * 0.18}px;margin-left:2px;border-radius:1px"></span></div>
-    </div>
-    <div class="abs col" style="top:${bottomTop}px;left:0;right:0;gap:8px">
-      <div class="row" style="padding:0 12px;gap:8px">${chips}</div>
-      <div class="row" style="padding:0 12px 2px;gap:8px">${hooks}</div>
-    </div>
-    <div class="abs" style="left:0;right:0;top:${kbTop}px;bottom:0;background:#262628;border-radius:26px 26px 0 0">
-      <div class="abs row" style="top:6px;left:0;right:0;height:40px">
-        <div class="t15" style="flex:1;text-align:center;font-size:16px">“editing”</div>
-        <div style="width:1px;height:24px;background:rgba(255,255,255,.18)"></div>
-        <div class="t15" style="flex:1;text-align:center;font-size:16px">edits</div>
-        <div style="width:1px;height:24px;background:rgba(255,255,255,.18)"></div>
-        <div class="t15" style="flex:1;text-align:center;font-size:16px">edited</div>
-      </div>
-      ${kb}
-      <div class="abs" style="left:22px;top:282px">${ic('globe', 26, '#fff', 1.5)}</div>
-      <div class="abs" style="right:22px;top:282px">${ic('mic', 26, '#fff', 1.5)}</div>
-    </div>`;
-  page({ n: '04', slug: 'text', h1: 'Hooks and titles, <em>TikTok style</em>', sub: 'Nine text styles. Drag, pinch, rotate.', screen });
-}
-
-// 05: Audio
-{
-  const scroll =
-    toolRow(
-      actionBar([
-        ['scissors', 'Split'],
-        ['trash', 'Delete', 'danger'],
-        ['speaker', 'Volume', 'on'],
-        ['wavePath', 'Fade'],
-        ['repeat', 'Loop'],
-        ['personWave', 'Ducking', 'on'],
-        ['check', 'Done'],
-      ]),
-    ) +
-    timeline({
-      total: 34,
-      time: 7.0,
-      points: CUT_POINTS,
-      cards: CARDS,
-      seed: 3,
-      sounds: [
-        { s: 3.0, e: 6.8, row: 0, title: 'Voiceover 1', kind: 'voice', vol: 1 },
-        { s: 7.2, e: 34, row: 0, title: 'Music', kind: 'music', vol: 0.8, sel: true },
-      ],
-    });
-  const screen = editor({ title: 'Take 2', scroll, time: '0:07', seed: 2 });
-  page({ n: '05', slug: 'audio', h1: 'Music and voiceover, <em>ducked</em> under your voice', sub: 'Add from Files or record in the app.', screen });
-}
-
-// 06: Frame
-{
-  const aspects = [
-    ['9:16', 9 / 16],
-    ['4:5', 4 / 5, true],
-    ['1:1', 1],
-    ['16:9', 16 / 9],
-    ['Original', 9 / 16],
-  ];
-  const tiles = aspects
-    .map(([l, r, on]) => {
-      const box = r >= 1 ? `width:24px;height:${24 / r}px` : `width:${24 * r}px;height:24px`;
-      return `<div class="col" style="flex:1;min-height:60px;align-items:center;justify-content:center;gap:4px;padding:8px 0;border-radius:14px;background:${on ? C.cardHigh : C.cardHigh};border:1px solid ${on ? '#fff' : 'transparent'}">
-        <div class="row" style="width:26px;height:26px;justify-content:center"><div style="${box};border-radius:3px;border:1.5px solid ${on ? '#fff' : C.text2}"></div></div>
-        <div class="t12" style="color:${on ? '#fff' : C.text2}">${l}</div></div>`;
-    })
-    .join('');
-  const modes = [
-    ['Fit', 'Whole video'],
-    ['Fill', 'No bars', true],
-    ['Auto', 'Follows speaker'],
-  ]
-    .map(
-      ([l, hnt, on]) => `<div class="col" style="flex:1;min-height:52px;align-items:center;justify-content:center;padding:8px 0;border-radius:14px;background:${on ? '#fff' : C.cardHigh}">
-        <div class="t14" style="color:${on ? '#000' : '#fff'}">${l}</div><div class="t12" style="color:${on ? 'rgba(0,0,0,.6)' : C.muted}">${hnt}</div></div>`,
-    )
-    .join('');
-  const panel = `<div class="panel">
-      <div class="col" style="gap:2px"><div class="t20">Frame</div><div class="t13 cm">Pinch the video to zoom, drag to move. Double-tap for Fit or Fill.</div></div>
-      <div class="col" style="gap:8px"><div class="t13 c2">Canvas</div><div class="row" style="gap:6px">${tiles}</div></div>
-      <div class="col" style="gap:8px"><div class="t13 c2">Video</div><div class="row" style="gap:8px">${modes}</div></div>
-    </div>`;
-  const scroll =
-    toolRow(toolBar('crop')) +
-    timeline({ total: 34, time: 12, points: CUT_POINTS, cards: CARDS, seed: 3 }) +
-    editBar({ del: false, hint: '' }) +
-    gutter(panel, 'margin-top:20px');
-  // 4:5 canvas filled by the vertical clip (Fill): the clip is taller than the canvas, cropped top and bottom.
-  const frameContent = `<div class="abs" style="left:0;right:0;top:-93px;height:626px">${clipArt(4)}</div>
-    <div class="abs" style="left:0;right:0;top:0;bottom:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)"></div>`;
-  const screen = editor({ title: 'Take 4', aspect: 4 / 5, scroll, offset: 318, time: '0:12', total: '0:28', badge: '0:39 → 0:28', frameContent });
-  page({ n: '06', slug: 'frame', h1: 'Framed for vertical. <em>Or any ratio.</em>', sub: '9:16 · 4:5 · 1:1 · 16:9, auto or by hand.', screen });
-}
-
-// 07: Join clips
-{
-  const clips = [
-    { s: 0, e: 2.6, title: 'Clip 1' },
-    { s: 2.6, e: 5.7, title: 'Clip 2' },
-    { s: 5.7, e: 8.1, title: 'Clip 3' },
-  ];
-  const cards = [
-    { s: 0.1, e: 2.5, text: 'coffee first' },
-    { s: 2.7, e: 5.6, text: 'then the plan' },
-    { s: 5.8, e: 8.0, text: 'and go' },
-  ];
-  const scroll =
-    toolRow(actionBar([['scissors', 'Split'], ['trash', 'Delete', 'danger'], ['check', 'Done']])) +
-    timeline({ total: 8.1, time: 4.6, points: [2.6, 5.7], clips, selClip: 1, addTile: true, cards, originals: clips.map((c) => [c.s, c.e]), seed: 5 }) +
-    editBar({ split: false, hint: 'Clip selected. Drag its ends to trim, hold to move it. Tap it again to select a part.' });
-  const screen = editor({ title: 'Morning routine', scroll, time: '0:04', total: '0:08', badge: '0:09 → 0:08', seed: 7 });
-  page({ n: '07', slug: 'join-clips', h1: 'Join clips into <em>one video</em>', sub: 'Reorder, trim, split. Captions carry across.', screen });
-}
-
-// 08: Caption edits
-{
-  const scroll =
-    toolRow(
-      actionBar([
-        ['ibeam', 'Edit text'],
-        ['scissors', 'Split'],
-        ['toLine', 'Merge'],
-        ['eyeSlash', 'Hide'],
-        ['check', 'Done'],
-      ]),
-    ) +
-    timeline({ total: 34, time: 13.2, points: CUT_POINTS, cards: CARDS, selCard: 8, seed: 3 }) +
-    editBar({ split: false, hint: 'Caption selected. Drag its ends to change when it shows.' });
-  const cap = popCaption(['the', 'part', 'that', 'matters'], 1, { top: 262 });
-  const screen = editor({ title: 'Take 2', scroll, preview: cap, playButton: false, time: '0:13', seed: 2 });
-  page({ n: '08', slug: 'caption-edits', h1: 'Fix any word. <em>Undo anything.</em>', sub: 'Tap a caption to edit, split, merge or hide.', screen });
-}
-
-// 09: Onboarding demo result
-{
-  const removed = [
-    [0.06, 0.1],
-    [0.17, 0.2],
-    [0.27, 0.33],
-    [0.38, 0.4],
-    [0.46, 0.51],
-    [0.55, 0.57],
-    [0.62, 0.66],
-    [0.7, 0.72],
-    [0.76, 0.8],
-    [0.84, 0.86],
-    [0.9, 0.93],
-    [0.96, 0.99],
-  ];
-  const bar = removed.map(([a, b]) => `<div class="abs" style="top:0;bottom:0;left:${a * 100}%;width:${(b - a) * 100}%;background:${C.accent}"></div>`).join('');
+  const pct = 29;
   const screen = `
     <div class="abs row" style="top:${TOP + 4}px;left:0;right:0;height:44px;gap:8px;padding:0 12px">
       <div class="ib">${ic('chevL', 20)}</div>
@@ -792,37 +615,82 @@ function popCaption(words, active, { top, size = 21 }) {
       <div style="width:44px"></div>
     </div>
     <div class="abs col" style="top:${TOP + 4 + 44 + 12}px;left:20px;right:20px;gap:20px">
-      <div class="col" style="gap:8px"><div class="t30">Edited on this iPhone</div><div class="t15 c2">A raw, unedited clip. Tenfold transcribes it, then cuts pauses, filler words and retakes.</div></div>
+      <div class="col" style="gap:8px"><div class="t30">Editing a real take</div><div class="t15 c2">A raw, unedited clip. Tenfold transcribes it, then cuts pauses, filler words and retakes.</div></div>
       <div class="col" style="gap:16px;align-items:center">
-        <div style="position:relative;width:188px;height:334px;border-radius:14px;overflow:hidden;background:${C.card};border:1px solid ${C.border}">${clipArt(11, { frame: false })}
-          <div class="abs row" style="right:8px;bottom:8px;width:28px;height:28px;border-radius:14px;justify-content:center;background:${C.overlay}">${ic('speakerSlash', 14)}</div>
-        </div>
-        <div class="col" style="align-self:stretch;gap:12px;align-items:center">
-          <div class="t20 tab">0:40 → 0:26 · 6 fillers · 9 pauses</div>
-          <div style="position:relative;align-self:stretch;height:16px;border-radius:4px;background:${C.text2};overflow:hidden">${bar}</div>
-          <div class="row" style="gap:8px"><div style="width:10px;height:10px;border-radius:2px;background:${C.text2}"></div><span class="t12 c2">Kept</span><div style="width:10px;height:10px;border-radius:2px;background:${C.accent};margin-left:8px"></div><span class="t12 c2">Cut</span></div>
+        <div style="position:relative;width:188px;height:334px;border-radius:14px;overflow:hidden;background:${C.card};border:1px solid ${C.border}">${foot('c2', '50% 30%')}</div>
+        <div class="card" style="align-self:stretch;padding:16px;display:flex;flex-direction:column;gap:12px">
+          <div class="row" style="gap:12px"><div class="t15b" style="flex:1">Transcribing</div><div class="t13 c2 tab">${pct}%</div></div>
+          <div style="height:4px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden"><div style="width:${pct}%;height:4px;border-radius:2px;background:${C.accent}"></div></div>
         </div>
       </div>
     </div>
     <div class="abs col" style="left:20px;right:20px;bottom:${BOTTOM + 12}px;gap:12px">
-      <div class="btn" style="height:52px;border-radius:26px">Now with your video</div>
+      <div class="btn" style="height:52px;border-radius:26px;opacity:.4">Now with your video</div>
       <div class="t12 cm" style="text-align:center">Real sample clip. Nothing uploaded, no permissions needed.</div>
     </div>`;
-  page({ n: '09', slug: 'on-device', h1: 'Everything on your iPhone. <em>Nothing uploaded.</em>', sub: 'Apple’s on-device speech. No account.', screen });
+  page({
+    n: '02',
+    slug: 'demo',
+    lines: ['Post-ready', 'in minutes.'],
+    sub: 'From raw clips to finished videos',
+    phones: [{ screen, cx: 710, cy: 1605, t: tilt(-18, 6, 3, 0.94) }],
+  });
 }
 
-// 10: Home
+// 03: Captions on the preview
 {
-  const batchCard = (title, facts, line, seed, done) => `<div style="flex:1;padding:6px;border-radius:14px;background:${C.card};border:1px solid ${C.border}">
-      <div style="position:relative;height:164px;border-radius:8px;overflow:hidden">${clipArt(seed)}
-        ${done ? `<div class="abs row" style="top:8px;right:8px;width:30px;height:30px;border-radius:15px;justify-content:center;background:rgba(0,0,0,.55)">${ic('check', 12, '#fff', 2)}</div>` : ''}
+  const strip = ['a2', 'a3', 'a1', 'a4'];
+  const scroll = toolRow(toolBar('captions')) + timeline({ total: 34, time: 13.1, points: CUT_POINTS, cards: CARDS, seed: 3, strip });
+  const cap = popCaption(['the', 'part', 'that', 'matters'], 3, { top: 262, size: 23 });
+  const screen = editor({ title: 'Take 2', scroll, preview: cap, playButton: false, time: '0:13', frameContent: foot('a2', '50% 30%') });
+  page({
+    n: '03',
+    slug: 'captions',
+    lines: ['Captions on', 'every word.'],
+    sub: '12 styles. Restyle any of them.',
+    phones: [{ screen, cx: 660, cy: 1615, t: tilt(14, 6, -2.5, 0.94) }],
+  });
+}
+
+// 04: Join clips on the timeline
+{
+  const clips = [
+    { s: 0, e: 2.6, title: 'Clip 1', strip: ['d2', 'd3'] },
+    { s: 2.6, e: 5.7, title: 'Clip 2', strip: ['e3', 'e2'] },
+    { s: 5.7, e: 8.1, title: 'Clip 3', strip: ['d4', 'd1'] },
+  ];
+  const cards = [
+    { s: 0.1, e: 2.5, text: 'quick update' },
+    { s: 2.7, e: 5.6, text: 'here’s the plan' },
+    { s: 5.8, e: 8.0, text: 'see you there' },
+  ];
+  const scroll =
+    toolRow(actionBar([['scissors', 'Split'], ['trash', 'Delete', 'danger'], ['check', 'Done']])) +
+    timeline({ total: 8.1, time: 4.6, points: [2.6, 5.7], clips, selClip: 1, addTile: true, cards, originals: clips.map((c) => [c.s, c.e]), seed: 5 }) +
+    editBar({ split: false, hint: 'Clip selected. Drag its ends to trim, hold to move it. Tap it again to select a part.' });
+  const cap = popCaption(['here’s', 'the', 'plan'], 1, { top: 300, size: 23 });
+  const screen = editor({ title: 'Balcony update', scroll, preview: cap, playButton: false, time: '0:04', total: '0:08', badge: '0:09 → 0:08', frameContent: foot('e3', '45% 35%') });
+  page({
+    n: '04',
+    slug: 'timeline',
+    lines: ['A real editor,', 'when you want it.'],
+    sub: 'Trim, split, reorder on a full timeline',
+    phones: [{ screen, cx: 700, cy: 1610, t: tilt(-14, 8, 2, 0.94) }],
+  });
+}
+
+// 05: Home, exporting a batch + the finished export screen
+{
+  const batchCard = (title, facts, line, k, pos) => `<div style="flex:1;padding:6px;border-radius:14px;background:${C.card};border:1px solid ${C.border}">
+      <div style="position:relative;height:164px;border-radius:8px;overflow:hidden;background:${C.cardHigh}">${foot(k, pos)}
+        <div class="abs row" style="top:8px;right:8px;width:30px;height:30px;border-radius:15px;justify-content:center;background:rgba(0,0,0,.55)">${ic('check', 12, '#fff', 2)}</div>
       </div>
       <div class="col" style="padding:10px 10px 8px;gap:2px">
         <div class="t15b ell">${title}</div><div class="t13 c2 tab ell">${facts}</div><div class="t12 cm tab ell">${line}</div>
       </div>
     </div>`;
   const tab = (icon, label, on) => `<div class="col" style="flex:1;align-items:center;justify-content:center;gap:2px;padding-top:4px">${ic(icon, 24, on ? '#fff' : C.muted, 1.6)}<span style="font-size:10px;line-height:12px;color:${on ? '#fff' : C.muted}">${label}</span></div>`;
-  const screen = `
+  const home = `
     <div class="abs col" style="top:${TOP + 12}px;left:20px;right:20px;gap:28px">
       <div class="row" style="gap:12px;min-height:44px">
         <div class="t30" style="flex:1">Tenfold</div>
@@ -838,7 +706,7 @@ function popCaption(words, active, { top, size = 21 }) {
       <div class="col" style="gap:12px">
         <div class="t20">In progress</div>
         <div class="card"><div class="row" style="gap:12px;padding:12px;min-height:76px">
-          <div style="position:relative;width:44px;height:60px;border-radius:10px;overflow:hidden;flex:none">${clipArt(21)}</div>
+          <div style="position:relative;width:44px;height:60px;border-radius:10px;overflow:hidden;flex:none;background:${C.cardHigh}">${foot('b4', '50% 15%')}</div>
           <div class="col" style="flex:1;gap:4px">
             <div class="row" style="gap:8px"><div class="t15b" style="flex:1">Thursday talking heads</div><div class="t13 c2 tab">72%</div></div>
             <div class="t13 c2 tab">Exporting 7 of 10</div>
@@ -850,8 +718,8 @@ function popCaption(words, active, { top, size = 21 }) {
       <div class="col" style="gap:12px">
         <div class="row" style="justify-content:space-between"><div class="t20">Recent</div><div class="t13 c2">See all</div></div>
         <div class="col" style="gap:12px">
-          <div class="row" style="gap:12px;align-items:stretch">${batchCard('Product takes', '5 clips · 3:40', 'Exported · 2h ago', 31, true)}${batchCard('Weekly tips', '8 clips · 6:12', 'Exported · Yesterday', 17, true)}</div>
-          <div class="row" style="gap:12px;align-items:stretch">${batchCard('Launch hooks', '6 clips · 2:58', 'Exported · Mon', 25, true)}${batchCard('FAQ answers', '4 clips · 3:05', 'Exported · Sep 21', 41, true)}</div>
+          <div class="row" style="gap:12px;align-items:stretch">${batchCard('Product takes', '5 clips · 3:40', 'Exported · 2h ago', 'a4', '50% 18%')}${batchCard('Weekly tips', '8 clips · 6:12', 'Exported · Yesterday', 'c3', '50% 22%')}</div>
+          <div class="row" style="gap:12px;align-items:stretch">${batchCard('Launch hooks', '6 clips · 2:58', 'Exported · Mon', 'd1', '50% 22%')}${batchCard('FAQ answers', '4 clips · 3:05', 'Exported · Sep 21', 'e1', '50% 25%')}</div>
         </div>
       </div>
     </div>
@@ -862,7 +730,15 @@ function popCaption(words, active, { top, size = 21 }) {
         ${tab('gear', 'Settings')}
       </div>
     </div>`;
-  page({ n: '10', slug: 'home', h1: 'Ready in minutes, <em>ready to post</em>', sub: 'Every paid plan starts with a 3-day free trial.', screen });
+  // One phone only, like the other images. (A second phone showing the "Saved to Photos"
+  // screen was dropped: it cluttered the layout and showed an "Open TikTok" button.)
+  page({
+    n: '05',
+    slug: 'export',
+    lines: ['Ten videos,', 'one tap.'],
+    sub: 'Export the whole batch to Photos',
+    phones: [{ screen: home, cx: 690, cy: 1610, t: tilt(-14, 6, 2.5, 0.94) }],
+  });
 }
 
 console.log(`Wrote ${fs.readdirSync(OUT).filter((f) => f.endsWith('.html')).length} pages to ${OUT}`);
