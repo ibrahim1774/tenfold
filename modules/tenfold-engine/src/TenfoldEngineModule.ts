@@ -27,12 +27,27 @@ declare class TenfoldEngineModule extends NativeModule<TenfoldEngineModuleEvents
   audioWaveform?(projectId: string, file: string, buckets: number): Promise<string>;
   /** Deletes an added sound; false when the path isn't one of the project's sounds. */
   deleteAudioFile?(projectId: string, file: string): Promise<boolean>;
+  // Multi-clip projects (absent in older builds). AddedClip JSON: { id?, title?, media?, posterUri?, error? }.
+  /** Adds a video file (camera recording) to a project as a new clip. */
+  addClip?(projectId: string, uri: string, title: string): Promise<string>;
+  /** Photos picker for clips to add; JSON AddedClip[] (empty when closed). */
+  pickClips?(projectId: string, maxCount: number): Promise<string>;
+  /** Files picker for one video to add; error "cancelled" when closed. */
+  pickVideoFile?(projectId: string): Promise<string>;
+  /** Moves other (just imported) projects' clips into this one and deletes them; JSON AddedClip[]. */
+  joinProjects?(projectId: string, otherIdsJSON: string): Promise<string>;
+  /** Deletes a clip's files (never the first clip) for a clip no document uses. */
+  removeClipFile?(projectId: string, clipId: string): Promise<boolean>;
   speechStatus(language: string): Promise<string>;
   prepareSpeech(language: string): Promise<string>;
-  analyze(projectId: string, optionsJSON: string): Promise<string>;
-  getAnalysis(projectId: string): Promise<string>;
+  // The trailing JSON arguments are newer (multi-clip projects): pass them only when needed, since a build
+  // from before them throws on an extra argument.
+  /** clipIdsJSON: analyse only these clips (just added). */
+  analyze(projectId: string, optionsJSON: string, clipIdsJSON?: string): Promise<string>;
+  /** orderJSON: the clips in this play order (JSON string[]). */
+  getAnalysis(projectId: string, orderJSON?: string): Promise<string>;
   plan(projectId: string, docJSON: string): Promise<string>;
-  suggestCuts(projectId: string, optionsJSON: string): Promise<string>;
+  suggestCuts(projectId: string, optionsJSON: string, orderJSON?: string): Promise<string>;
   thumbnails(projectId: string, count: number): Promise<string>;
   export(projectId: string, docJSON: string, optionsJSON: string): Promise<string>;
   cancel(projectId: string): Promise<void>;

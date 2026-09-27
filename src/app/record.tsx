@@ -1,13 +1,15 @@
 import { CameraView, useCameraPermissions, useMicrophonePermissions, type CameraType } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorText } from '@/batch/queue';
+import { postAddedClip } from '@/editor/clipBus';
+import { Engine } from '@/engine';
 import { AppText, GradientButton, IconButton, OutlineButton, Thumb } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
 import { canImportFiles, importFile } from '@/onboarding/fileImport';
@@ -22,6 +24,8 @@ type Take = { uri: string; seconds: number };
 
 export default function RecordScreen() {
   const insets = useSafeAreaInsets();
+  // Set when recording a clip to add to the end of a video in the editor.
+  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const [cam, requestCam] = useCameraPermissions();
   const [mic, requestMic] = useMicrophonePermissions();
 
@@ -63,10 +67,10 @@ export default function RecordScreen() {
     );
   }
 
-  return <Recorder close={close} />;
+  return <Recorder close={close} projectId={projectId} />;
 }
 
-function Recorder({ close }: { close: ReactNode }) {
+function Recorder({ close, projectId }: { close: ReactNode; projectId?: string }) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const camera = useRef<CameraView>(null);
@@ -116,7 +120,7 @@ function Recorder({ close }: { close: ReactNode }) {
     camera.current?.stopRecording();
   };
 
-  if (take) return <Review take={take} close={close} onRetake={() => setTake(null)} />;
+  if (take) return <Review take={take} close={close} projectId={projectId} onRetake={() => setTake(null)} />;
 
   const left = MAX_SEC - elapsed;
   const warn = recording && elapsed >= WARN_SEC;
@@ -196,17 +200,31 @@ function Recorder({ close }: { close: ReactNode }) {
   );
 }
 
-function Review({ take, close, onRetake }: { take: Take; close: ReactNode; onRetake: () => void }) {
+function Review({ take, close, projectId, onRetake }: { take: Take; close: ReactNode; projectId?: string; onRetake: () => void }) {
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const supported = canImportFiles();
+  const supported = projectId ? Engine.canAddClips() : canImportFiles();
 
   const use = async () => {
     setBusy(true);
     setError(null);
+    const title = `Recording ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    if (projectId) {
+      // A clip for a video in the editor: it joins the end of that video, which analyses it.
+      try {
+        const added = await Engine.addClip(projectId, take.uri, title);
+        if (added.error) throw new Error(added.error);
+        postAddedClip(projectId, added);
+        router.back();
+      } catch (e) {
+        setError(`Couldn’t add the clip: ${errorText(e)}`);
+        setBusy(false);
+      }
+      return;
+    }
     try {
-      const asset = await importFile(take.uri, `Recording ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`);
+      const asset = await importFile(take.uri, title);
       const { defaultPreset, platforms } = useSettings.getState();
       const batchId = useLibrary.getState().createBatch([asset], batchPreset(defaultPreset, platforms));
       router.replace({ pathname: '/batch/setup', params: { batchId } });

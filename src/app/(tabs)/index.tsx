@@ -20,7 +20,7 @@ import {
 import type { SFSymbol } from '@/design/symbols';
 import { colors, motion, radii, spacing } from '@/design/tokens';
 import { importNewBatch, useImporting } from '@/batch/importClips';
-import { EngineEvents, engineAvailable } from '@/engine';
+import { Engine, EngineEvents, engineAvailable } from '@/engine';
 import type { Batch } from '@/engine/types';
 import { BatchCard, openBatch, summarize, type BatchSummary } from '@/library/BatchCard';
 import { maxBatchSize, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
@@ -159,6 +159,19 @@ function FirstBatchCard({ limit }: { limit: number }) {
       <AppText variant="caption" color={colors.textMuted} style={styles.center} tabular>
         {available ? 'Importing needs no permissions.' : 'This build doesn’t include the video engine. Install the latest build to import clips.'}
       </AppText>
+      {available && Engine.canAddClips() && (
+        <PressableScale
+          haptic={false}
+          disabled={busy}
+          onPress={() => router.push({ pathname: '/import', params: { mode: 'multiple' } })}
+          accessibilityRole="link"
+          accessibilityHint="Picks several clips and joins them into one video."
+          style={styles.demoLink}>
+          <AppText variant="chip" color={colors.accentText}>
+            Join several clips into one video
+          </AppText>
+        </PressableScale>
+      )}
       <PressableScale
         haptic={false}
         onPress={() => router.push('/demo')}

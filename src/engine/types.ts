@@ -78,7 +78,24 @@ export type Analysis = {
   cuts: Cut[];
   faces: FacePoint[];
   warnings: string[];
+  /**
+   * Where each clip sits on the project source timeline, in play order (multi-clip projects). Absent from
+   * builds before multi-clip projects. See modules/tenfold-engine/ios/Engine/Core/ClipTimeline.swift.
+   */
+  clips?: ClipSpan[];
 };
+
+/** A clip's place on the project source timeline (seconds) and its words in the concatenated transcript. */
+export type ClipSpan = { id: string; title: string; start: number; end: number; wordStart: number; wordCount: number };
+
+/** Seconds trimmed off each end of a clip. Planned as manual cuts; never stored in `cuts`. */
+export type ClipTrim = { clipId: string; head: number; tail: number };
+
+/** A clip added to a project by the engine (Photos, Files, camera). `error: 'cancelled'` when a picker was closed. */
+export type AddedClip = { id?: string; title?: string; media?: MediaInfo | null; posterUri?: string | null; error?: string };
+
+/** One video file of a project (app-side record). A project without `clips` is one clip, "c0". */
+export type ProjectClip = { id: string; title: string; durationSec: number; posterUri?: string | null; media?: MediaInfo | null };
 
 export type CaptionSettings = {
   styleId: CaptionStyleId;
@@ -190,6 +207,13 @@ export type EditDocument = {
    * `audio.mode` is 'mute' (documents before audio editing). See src/editor/audioClips.ts.
    */
   audioClips?: AudioClip[];
+  /**
+   * Clip ids in play order (multi-clip projects). Absent = every clip in the order added. A clip left out is
+   * deleted from the video; its file stays until the project is deleted, so undo brings it back.
+   */
+  clipOrder?: string[];
+  /** Seconds trimmed off the ends of clips. The engine plans them as manual cuts. */
+  clipTrims?: ClipTrim[];
   /** Pause/filler strength last picked in the editor (UI only). */
   levels?: { silence: SilenceLevel; fillers: FillerLevel; retakes?: boolean };
 };
@@ -245,7 +269,9 @@ export type ImportedAsset = {
   error?: string | null;
 };
 
-export type Thumbnail = { time: number; uri: string };
+/** A filmstrip frame. `time` is project source time with the clips in the order added; newer builds also say which
+ * clip it is from and when in that clip, so the editor can place it after a reorder. */
+export type Thumbnail = { time: number; uri: string; clipId?: string; clipTime?: number };
 
 export type RenderQuality = 'preview' | 'hd' | 'uhd';
 export type ExportOptions = { quality: RenderQuality; watermark: boolean; saveToPhotos: boolean; keepHDR: boolean };
@@ -290,6 +316,8 @@ export type Project = {
   savedToPhotos?: boolean;
   /** Which edits Tenfold applies to this video. Absent = the batch defaults (see src/batch/edits.ts). */
   edits?: EditSelection;
+  /** Every clip of the video, in the order added (multi-clip projects). Absent = one clip. See src/editor/clips.ts. */
+  clips?: ProjectClip[];
   createdAt: number;
 };
 

@@ -1,7 +1,7 @@
 import UIKit
 import UniformTypeIdentifiers
 
-/// The Files picker for sounds (UIDocumentPickerViewController). Opens copies (`asCopy`), so no
+/// The Files picker for sounds, and for video clips added to a project (UIDocumentPickerViewController). Opens copies (`asCopy`), so no
 /// security-scoped access is needed; the picked file is copied into `<project>/audio/`.
 @MainActor
 public final class AudioPicker: NSObject, UIDocumentPickerDelegate, UIAdaptivePresentationControllerDelegate {
@@ -9,13 +9,12 @@ public final class AudioPicker: NSObject, UIDocumentPickerDelegate, UIAdaptivePr
   private static var active: AudioPicker?
 
   /// The picked file's temporary URL, or nil when the picker was closed.
-  public static func pick(from presenter: UIViewController) async -> URL? {
+  public static func pick(from presenter: UIViewController, types: [UTType] = [.audio, .mp3, .mpeg4Audio, .wav, .aiff]) async -> URL? {
     active?.finish(nil)
     let picker = AudioPicker()
     active = picker
     return await withCheckedContinuation { (c: CheckedContinuation<URL?, Never>) in
       picker.continuation = c
-      let types: [UTType] = [.audio, .mp3, .mpeg4Audio, .wav, .aiff]
       let vc = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
       vc.allowsMultipleSelection = false
       vc.delegate = picker

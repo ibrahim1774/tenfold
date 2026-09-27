@@ -162,11 +162,13 @@ class TenfoldPreviewView: ExpoView {
     guard let id = projectId, let json = documentJSON, json != lastBuiltJSON else { return }
     do {
       let doc = try decodeJSON(EditDocument.self, json)
-      let analysis = try AnalysisCache.shared.get(id)
+      // The clips in the document's play order, concatenated (multi-clip projects; see ClipTimeline).
+      let analysis = try AnalysisCache.shared.get(id, order: doc.clipOrder)
       let meta = try ProjectStore.meta(id)
-      let source = ProjectStore.dir(id).appendingPathComponent(meta.sourceFile)
       let plan = EditPlanner.plan(doc: doc, analysis: analysis)
-      let built = try await CompositionBuilder.build(source: source, media: meta.media, plan: plan, doc: doc, faces: analysis.faces, quality: .preview)
+      let built = try await CompositionBuilder.build(
+        clips: ProjectStore.clipSources(id, meta: meta, analysis: analysis), canvas: ProjectStore.canvasSize(meta), folder: ProjectStore.dir(id),
+        plan: plan, doc: doc, faces: analysis.faces, quality: .preview)
       guard !Task.isCancelled else { return }
 
       quietUntil = CACurrentMediaTime() + 0.5

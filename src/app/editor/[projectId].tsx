@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActionSheetIOS, ActivityIndicator, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { errorText } from '@/batch/queue';
+import { errorText, stageProgress, STAGE_LABELS } from '@/batch/queue';
 import {
   AppText,
   Background,
@@ -19,7 +19,7 @@ import {
   ToggleRow,
 } from '@/design/components';
 import { colors, radii, spacing, type as typeScale } from '@/design/tokens';
-import { editsOf } from '@/batch/edits';
+import { editsOf, effectiveLevels } from '@/batch/edits';
 import { ASPECTS, aspectOf, aspectRatioValue } from '@/editor/aspect';
 import { fillUserScale, type Placement } from '@/editor/frame';
 import { FrameCanvas } from '@/editor/FrameCanvas';
@@ -40,9 +40,28 @@ import {
   setClipVolume,
   setOriginalMuted,
   splitAudioClip,
-  syncAudioToCuts,
+  syncAudioToLength,
   trimAudioClip,
 } from '@/editor/audioClips';
+import { takeAddedClip, useClipBus } from '@/editor/clipBus';
+import {
+  appendClips,
+  clipsOf,
+  cutsOfClips,
+  deleteClip,
+  layoutOf,
+  moveClip,
+  orderOf,
+  outputTotalOf,
+  placeThumbs,
+  projectClipsFrom,
+  sourceDurationOf,
+  timelineClipsOf,
+  trimClipByDrag,
+  trimOf,
+  withAddedClips,
+  wordCountsOf,
+} from '@/editor/clips';
 import { ActionBar, Panel, ToolBar, type ToolId } from '@/editor/Panel';
 import { clearPreviewRequest, usePreviewBus } from '@/editor/previewBus';
 import { regionsOf, Timeline, toSource, type Region, type TimelineSelection } from '@/editor/Timeline';
@@ -63,8 +82,10 @@ import {
 } from '@/captions/edits';
 import {
   Engine,
+  EngineEvents,
   TenfoldPreviewView,
   type AddedAudio,
+  type AddedClip,
   type Analysis,
   type AudioClip,
   type CaptionCard,
@@ -74,11 +95,13 @@ import {
   type FillerLevel,
   type SilenceLevel,
   type TenfoldPreviewViewRef,
+  type ProjectClip,
   type TextOverlay,
   type Thumbnail,
   type ZoomMode,
 } from '@/engine';
-import { commitDoc, redoDoc, undoDoc, useEditHistory } from '@/state/history';
+import { commitDoc, pinClipOrder, redoDoc, undoDoc, useEditHistory } from '@/state/history';
+import { useSettings } from '@/state/settings';
 import { docFromAnalysis, formatDuration, useLibrary } from '@/state/library';
 import { tourTarget } from '@/tour/targets';
 
@@ -123,6 +146,9 @@ const FILLERS: { v: FillerLevel; l: string }[] = [
 const NO_CARDS: CaptionCard[] = [];
 const NO_TEXTS: TextOverlay[] = [];
 const NO_WAVES: Record<string, number[]> = {};
+const NO_CLIPS: ProjectClip[] = [];
+/** Most clips added from Photos at once. */
+const MAX_ADD_CLIPS = 10;
 
 /** "0.5 s" for fade lengths. */
 const fadeLabel = (v: number) => `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(2).replace(/0$/, '')} s`;
@@ -166,14 +192,19 @@ export default function EditorScreen() {
     | { kind: 'caption'; id: string }
     | { kind: 'text'; id: string }
     | { kind: 'audio'; id: string }
+    | { kind: 'clip'; id: string }
     | null
   >(null);
+  // Clips being added: what the engine is doing, with a real percentage ("Transcribing clip 2… 40%").
+  const [clipJob, setClipJob] = useState<string | null>(null);
   // Inline control open under a selected sound (Volume or Fade in its action bar).
   const [audioControl, setAudioControl] = useState<'volume' | 'fade' | null>(null);
   // Which "Add sound" row is waiting on a picker.
   const [adding, setAdding] = useState<'files' | 'photos' | null>(null);
   // This build's engine plays audio clips (older builds would ignore them in preview and export).
   const [audioEditable] = useState(() => Engine.canEditAudio());
+  // This build's engine can add clips to a video (the "+" at the end of the timeline).
+  const [canAddClips] = useState(() => Engine.canAddClips());
   const [waves, setWaves] = useState<Record<string, number[]>>(NO_WAVES);
   const requestedWaves = useRef(new Set<string>());
   // Caption group whose text is being retyped in place.
@@ -187,20 +218,40 @@ export default function EditorScreen() {
   const preview = useRef<TenfoldPreviewViewRef>(null);
   const { width: screenW, height: screenH } = useWindowDimensions();
 
-  // Load the analysis (transcript, envelope) and filmstrip frames from the native project folder.
+  // The video's clips (one for a video imported before multi-clip projects) and the order they play in.
+  const projectClips = useMemo(() => (project ? clipsOf(project) : NO_CLIPS), [project]);
+  const clipOrder = doc?.clipOrder;
+  const layout = useMemo(() => layoutOf({ clipOrder }, projectClips), [clipOrder, projectClips]);
+  const layoutDuration = layout.length ? layout[layout.length - 1].end : 0;
+  const clipCount = projectClips.length;
+
+  // Load the analysis (transcript, envelope) for the clips in play order. Reordering or deleting a clip
+  // changes where every later word sits, so a new order loads it again.
+  const orderKey = clipOrder ? JSON.stringify(clipOrder) : '';
   useEffect(() => {
     let alive = true;
-    Engine.getAnalysis(projectId)
+    const order = orderKey ? (JSON.parse(orderKey) as string[]) : undefined;
+    Engine.getAnalysis(projectId, order)
       .then((a) => alive && setAnalysis(a))
       .catch((e) => alive && setLoadError(errorText(e)));
-    // About one filmstrip frame per 2 s (16–60), so long clips don't repeat the same few frames.
-    Engine.thumbnails(projectId, Math.round(Math.min(60, Math.max(16, (useLibrary.getState().projects[projectId]?.media?.durationSec ?? 0) / 2))))
+    return () => {
+      alive = false;
+    };
+  }, [projectId, orderKey]);
+
+  // Filmstrip frames for every clip (again when a clip is added). About one per 2 s (16–60).
+  useEffect(() => {
+    let alive = true;
+    const seconds = useLibrary.getState().projects[projectId]?.media?.durationSec ?? 0;
+    Engine.thumbnails(projectId, Math.round(Math.min(60, Math.max(16, clipCount * 4, seconds / 2))))
       .then((t) => alive && setThumbs(t))
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [projectId]);
+  }, [projectId, clipCount]);
+  // Frames placed where their clips play now.
+  const placedThumbs = useMemo(() => placeThumbs(thumbs, layout), [thumbs, layout]);
 
   // The plan (keep segments, captions, zooms) always comes from the native planner.
   useEffect(() => {
@@ -228,12 +279,20 @@ export default function EditorScreen() {
   }, [doc]);
 
   // Editing pauses playback (like CapCut), so the frame under the playhead doesn't jump mid-play.
-  // A change of cuts changes the output length: the sound follows in the same undo step.
+  // A change of cuts, clips or trims changes the output length: the sound follows in the same undo step.
   const commit = useCallback(
     (next: EditDocument) => {
       setPlaying(false);
       const { docs, projects } = useLibrary.getState();
-      commitDoc(projectId, syncAudioToCuts(docs[projectId], next, projects[projectId]?.media?.durationSec ?? 0));
+      const prev = docs[projectId];
+      const p = projects[projectId];
+      const changed = !!prev && (prev.cuts !== next.cuts || prev.clipOrder !== next.clipOrder || prev.clipTrims !== next.clipTrims);
+      if (!prev || !p || !changed) {
+        commitDoc(projectId, next);
+        return;
+      }
+      const clips = clipsOf(p);
+      commitDoc(projectId, syncAudioToLength(next, outputTotalOf(prev, clips), outputTotalOf(next, clips)));
     },
     [projectId],
   );
@@ -338,6 +397,12 @@ export default function EditorScreen() {
     }
     return out;
   }, [doc?.splits, segments]);
+  // The clips on the strip (composition time) when the video has more than one; their starts are edit points.
+  const timelineClips = useMemo(() => (layout.length > 1 ? timelineClipsOf(layout, segments) : null), [layout, segments]);
+  const editPoints = useMemo(() => [...compSplits, ...(timelineClips ?? []).slice(1).map((c) => c.start)], [compSplits, timelineClips]);
+  const selectedClip = selection?.kind === 'clip' ? (timelineClips?.find((c) => c.id === selection.id) ?? null) : null;
+  const selectedClipId = selectedClip?.id ?? null;
+  const wordCounts = useMemo(() => wordCountsOf(analysis), [analysis]);
   const selected = selection?.kind === 'region' && selection.key === docJSON ? selection.region : null;
   // Every caption group in time order, hidden ones included (they stay selectable so they can be shown).
   const allCards = useMemo(() => [...(plan?.cards ?? []), ...(plan?.hiddenCards ?? [])].sort((a, b) => a.start - b.start), [plan]);
@@ -357,7 +422,7 @@ export default function EditorScreen() {
   );
   const selectedAudio = selection?.kind === 'audio' ? (audioClips?.find((c) => c.id === selection.id) ?? null) : null;
   const selectedAudioId = selectedAudio?.id ?? null;
-  const nothingSelected = !selectedCard && !selectedText && !selectedAudio;
+  const nothingSelected = !selectedCard && !selectedText && !selectedAudio && !selectedClip;
 
   // Waveforms of added sounds, fetched once per file.
   const soundFiles = useMemo(() => filesOf(storedAudio ?? []).filter((c) => !!c.file), [storedAudio]);
@@ -375,13 +440,15 @@ export default function EditorScreen() {
 
   const timelineSelection: TimelineSelection = selected
     ? { kind: 'region', region: selected }
-    : selectedCardId
-      ? { kind: 'caption', id: selectedCardId }
-      : selectedTextId
-        ? { kind: 'text', id: selectedTextId }
-        : selectedAudioId
-          ? { kind: 'audio', id: selectedAudioId }
-          : null;
+    : selectedClipId
+      ? { kind: 'clip', id: selectedClipId }
+      : selectedCardId
+        ? { kind: 'caption', id: selectedCardId }
+        : selectedTextId
+          ? { kind: 'text', id: selectedTextId }
+          : selectedAudioId
+            ? { kind: 'audio', id: selectedAudioId }
+            : null;
   const onSelect = useCallback(
     (s: TimelineSelection) => {
       setEditingCaption(null);
@@ -397,18 +464,22 @@ export default function EditorScreen() {
     [docJSON],
   );
 
-  // Removed footage next to the selected clip's ends: how far each end can be dragged outward.
+  // Removed footage next to the selected part's ends: how far each end can be dragged outward.
   const restorable = useMemo(() => {
-    const dur = project?.media?.durationSec ?? plan?.compDuration ?? 0;
+    const dur = layoutDuration || plan?.compDuration || 0;
     if (!selected) return { start: 0, end: 0 };
     return { start: restorableSec(segments, selected, 'start', dur), end: restorableSec(segments, selected, 'end', dur) };
-  }, [selected, segments, project?.media?.durationSec, plan?.compDuration]);
+  }, [selected, segments, layoutDuration, plan?.compDuration]);
+  // A selected clip's ends drag outward as far as it was trimmed.
+  const clipRestorable = useMemo(() => (selectedClipId && doc ? trimOf(doc, selectedClipId) : { head: 0, tail: 0 }), [selectedClipId, doc]);
 
   const onTrimRegion = useCallback(
     (region: Region, side: 'start' | 'end', delta: number) => {
-      const latest = useLibrary.getState().docs[projectId];
-      if (!latest) return false;
-      const dur = useLibrary.getState().projects[projectId]?.media?.durationSec ?? plan?.compDuration ?? 0;
+      const { docs, projects } = useLibrary.getState();
+      const latest = docs[projectId];
+      const p = projects[projectId];
+      if (!latest || !p) return false;
+      const dur = sourceDurationOf(latest, clipsOf(p)) || plan?.compDuration || 0;
       const next = trimClip(latest, segments, region, side, delta, dur, newId);
       if (!next) return false;
       commit(next);
@@ -463,6 +534,229 @@ export default function EditorScreen() {
     },
     [projectId, plan, commit],
   );
+
+  // Clips (videos made of several): tap selects a clip, a second tap the part under the finger.
+  const onTapClip = (id: string, compTime: number | null) => {
+    setEditingCaption(null);
+    setNotice(null);
+    setAudioControl(null);
+    setPlaying(false);
+    const clip = timelineClips?.find((c) => c.id === id);
+    if (!clip) return;
+    const inClip = (r: Region) => r.start >= clip.start - 1e-3 && r.end <= clip.end + 1e-3;
+    const drill = compTime !== null && (selectedClipId === id || (!!selected && inClip(selected)));
+    if (!drill) {
+      setSelection({ kind: 'clip', id });
+      return;
+    }
+    const part = regionsOf(segments, editPoints, plan?.compDuration ?? 0).find((r) => compTime >= r.start && compTime <= r.end && inClip(r));
+    const same = !!part && !!selected && Math.abs(selected.start - part.start) < 1e-3 && Math.abs(selected.end - part.end) < 1e-3;
+    if (!part || same) {
+      setSelection({ kind: 'clip', id });
+      return;
+    }
+    setSelection({ kind: 'region', region: part, key: docJSON });
+  };
+
+  // Commits a clip edit and says (in place) when caption edits had to go with it.
+  const commitClipEdit = (latest: EditDocument, next: EditDocument, what: string) => {
+    commit(next);
+    const saved = useLibrary.getState().docs[projectId];
+    if (latest.captionEdits && !next.captionEdits && saved) {
+      setNotice({ text: `${what} Caption edits were reset because the words moved. Undo brings them back.`, key: JSON.stringify(saved) });
+    }
+  };
+
+  const onReorderClip = (id: string, beforeId: string | null) => {
+    const { docs, projects } = useLibrary.getState();
+    const latest = docs[projectId];
+    const p = projects[projectId];
+    if (!latest || !p) return false;
+    const rest = orderOf(latest, clipsOf(p)).filter((x) => x !== id);
+    const to = beforeId ? rest.indexOf(beforeId) : rest.length;
+    if (to < 0) return false;
+    const next = moveClip(latest, clipsOf(p), id, to, wordCounts);
+    if (!next) return false;
+    commitClipEdit(latest, next, 'Clip moved.');
+    setSelection({ kind: 'clip', id });
+    return true;
+  };
+
+  const onTrimClip = (id: string, side: 'start' | 'end', delta: number) => {
+    const { docs, projects } = useLibrary.getState();
+    const latest = docs[projectId];
+    const p = projects[projectId];
+    if (!latest || !p) return false;
+    const next = trimClipByDrag(latest, clipsOf(p), segments, id, side, delta);
+    if (!next) return false;
+    commit(next);
+    return true;
+  };
+
+  const deleteSelectedClip = () => {
+    if (selectedClip) deleteWholeClip(selectedClip);
+  };
+
+  // Takes a clip out of the video (asks first when someone speaks in it).
+  const deleteWholeClip = (clip: { id: string; title: string; start: number }) => {
+    const { id, title, start } = clip;
+    const run = () => {
+      const { docs, projects } = useLibrary.getState();
+      const latest = docs[projectId];
+      const p = projects[projectId];
+      if (!latest || !p) return;
+      const r = deleteClip(latest, clipsOf(p), id, wordCounts);
+      if ('error' in r) {
+        setNotice({ text: r.error, key: docJSON });
+        return;
+      }
+      commitClipEdit(latest, r.doc, 'Clip deleted.');
+      setSelection(null);
+      const end = outputTotalOf(r.doc, clipsOf(p));
+      const t = Math.min(start, Math.max(0, end - 0.05));
+      setTime(t);
+      preview.current?.seek(t).catch(() => {});
+    };
+    const spoken = wordCounts[id] ?? 0;
+    if (spoken === 0) {
+      run();
+      return;
+    }
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options: ['Delete clip', 'Cancel'],
+        destructiveButtonIndex: 0,
+        cancelButtonIndex: 1,
+        title,
+        message: `This clip has ${plural(spoken, 'spoken word', 'spoken words')}. Undo brings it back.`,
+      },
+      (i) => {
+        if (i === 0) run();
+      },
+    );
+  };
+
+  // Adding clips: copy in (engine), analyse only the new clips, then put them at the end in one undo step.
+  const addedClips = async (added: AddedClip[]) => {
+    const failed = added.filter((a) => a.error && a.error !== 'cancelled');
+    const fresh = projectClipsFrom(added);
+    const p = useLibrary.getState().projects[projectId];
+    const current = useLibrary.getState().docs[projectId];
+    if (!fresh.length || !p || !current) {
+      if (failed.length) {
+        const text = failed[0].error === 'unavailable' ? 'This build of Tenfold can’t add clips. Install the latest build.' : `Couldn’t add the clip: ${failed[0].error}`;
+        setNotice({ text, key: JSON.stringify(current) });
+      }
+      return;
+    }
+    const all = withAddedClips(p, fresh);
+    const ids = fresh.map((c) => c.id);
+    const before = orderOf(current, clipsOf(p));
+    useLibrary.getState().updateProject(projectId, {
+      clips: all,
+      media: p.media ? { ...p.media, durationSec: all.reduce((sum, c) => sum + c.durationSec, 0) } : p.media,
+    });
+    const first = before.length + 1;
+    setClipJob(fresh.length > 1 ? `Reading clips ${first}–${first + fresh.length - 1}…` : `Reading clip ${first}…`);
+    const sub = EngineEvents.onJobProgress((e) => {
+      if (e.projectId !== projectId || e.scope !== 'clips') return;
+      const label = STAGE_LABELS[e.stage] ?? 'Analysing';
+      setClipJob(`${label} clip ${first + (e.clipIndex ?? 0)}… ${Math.round(stageProgress(e.stage, e.fraction) * 100)}%`);
+    });
+    try {
+      const fallback = { silence: 'medium' as const, fillers: 'standard' as const, retakes: true };
+      const levels = current.levels ?? (batch ? effectiveLevels(batch.preset, editsOf(p, batch)) : fallback);
+      await Engine.analyze(
+        projectId,
+        { silence: levels.silence, fillers: levels.fillers, retakes: levels.retakes ?? true, language: useSettings.getState().language },
+        ids,
+      );
+      const a = await Engine.getAnalysis(projectId, [...before, ...ids]);
+      const latest = useLibrary.getState().docs[projectId];
+      const next = latest ? appendClips(latest, all, ids, cutsOfClips(a, ids)) : null;
+      if (next) {
+        commit(next);
+        setSelection({ kind: 'clip', id: ids[0] });
+      }
+      if (failed.length) {
+        setNotice({ text: `${plural(failed.length, 'clip', 'clips')} couldn’t be added: ${failed[0].error}`, key: JSON.stringify(useLibrary.getState().docs[projectId]) });
+      }
+    } catch (e) {
+      // Nothing uses the new clips yet: take them out again.
+      ids.forEach((id) => Engine.removeClipFile(projectId, id).catch(() => {}));
+      const now = useLibrary.getState().projects[projectId];
+      if (now) {
+        const left = clipsOf(now).filter((c) => !ids.includes(c.id));
+        useLibrary.getState().updateProject(projectId, {
+          clips: left,
+          media: now.media ? { ...now.media, durationSec: left.reduce((sum, c) => sum + c.durationSec, 0) } : now.media,
+        });
+      }
+      setNotice({ text: `Couldn’t add the clip: ${errorText(e)}`, key: JSON.stringify(useLibrary.getState().docs[projectId]) });
+    } finally {
+      sub.remove();
+      setClipJob(null);
+    }
+  };
+
+  // Before the first clip is added, the order is written down, so undo can take a new clip out again.
+  const pinOrder = () => {
+    const { docs, projects } = useLibrary.getState();
+    const latest = docs[projectId];
+    const p = projects[projectId];
+    if (latest && p && !latest.clipOrder) pinClipOrder(projectId, orderOf(latest, clipsOf(p)));
+  };
+
+  const pickClips = async (from: 'photos' | 'files') => {
+    pinOrder();
+    let added: AddedClip[];
+    const sub =
+      from === 'photos'
+        ? EngineEvents.onImportProgress(({ index, total }) => {
+            if (total > 0 && index < total) setClipJob(`Copying clip ${index + 1} of ${total}…`);
+          })
+        : null;
+    try {
+      added = from === 'photos' ? await Engine.pickClips(projectId, MAX_ADD_CLIPS) : [await Engine.pickVideoFile(projectId)];
+    } catch (e) {
+      added = [{ error: errorText(e) }];
+    } finally {
+      sub?.remove();
+      setClipJob(null);
+    }
+    await addedClips(added);
+  };
+
+  const openAddClip = () => {
+    setPlaying(false);
+    setNotice(null);
+    if (clipJob) return;
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options: ['From Photos', 'Record a clip', 'From Files', 'Cancel'], cancelButtonIndex: 3, title: 'Add a clip to the end' },
+      (i) => {
+        if (i === 0) void pickClips('photos');
+        else if (i === 2) void pickClips('files');
+        else if (i === 1) {
+          pinOrder();
+          router.push({ pathname: '/record', params: { projectId } });
+        }
+      },
+    );
+  };
+
+  // A recording made for this video: the camera screen hands it over as it closes.
+  const addedClipsRef = useRef(addedClips);
+  useEffect(() => {
+    addedClipsRef.current = addedClips;
+  });
+  useEffect(() => {
+    const take = () => {
+      const added = takeAddedClip(projectId);
+      if (added) void addedClipsRef.current([added]);
+    };
+    take();
+    return useClipBus.subscribe(take);
+  }, [projectId]);
 
   // Sound actions. Each reads the saved document, so it is one undo step.
   const editAudio = (make: (latest: EditDocument, total: number) => EditDocument | null) => {
@@ -609,7 +903,7 @@ export default function EditorScreen() {
     const src = sourceAt(time);
     let poster: string | undefined = project?.posterUri ?? undefined;
     let best = Infinity;
-    for (const t of thumbs) {
+    for (const t of placedThumbs) {
       const d = Math.abs(t.time - src);
       if (d < best) {
         best = d;
@@ -671,7 +965,7 @@ export default function EditorScreen() {
   const splitAtPlayhead = () => {
     if (!doc) return;
     const seg = segments.find((g) => time > g.compStart + 0.15 && time < g.compEnd - 0.15);
-    if (!seg || compSplits.some((c) => Math.abs(c - time) < 0.15)) {
+    if (!seg || editPoints.some((c) => Math.abs(c - time) < 0.15)) {
       setNotice({ text: 'Can’t split here. Move the playhead inside a clip, away from its edges.', key: docJSON });
       return;
     }
@@ -679,9 +973,25 @@ export default function EditorScreen() {
     commit({ ...doc, splits: [...(doc.splits ?? []), seg.start + (time - seg.compStart)] });
   };
 
+  const splitClipAtPlayhead = () => {
+    if (!selectedClip) return;
+    if (time <= selectedClip.start + 0.15 || time >= selectedClip.end - 0.15) {
+      setNotice({ text: 'Move the playhead inside this clip, away from its ends, to split it.', key: docJSON });
+      return;
+    }
+    splitAtPlayhead();
+  };
+
   const deleteSelected = () => {
     if (!doc || !selected || !plan) return;
-    if (regionsOf(segments, compSplits, plan.compDuration).length <= 1) {
+    // A part that is a whole clip goes as the clip (a cut over all of it would leave an empty clip behind).
+    const whole = timelineClips?.find((c) => Math.abs(c.start - selected.start) < 1e-3 && Math.abs(c.end - selected.end) < 1e-3);
+    if (whole) {
+      setSelection(null);
+      deleteWholeClip(whole);
+      return;
+    }
+    if (regionsOf(segments, editPoints, plan.compDuration).length <= 1) {
       setNotice({ text: 'Can’t delete the whole video. Split it first, then delete the part you don’t want.', key: docJSON });
       return;
     }
@@ -702,12 +1012,17 @@ export default function EditorScreen() {
     // Only the newest tap wins, and it applies to the document as it is when the result arrives.
     const request = ++levelsRequest.current;
     try {
-      const suggested = await Engine.suggestCuts(projectId, {
-        silence: next.silence,
-        fillers: next.fillers,
-        retakes: next.retakes ?? true,
-        language: analysis?.transcript?.language ?? 'auto',
-      });
+      // Detected clip by clip, for the clips in play order.
+      const suggested = await Engine.suggestCuts(
+        projectId,
+        {
+          silence: next.silence,
+          fillers: next.fillers,
+          retakes: next.retakes ?? true,
+          language: analysis?.transcript?.language ?? 'auto',
+        },
+        useLibrary.getState().docs[projectId]?.clipOrder,
+      );
       const latest = useLibrary.getState().docs[projectId];
       if (request !== levelsRequest.current || !latest) return;
       setLevelsError(null);
@@ -747,9 +1062,13 @@ export default function EditorScreen() {
   // Text the user placed is theirs, not part of Tenfold's edit: it stays.
   const reapplyEdit = () => {
     if (!doc || !analysis || !batch || !project) return;
+    // The clips, their order and trims are the user's; the analysis is already in that order.
     const base: EditDocument = { ...docFromAnalysis(analysis, batch, editsOf(project, batch)), wordOverrides: doc.wordOverrides };
-    // Added sounds are the user's too; the original sound comes back whole.
-    const fresh = keepAddedSounds(base, doc, project.media?.durationSec ?? analysis.media.durationSec);
+    if (doc.clipOrder) base.clipOrder = doc.clipOrder;
+    if (doc.clipTrims) base.clipTrims = doc.clipTrims;
+    // Added sounds are the user's too; the original sound comes back whole (then trims shorten it).
+    const untrimmed = keepAddedSounds(base, doc, layoutDuration || analysis.media.durationSec);
+    const fresh = syncAudioToLength(untrimmed, outputTotalOf({ ...untrimmed, clipTrims: undefined }, projectClips), outputTotalOf(untrimmed, projectClips));
     // Straight to history: the sound was just fitted to the new cuts.
     setPlaying(false);
     commitDoc(projectId, doc.textOverlays ? { ...fresh, textOverlays: doc.textOverlays } : fresh);
@@ -884,7 +1203,7 @@ export default function EditorScreen() {
     if (c.scale === p.scale && (c.offsetX ?? 0) === p.offsetX && (c.offsetY ?? 0) === p.offsetY) return;
     commit({ ...latest, crop: { auto916: aspect === '9:16', aspect, scale: p.scale, offsetX: p.offsetX, offsetY: p.offsetY } });
   };
-  const sourceDuration = project.media?.durationSec ?? total;
+  const sourceDuration = layoutDuration || total;
   const untouched = !doc.cuts.some((c) => c.accepted) && !doc.captions.enabled && doc.zoom.mode === 'off' && aspect === 'original';
   const currentLevels = {
     silence: doc.levels?.silence ?? batch?.preset.analysis.silence ?? 'medium',
@@ -908,7 +1227,7 @@ export default function EditorScreen() {
           .filter(Boolean)
           .join(' · ')
       : 'Nothing removed. The video plays at its full length.';
-  const shownNotice = notice && notice.key === docJSON ? notice.text : null;
+  const shownNotice = clipJob ?? (notice && notice.key === docJSON ? notice.text : null);
 
   const onTool = (id: ToolId) => {
     if (id === 'captions') {
@@ -1058,8 +1377,17 @@ export default function EditorScreen() {
           showsVerticalScrollIndicator={false}
           automaticallyAdjustKeyboardInsets>
           <View ref={tourTarget('editor.tools')} style={[styles.gutter, styles.toolRow]}>
-            {/* A selected caption, text or sound swaps the project tools for what can be done to it. */}
-            {selectedAudio ? (
+            {/* A selected clip, caption, text or sound swaps the project tools for what can be done to it. */}
+            {selectedClip ? (
+              <ActionBar
+                label="Clip actions"
+                actions={[
+                  { id: 'split', icon: 'scissors', label: 'Split', onPress: splitClipAtPlayhead },
+                  { id: 'delete', icon: 'trash', label: 'Delete', onPress: deleteSelectedClip, danger: true, disabled: layout.length <= 1 },
+                  { id: 'done', icon: 'checkmark', label: 'Done', onPress: () => onSelect(null) },
+                ]}
+              />
+            ) : selectedAudio ? (
               <ActionBar
                 label="Sound actions"
                 actions={
@@ -1126,8 +1454,8 @@ export default function EditorScreen() {
               hiddenCards={plan.hiddenCards ?? NO_CARDS}
               texts={texts}
               envelopeDb={analysis.envelopeDb}
-              thumbs={thumbs}
-              splits={compSplits}
+              thumbs={placedThumbs}
+              splits={editPoints}
               selection={timelineSelection}
               restorable={restorable}
               time={time}
@@ -1143,6 +1471,12 @@ export default function EditorScreen() {
               onRetimeText={onRetimeText}
               onRetimeAudio={onRetimeAudio}
               onMoveAudio={onMoveAudio}
+              clips={timelineClips}
+              clipRestorable={{ start: clipRestorable.head, end: clipRestorable.tail }}
+              onTapClip={onTapClip}
+              onReorderClip={onReorderClip}
+              onTrimClip={onTrimClip}
+              onAddClip={canAddClips ? openAddClip : undefined}
             />
           )}
 
@@ -1163,8 +1497,12 @@ export default function EditorScreen() {
                 accessibilityLiveRegion="polite">
                 {shownNotice ??
                   (selected
-                    ? 'Clip selected. Drag its ends to trim.'
-                    : selectedCard
+                    ? timelineClips
+                      ? 'Part selected. Drag its ends to trim.'
+                      : 'Clip selected. Drag its ends to trim.'
+                    : selectedClip
+                      ? 'Clip selected. Drag its ends to trim, hold to move it. Tap it again to select a part.'
+                      : selectedCard
                       ? 'Caption selected. Drag its ends to change when it shows.'
                       : selectedText
                         ? 'Text selected. Drag its ends to change when it shows.'
@@ -1478,6 +1816,11 @@ export default function EditorScreen() {
                     })}
                   </View>
                 </View>
+                {layout.length > 1 && (
+                  <AppText variant="caption" color={colors.textMuted}>
+                    Applies to all {layout.length} clips.
+                  </AppText>
+                )}
               </Panel>
             )}
 

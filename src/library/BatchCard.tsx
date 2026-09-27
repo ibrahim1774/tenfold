@@ -6,6 +6,7 @@ import { AppText, PressableScale, ProgressRing, Thumb, seedOf } from '@/design/c
 import { colors, radii, spacing } from '@/design/tokens';
 import type { Batch, BatchStatus, Project } from '@/engine/types';
 import { batchStatus, formatDuration, projectsOf, timeAgo, useLibrary } from '@/state/library';
+import { playingClipCount } from '@/editor/clips';
 
 export type BatchSummary = {
   status: BatchStatus;
@@ -84,9 +85,12 @@ export function clipCount(n: number) {
 /** Grid card: thumbnail, title, then facts (clips · length, status · age). */
 export function BatchCard({ batch }: { batch: Batch }) {
   const all = useLibrary((s) => s.projects);
+  const docs = useLibrary((s) => s.docs);
   const s = summarize(batch, all);
   const first = s.projects[0];
-  const facts = s.totalSec > 0 ? `${clipCount(s.count)} · ${formatDuration(s.totalSec)}` : clipCount(s.count);
+  // A video made of several clips counts each of them (the poster is its first clip).
+  const clips = s.projects.reduce((n, p) => n + playingClipCount(p, docs[p.id]), 0);
+  const facts = s.totalSec > 0 ? `${clipCount(clips)} · ${formatDuration(s.totalSec)}` : clipCount(clips);
   const age = timeAgo(s.when);
 
   return (

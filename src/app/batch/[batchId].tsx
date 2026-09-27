@@ -22,6 +22,7 @@ import { Engine, type Batch, type Project } from '@/engine';
 import { exportsLeft, useEntitlements } from '@/state/entitlements';
 import { editsOf, editsSummary } from '@/batch/edits';
 import { formatDuration, projectsOf, useLibrary } from '@/state/library';
+import { clipsOf, effectiveCuts, playingClipCount, playingSeconds } from '@/editor/clips';
 
 export default function ProcessingScreen() {
   const insets = useSafeAreaInsets();
@@ -274,9 +275,10 @@ function analysedStatus(p: Project): boolean {
 /** Seconds removed by the applied cuts (overlaps merged), for the "1:12 → 0:58" line. */
 function savedSec(p: Project): number {
   const doc = useLibrary.getState().docs[p.id];
-  const dur = p.media?.durationSec ?? 0;
   if (!doc) return 0;
-  const cuts = doc.cuts
+  // Every clip that plays, with its trims.
+  const dur = playingSeconds(p, doc);
+  const cuts = effectiveCuts(doc, clipsOf(p))
     .filter((c) => c.accepted)
     .map((c) => [Math.max(0, c.start), Math.min(dur, c.end)] as const)
     .filter(([a, b]) => b > a)
@@ -301,10 +303,13 @@ function ResultCard({ project: p, batch, saved }: { project: Project; batch: Bat
   const running = p.status === 'analyzing' || p.status === 'exporting';
   const waiting = p.status === 'queued' || p.status === 'exportQueued' || p.status === 'pending';
   const label = statusLabel(p);
-  const dur = p.media?.durationSec ?? 0;
+  const doc = useLibrary((s) => s.docs[p.id]);
+  const dur = playingSeconds(p, doc);
+  const clips = playingClipCount(p, doc);
   const trimmed = openable && saved > 0.5;
   const durText = trimmed ? `${formatDuration(dur)} → ${formatDuration(dur - saved)}` : formatDuration(dur);
-  const detail = openable && !p.error ? (p.status === 'done' ? label : editsSummary(editsOf(p, batch))) : p.error && p.status !== 'failed' ? p.error : label;
+  const status = openable && !p.error ? (p.status === 'done' ? label : editsSummary(editsOf(p, batch))) : p.error && p.status !== 'failed' ? p.error : label;
+  const detail = clips > 1 ? `${clips} clips · ${status}` : status;
 
   return (
     <PressableScale

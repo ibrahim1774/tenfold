@@ -8,6 +8,7 @@ import type {
   ExportOptions,
   ExportResult,
   AddedAudio,
+  AddedClip,
   ImportedAsset,
   SpeechStatus,
   Thumbnail,
@@ -53,12 +54,23 @@ export const Engine = {
   pickVideos: async (max: number) => parse<ImportedAsset[]>(await engine().pickVideos(max)),
   speechStatus: async (language = 'auto') => parse<SpeechStatus>(await engine().speechStatus(language)),
   prepareSpeech: async (language = 'auto') => parse<SpeechStatus>(await engine().prepareSpeech(language)),
-  analyze: async (projectId: string, options: AnalysisOptions) =>
-    parse<Analysis>(await engine().analyze(projectId, JSON.stringify(options))),
-  getAnalysis: async (projectId: string) => parse<Analysis>(await engine().getAnalysis(projectId)),
+  /** `clipIds`: analyse only these clips (just added to a multi-clip project). */
+  analyze: async (projectId: string, options: AnalysisOptions, clipIds?: string[]) =>
+    parse<Analysis>(
+      clipIds?.length
+        ? await engine().analyze(projectId, JSON.stringify(options), JSON.stringify(clipIds))
+        : await engine().analyze(projectId, JSON.stringify(options)),
+    ),
+  /** `order`: the clips in this play order (EditDocument.clipOrder); absent = the order added. */
+  getAnalysis: async (projectId: string, order?: string[]) =>
+    parse<Analysis>(order ? await engine().getAnalysis(projectId, JSON.stringify(order)) : await engine().getAnalysis(projectId)),
   plan: async (projectId: string, doc: EditDocument) => parse<EditPlan>(await engine().plan(projectId, JSON.stringify(doc))),
-  suggestCuts: async (projectId: string, options: AnalysisOptions) =>
-    parse<Cut[]>(await engine().suggestCuts(projectId, JSON.stringify(options))),
+  suggestCuts: async (projectId: string, options: AnalysisOptions, order?: string[]) =>
+    parse<Cut[]>(
+      order
+        ? await engine().suggestCuts(projectId, JSON.stringify(options), JSON.stringify(order))
+        : await engine().suggestCuts(projectId, JSON.stringify(options)),
+    ),
   thumbnails: async (projectId: string, count: number) => parse<Thumbnail[]>(await engine().thumbnails(projectId, count)),
   export: async (projectId: string, doc: EditDocument, options: ExportOptions) =>
     parse<ExportResult>(await engine().export(projectId, JSON.stringify(doc), JSON.stringify(options))),
@@ -108,6 +120,38 @@ export const Engine = {
     const m = live();
     if (typeof m?.audioWaveform !== 'function') return [];
     return parse<number[]>(await m.audioWaveform(projectId, file, buckets));
+  },
+  /** True when this build can add clips to a video (multi-clip projects). */
+  canAddClips: () => typeof live()?.addClip === 'function',
+  /** Adds a video file (a camera recording) to a project as a new clip. */
+  addClip: async (projectId: string, uri: string, title: string): Promise<AddedClip> => {
+    const m = live();
+    if (typeof m?.addClip !== 'function') return { error: 'unavailable' };
+    return parse<AddedClip>(await m.addClip(projectId, uri, title));
+  },
+  /** Photos picker for clips to add to a project ([] when closed). */
+  pickClips: async (projectId: string, max: number): Promise<AddedClip[]> => {
+    const m = live();
+    if (typeof m?.pickClips !== 'function') return [{ error: 'unavailable' }];
+    return parse<AddedClip[]>(await m.pickClips(projectId, max));
+  },
+  /** Files picker for one video to add. `error: 'cancelled'` when closed. */
+  pickVideoFile: async (projectId: string): Promise<AddedClip> => {
+    const m = live();
+    if (typeof m?.pickVideoFile !== 'function') return { error: 'unavailable' };
+    return parse<AddedClip>(await m.pickVideoFile(projectId));
+  },
+  /** Joins just-imported projects into `projectId` as its next clips (the others are deleted). */
+  joinProjects: async (projectId: string, otherIds: string[]): Promise<AddedClip[]> => {
+    const m = live();
+    if (typeof m?.joinProjects !== 'function') return otherIds.map(() => ({ error: 'unavailable' }));
+    return parse<AddedClip[]>(await m.joinProjects(projectId, JSON.stringify(otherIds)));
+  },
+  /** Deletes a clip no document uses (an add that failed). */
+  removeClipFile: async (projectId: string, clipId: string): Promise<boolean> => {
+    const m = live();
+    if (typeof m?.removeClipFile !== 'function') return false;
+    return m.removeClipFile(projectId, clipId);
   },
   deleteAudioFile: async (projectId: string, file: string): Promise<boolean> => {
     const m = live();

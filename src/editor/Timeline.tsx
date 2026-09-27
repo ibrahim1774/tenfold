@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,6 +11,7 @@ import { AppText } from '@/design/components';
 import { colors } from '@/design/tokens';
 import type { AudioClip, CaptionCard, CompSegment, TextOverlay, Thumbnail } from '@/engine/types';
 import { fileRows, originalsOf, trimLimits } from './audioClips';
+import { MIN_CLIP_SEC as MIN_SOURCE_CLIP_SEC, type TimelineClip } from './clips';
 import { overlayWindow } from './textLayout';
 import { MIN_OVERLAY_SEC } from './textOverlays';
 
@@ -24,9 +26,13 @@ const SOUND_ROW = 34; // height of one row of added sounds
 /** A stretch of the composition between two edit points (a cut or a user split), in composition seconds. */
 export type Region = { start: number; end: number };
 
-/** One thing is selected at a time: a clip (region), a caption group (by its stable id) or a text overlay. */
+/**
+ * One thing is selected at a time: a part of the video between edit points (region), a whole clip of a
+ * video made of several clips, a caption group (by its stable id), a text overlay or a sound.
+ */
 export type TimelineSelection =
   | { kind: 'region'; region: Region }
+  | { kind: 'clip'; id: string }
   | { kind: 'caption'; id: string }
   | { kind: 'text'; id: string }
   | { kind: 'audio'; id: string }
@@ -68,6 +74,22 @@ export type TimelineProps = {
   onRetimeAudio: (id: string, edge: { start?: number; end?: number }) => boolean;
   /** An added sound was dragged to start at `start` (output seconds). True if the document changed. */
   onMoveAudio: (id: string, start: number) => boolean;
+  /**
+   * The video's clips (composition seconds) when it is made of more than one; null otherwise. Each clip is a
+   * block with its title: tap selects it (a second tap selects the part under the finger), hold and drag
+   * moves it, and a selected clip's ends trim it.
+   */
+  clips: TimelineClip[] | null;
+  /** How far (seconds) each end of the selected clip can be dragged outward: what is trimmed off it. */
+  clipRestorable: { start: number; end: number };
+  /** A clip block was tapped at `compTime` (null: select the clip, from VoiceOver). */
+  onTapClip: (id: string, compTime: number | null) => void;
+  /** A clip was dropped just before clip `beforeId` (null: after the last one). True if the document changed. */
+  onReorderClip: (id: string, beforeId: string | null) => boolean;
+  /** An end of the selected clip was dragged by `delta` seconds (+ = right). True if the document changed. */
+  onTrimClip: (id: string, side: 'start' | 'end', delta: number) => boolean;
+  /** Shows the "+" tile after the last frame (adds clips at the end). */
+  onAddClip?: () => void;
 };
 
 export function toSource(segs: CompSegment[], comp: number) {
@@ -127,6 +149,12 @@ export function Timeline({
   onRetimeText,
   onRetimeAudio,
   onMoveAudio,
+  clips,
+  clipRestorable,
+  onTapClip,
+  onReorderClip,
+  onTrimClip,
+  onAddClip,
 }: TimelineProps) {
   const scroll = useRef<ScrollView>(null);
   const [viewW, setViewW] = useState(0);
@@ -214,6 +242,12 @@ export function Timeline({
                   onRetimeText={onRetimeText}
                   onRetimeAudio={onRetimeAudio}
                   onMoveAudio={onMoveAudio}
+                  clips={clips}
+                  clipRestorable={clipRestorable}
+                  onTapClip={onTapClip}
+                  onReorderClip={onReorderClip}
+                  onTrimClip={onTrimClip}
+                  onAddClip={onAddClip}
                 />
               </View>
             </ScrollView>
@@ -265,6 +299,12 @@ type TracksProps = {
   onRetimeText: TimelineProps['onRetimeText'];
   onRetimeAudio: TimelineProps['onRetimeAudio'];
   onMoveAudio: TimelineProps['onMoveAudio'];
+  clips: TimelineClip[] | null;
+  clipRestorable: { start: number; end: number };
+  onTapClip: TimelineProps['onTapClip'];
+  onReorderClip: TimelineProps['onReorderClip'];
+  onTrimClip: TimelineProps['onTrimClip'];
+  onAddClip?: () => void;
 };
 
 const same = (a: Region | null, b: Region) => !!a && Math.abs(a.start - b.start) < 1e-3 && Math.abs(a.end - b.end) < 1e-3;
@@ -292,9 +332,19 @@ const TimelineTracks = memo(function TimelineTracks({
   onRetimeText,
   onRetimeAudio,
   onMoveAudio,
+  clips,
+  clipRestorable,
+  onTapClip,
+  onReorderClip,
+  onTrimClip,
+  onAddClip,
 }: TracksProps) {
   const x = (t: number) => pad + t * PPS;
   const selectedRegion = selection?.kind === 'region' ? selection.region : null;
+  const selectedClip = selection?.kind === 'clip' ? selection.id : null;
+  // Several clips: blocks take the taps (clip first, then the part under the finger); one clip: the parts do.
+  const multi = !!clips && clips.length > 1;
+  const selClip = multi ? (clips.find((c) => c.id === selectedClip) ?? null) : null;
   const selectedCaption = selection?.kind === 'caption' ? selection.id : null;
   const selectedText = selection?.kind === 'text' ? selection.id : null;
   const selectedAudio = selection?.kind === 'audio' ? selection.id : null;
@@ -377,12 +427,29 @@ const TimelineTracks = memo(function TimelineTracks({
         )}
       </View>
 
-      {/* One block per region (between cuts and splits); tap to select. */}
+      {/* One block per region (between cuts, splits and clips); tap to select. */}
       <View style={styles.clipTrack}>
         {regions.map((r) => {
           const w = Math.max(4, (r.end - r.start) * PPS - 2);
           const n = Math.max(1, Math.ceil(w / fw));
           const isSel = same(selectedRegion, r);
+          const frames = Array.from({ length: n }).map((_, k) => {
+            const uri = frameFor(toSource(segments, r.start + ((k + 0.5) * fw) / PPS));
+            return uri ? (
+              <Image key={k} source={{ uri }} style={[styles.frame, { left: k * fw, width: fw }]} contentFit="cover" />
+            ) : (
+              <View key={k} style={[styles.frame, styles.framePlaceholder, { left: k * fw, width: fw }]} />
+            );
+          });
+          if (multi) {
+            // The clip blocks above take the touches; VoiceOver reaches parts through the selected clip.
+            return (
+              <View key={`${r.start.toFixed(3)}`} pointerEvents="none" style={[styles.clip, { left: x(r.start) + 1, width: w }]}>
+                {frames}
+                {isSel && <View style={styles.selectedTint} />}
+              </View>
+            );
+          }
           return (
             <Pressable
               key={`${r.start.toFixed(3)}`}
@@ -404,14 +471,7 @@ const TimelineTracks = memo(function TimelineTracks({
                 else if (e.nativeEvent.actionName === 'trimEnd') onTrimRegion(r, 'end', -0.5);
               }}
               style={[styles.clip, { left: x(r.start) + 1, width: w }]}>
-              {Array.from({ length: n }).map((_, k) => {
-                const uri = frameFor(toSource(segments, r.start + ((k + 0.5) * fw) / PPS));
-                return uri ? (
-                  <Image key={k} source={{ uri }} style={[styles.frame, { left: k * fw, width: fw }]} contentFit="cover" />
-                ) : (
-                  <View key={k} style={[styles.frame, styles.framePlaceholder, { left: k * fw, width: fw }]} />
-                );
-              })}
+              {frames}
               {isSel && <View pointerEvents="none" style={styles.selectedTint} />}
             </Pressable>
           );
@@ -425,6 +485,58 @@ const TimelineTracks = memo(function TimelineTracks({
           <View pointerEvents="none" style={[styles.handle, { left: x(total) - 5 }]}>
             <View style={styles.handleGrip} />
           </View>
+        )}
+        {multi &&
+          clips.map((c, i) => (
+            <ClipBlock
+              key={c.id}
+              clip={c}
+              index={i}
+              clips={clips}
+              pad={pad}
+              selected={c.id === selectedClip}
+              scrollGesture={scrollGesture}
+              onTap={onTapClip}
+              onReorder={onReorderClip}
+            />
+          ))}
+        {multi &&
+          clips.slice(1).map((c) => <View key={`d-${c.id}`} pointerEvents="none" style={[styles.clipDivider, { left: x(c.start) - 1 }]} />)}
+        {multi &&
+          clips.map((c) =>
+            (c.end - c.start) * PPS > 48 ? (
+              <View key={`t-${c.id}`} pointerEvents="none" style={[styles.clipTitle, { left: x(c.start) + 6, maxWidth: (c.end - c.start) * PPS - 14 }]}>
+                <AppText variant="caption" numberOfLines={1}>
+                  {c.title}
+                </AppText>
+              </View>
+            ) : null,
+          )}
+        {selClip && (
+          <EdgeFrame
+            key={`clip-${selClip.id}-${selClip.start.toFixed(3)}-${selClip.end.toFixed(3)}`}
+            left={x(selClip.start) + 1}
+            width={Math.max(4, (selClip.end - selClip.start) * PPS - 2)}
+            top={6}
+            height={44}
+            radius={10}
+            color={colors.accent}
+            // Inward up to the shortest clip; outward only as far as it was trimmed.
+            startRange={[-clipRestorable.start * PPS, Math.max(0, (selClip.end - selClip.start - MIN_SOURCE_CLIP_SEC) * PPS)]}
+            endRange={[-Math.max(0, (selClip.end - selClip.start - MIN_SOURCE_CLIP_SEC) * PPS), clipRestorable.end * PPS]}
+            scrollGesture={scrollGesture}
+            onCommit={(side, dx) => onTrimClip(selClip.id, side, dx / PPS)}
+          />
+        )}
+        {onAddClip && (
+          <Pressable
+            onPress={onAddClip}
+            accessibilityRole="button"
+            accessibilityLabel="Add clip"
+            accessibilityHint="Adds a clip from Photos, the camera or Files to the end of the video."
+            style={({ pressed }) => [styles.addClip, { left: x(total) + 12 }, pressed && styles.addClipPressed]}>
+            <SymbolView name="plus" size={20} weight="regular" tintColor={colors.textPrimary} />
+          </Pressable>
         )}
         {selRegion && (
           <EdgeFrame
@@ -689,6 +801,115 @@ const TimelineTracks = memo(function TimelineTracks({
   );
 });
 
+type ClipBlockProps = {
+  clip: TimelineClip;
+  index: number;
+  clips: TimelineClip[];
+  pad: number;
+  selected: boolean;
+  scrollGesture: GestureType;
+  onTap: TimelineProps['onTapClip'];
+  onReorder: TimelineProps['onReorderClip'];
+};
+
+/**
+ * The touch surface over one clip of a multi-clip video. Tap selects (the editor decides clip or part);
+ * hold and drag moves the clip: its outline follows the finger, a marker shows where it will land, and each
+ * new slot ticks. The move is committed once, on release.
+ */
+function ClipBlock({ clip, index, clips, pad, selected, scrollGesture, onTap, onReorder }: ClipBlockProps) {
+  const dx = useSharedValue(0);
+  const lifted = useSharedValue(0);
+  const target = useSharedValue(index);
+  const left = pad + clip.start * PPS;
+  const width = Math.max(4, (clip.end - clip.start) * PPS - 2);
+  const mid = left + width / 2;
+  // The other clips, in order: their middles decide the drop slot, their edges draw the marker.
+  const others = clips.filter((c) => c.id !== clip.id);
+  const otherMids = others.map((c) => pad + ((c.start + c.end) / 2) * PPS);
+  const slots = [...others.map((c) => pad + c.start * PPS), pad + (others.length ? others[others.length - 1].end : clip.end) * PPS];
+
+  const tick = () => {
+    Haptics.selectionAsync().catch(() => {});
+  };
+  // Dropped before the clip now at slot `to` (ids, so clips cut away entirely don't shift the count).
+  const drop = (to: number) => {
+    if (to !== index) onReorder(clip.id, others[to]?.id ?? null);
+  };
+  const tap = (localX: number) => onTap(clip.id, clip.start + Math.max(0, localX) / PPS);
+
+  const pan = Gesture.Pan()
+    .activateAfterLongPress(350)
+    .blocksExternalGesture(scrollGesture)
+    .onStart(() => {
+      lifted.set(1);
+      target.set(index);
+      scheduleOnRN(tick);
+    })
+    .onUpdate((e) => {
+      dx.set(e.translationX);
+      const center = mid + e.translationX;
+      let to = 0;
+      for (let i = 0; i < otherMids.length; i++) if (otherMids[i] < center) to++;
+      if (to !== target.get()) {
+        target.set(to);
+        scheduleOnRN(tick);
+      }
+    })
+    .onEnd(() => {
+      scheduleOnRN(drop, target.get());
+    })
+    .onFinalize(() => {
+      lifted.set(0);
+      dx.set(0);
+    });
+  const tapGesture = Gesture.Tap().onEnd((e) => {
+    scheduleOnRN(tap, e.x);
+  });
+  const gesture = Gesture.Exclusive(pan, tapGesture);
+
+  const ghost = useAnimatedStyle(() => ({
+    transform: [{ translateX: dx.get() }],
+    opacity: lifted.get(),
+  }));
+  const marker = useAnimatedStyle(() => ({
+    left: (slots[Math.min(slots.length - 1, Math.max(0, target.get()))] ?? left) - 2,
+    opacity: lifted.get(),
+  }));
+
+  return (
+    <>
+      <GestureDetector gesture={gesture}>
+        <View
+          style={[styles.clipBlock, { left: left + 1, width }]}
+          accessible
+          accessibilityRole="button"
+          accessibilityState={{ selected }}
+          accessibilityLabel={`Clip ${index + 1} of ${clips.length}: ${clip.title}, ${clock(clip.start)} to ${clock(clip.end)}`}
+          accessibilityHint={selected ? 'Actions move it or select a part.' : 'Selects the clip. Hold and drag to move it.'}
+          accessibilityActions={[
+            { name: 'activate' },
+            ...(index > 0 ? [{ name: 'moveEarlier', label: 'Move earlier' }] : []),
+            ...(index + 1 < clips.length ? [{ name: 'moveLater', label: 'Move later' }] : []),
+          ]}
+          onAccessibilityAction={(e) => {
+            const a = e.nativeEvent.actionName;
+            if (a === 'activate') onTap(clip.id, null);
+            else if (a === 'moveEarlier') onReorder(clip.id, clips[index - 1]?.id ?? null);
+            else if (a === 'moveLater') onReorder(clip.id, clips[index + 2]?.id ?? null);
+          }}>
+          <Animated.View pointerEvents="none" style={[styles.clipGhost, ghost]}>
+            <AppText variant="caption" numberOfLines={1}>
+              {clip.title}
+            </AppText>
+          </Animated.View>
+        </View>
+      </GestureDetector>
+      <Animated.View pointerEvents="none" style={[styles.dropMarker, marker]} />
+    </>
+  );
+}
+
 type EdgeFrameProps = {
   left: number;
   width: number;
@@ -813,6 +1034,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   handleGrip: { width: 3, height: 16, borderRadius: 1.5, backgroundColor: '#3A3A3F' },
+  clipBlock: { position: 'absolute', top: 6, height: 44 },
+  clipGhost: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.accent,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  dropMarker: { position: 'absolute', top: 2, width: 4, height: 52, borderRadius: 2, backgroundColor: colors.accent },
+  clipDivider: { position: 'absolute', top: 6, width: 2, height: 44, backgroundColor: colors.bg },
+  clipTitle: { position: 'absolute', top: 9, paddingHorizontal: 6, height: 18, justifyContent: 'center', borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.55)' },
+  addClip: {
+    position: 'absolute',
+    top: 6,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.cardHigh,
+  },
+  addClipPressed: { opacity: 0.6 },
   captionTrack: { height: 34, marginTop: 4 },
   textTrack: { marginTop: 2 },
   captionChip: {

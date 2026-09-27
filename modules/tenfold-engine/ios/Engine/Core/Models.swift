@@ -146,10 +146,14 @@ public struct Analysis: Codable, Sendable {
   public var cuts: [Cut]
   public var faces: [FacePoint]
   public var warnings: [String]
+  /// Where each clip sits on the project source timeline (multi-clip projects; see ClipTimeline).
+  /// Absent in analyses written before multi-clip projects and in per-clip analysis files.
+  public var clips: [ClipSpan]?
 
   public init(
     version: Int = 1, media: MediaInfo, transcript: Transcript?, envelopeDb: [Float], noiseFloorDb: Double,
-    speechThresholdDb: Double, speechCoverage: Double, noSpeech: Bool, cuts: [Cut], faces: [FacePoint], warnings: [String]
+    speechThresholdDb: Double, speechCoverage: Double, noSpeech: Bool, cuts: [Cut], faces: [FacePoint], warnings: [String],
+    clips: [ClipSpan]? = nil
   ) {
     self.version = version
     self.media = media
@@ -162,6 +166,96 @@ public struct Analysis: Codable, Sendable {
     self.cuts = cuts
     self.faces = faces
     self.warnings = warnings
+    self.clips = clips
+  }
+}
+
+// MARK: - Clips (multi-clip projects)
+
+/// One video file of a project. A project is its clips played one after another (ClipTimeline).
+public struct ClipMeta: Codable, Sendable, Equatable {
+  public var id: String
+  /// File name inside the project folder.
+  public var sourceFile: String
+  public var media: MediaInfo
+  public var posterFile: String?
+  public var title: String
+
+  public init(id: String, sourceFile: String, media: MediaInfo, posterFile: String?, title: String) {
+    self.id = id
+    self.sourceFile = sourceFile
+    self.media = media
+    self.posterFile = posterFile
+    self.title = title
+  }
+}
+
+/// A clip's place on the project source timeline (seconds), and which transcript words are its own.
+public struct ClipSpan: Codable, Sendable, Equatable {
+  public var id: String
+  public var title: String
+  public var start: Double
+  public var end: Double
+  /// Index of the clip's first word in the concatenated transcript, and how many words it has.
+  public var wordStart: Int
+  public var wordCount: Int
+
+  public init(id: String, title: String, start: Double, end: Double, wordStart: Int, wordCount: Int) {
+    self.id = id
+    self.title = title
+    self.start = start
+    self.end = end
+    self.wordStart = wordStart
+    self.wordCount = wordCount
+  }
+}
+
+/// Seconds trimmed off each end of a clip (EditDocument.clipTrims). Applied as manual cuts at plan time.
+public struct ClipTrim: Codable, Sendable, Equatable {
+  public var clipId: String
+  public var head: Double
+  public var tail: Double
+
+  public init(clipId: String, head: Double, tail: Double) {
+    self.clipId = clipId
+    self.head = head
+    self.tail = tail
+  }
+}
+
+/// meta.json in a project folder. `sourceFile` / `media` / `posterFile` describe the FIRST clip (so builds
+/// from before multi-clip projects still open it), except `media.durationSec`, which is the sum of all clips.
+public struct ProjectMeta: Codable, Sendable {
+  public var id: String
+  public var title: String
+  public var sourceFile: String
+  public var createdAt: Double
+  public var media: MediaInfo
+  public var posterFile: String?
+  /// Every clip ever added, in the order added. Absent = one clip (the legacy single-file project).
+  public var clips: [ClipMeta]? = nil
+
+  /// The clips, with a legacy project read as one clip "c0".
+  public var allClips: [ClipMeta] {
+    if let clips, !clips.isEmpty { return clips }
+    return [ClipMeta(id: ClipTimeline.legacyClipId, sourceFile: sourceFile, media: media, posterFile: posterFile, title: title)]
+  }
+
+  /// The first clip: its analysis lives in analysis.json and its cut ids carry no prefix.
+  public var primaryClip: ClipMeta { allClips[0] }
+
+  /// Project-level media: the first clip's shape and frame rate, the clips' total length, sound if any has it.
+  public static func derivedMedia(_ clips: [ClipMeta]) -> MediaInfo? {
+    guard let first = clips.first?.media else { return nil }
+    var total = 0.0
+    var audio = false
+    var hdr = false
+    for c in clips {
+      total += c.media.durationSec
+      audio = audio || c.media.hasAudio
+      hdr = hdr || c.media.isHDR
+    }
+    return MediaInfo(durationSec: total, width: first.width, height: first.height, fps: first.fps, isHDR: hdr, hasAudio: audio)
   }
 }
 
@@ -336,11 +430,16 @@ public struct EditDocument: Codable, Sendable, Equatable {
   /// The sound of the video as clips in output time (see AudioClip). Absent = one original track over the
   /// whole video, silent when `audio.mode` is mute (how every document behaved before audio editing).
   public var audioClips: [AudioClip]?
+  /// Clip ids in play order (multi-clip projects). Absent = every clip in the order added. A clip left out
+  /// is deleted from the video (its file stays until the project is deleted, so undo can bring it back).
+  public var clipOrder: [String]?
+  /// Seconds trimmed off the ends of clips. Planned as manual cuts, never stored in `cuts`.
+  public var clipTrims: [ClipTrim]?
 
   public init(
     version: Int = 1, cuts: [Cut] = [], wordOverrides: [WordOverride] = [], captions: CaptionSettings = .init(),
     zoom: ZoomSettings = .init(), crop: CropSettings = .init(), audio: AudioSettings = .init(), captionEdits: CaptionEdits? = nil,
-    textOverlays: [TextOverlay]? = nil, audioClips: [AudioClip]? = nil
+    textOverlays: [TextOverlay]? = nil, audioClips: [AudioClip]? = nil, clipOrder: [String]? = nil, clipTrims: [ClipTrim]? = nil
   ) {
     self.version = version
     self.cuts = cuts
@@ -352,6 +451,8 @@ public struct EditDocument: Codable, Sendable, Equatable {
     self.captionEdits = captionEdits
     self.textOverlays = textOverlays
     self.audioClips = audioClips
+    self.clipOrder = clipOrder
+    self.clipTrims = clipTrims
   }
 }
 

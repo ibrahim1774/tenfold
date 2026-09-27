@@ -156,7 +156,8 @@ export default function BatchSetupScreen() {
         <View ref={tourTarget('setup.clips')} collapsable={false}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
           {clips.map((c, i) => {
-            const dur = formatDuration(c.media?.durationSec ?? 0);
+            const n = c.clips?.length ?? 1;
+            const dur = n > 1 ? `${n} clips · ${formatDuration(c.media?.durationSec ?? 0)}` : formatDuration(c.media?.durationSec ?? 0);
             const differs = common !== null && !sameEdits(edits[i], common);
             return (
               <Pressable

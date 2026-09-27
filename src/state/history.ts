@@ -45,3 +45,19 @@ export function redoDoc(projectId: string) {
   });
   useLibrary.getState().setDoc(projectId, next);
 }
+
+/**
+ * Writes an explicit clip order into the saved document and every undo/redo step that has none, without
+ * adding a step. Called before the first clip is added to a video, so undo can take the new clip out again
+ * (a document without `clipOrder` plays every clip the video has). See src/editor/clips.ts.
+ */
+export function pinClipOrder(projectId: string, order: string[]) {
+  const pin = (d: EditDocument): EditDocument => (d.clipOrder ? d : { ...d, clipOrder: order });
+  const current = useLibrary.getState().docs[projectId];
+  if (current && !current.clipOrder) useLibrary.getState().setDoc(projectId, pin(current));
+  const { past, future } = useEditHistory.getState();
+  useEditHistory.setState({
+    past: { ...past, [projectId]: (past[projectId] ?? []).map(pin) },
+    future: { ...future, [projectId]: (future[projectId] ?? []).map(pin) },
+  });
+}

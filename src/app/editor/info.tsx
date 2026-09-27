@@ -21,15 +21,17 @@ export default function VideoInfoSheet() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // The clips as they play in the editor (multi-clip videos).
+  const orderKey = useLibrary((s) => (s.docs[projectId]?.clipOrder ? JSON.stringify(s.docs[projectId]?.clipOrder) : ''));
   useEffect(() => {
     let alive = true;
-    Engine.getAnalysis(projectId)
+    Engine.getAnalysis(projectId, orderKey ? (JSON.parse(orderKey) as string[]) : undefined)
       .then((a) => alive && setAnalysis(a))
       .catch((e) => alive && setError(errorText(e)));
     return () => {
       alive = false;
     };
-  }, [projectId]);
+  }, [projectId, orderKey]);
 
   const t = analysis?.transcript;
   const media = analysis?.media ?? project?.media ?? undefined;
@@ -49,6 +51,8 @@ export default function VideoInfoSheet() {
   const video: InfoRow[] = [];
   if (media) {
     video.push({ label: 'Length', value: formatDuration(media.durationSec) });
+    const clips = analysis?.clips?.length ?? 1;
+    if (clips > 1) video.push({ label: 'Clips', value: `${clips}, size and frame rate of the first` });
     video.push({ label: 'Source size', value: `${media.width}×${media.height}` });
     video.push({ label: 'Frame rate', value: `${Math.round(media.fps)} fps` });
     video.push({ label: 'Colour', value: media.isHDR ? 'HDR, exported as SDR' : 'SDR' });

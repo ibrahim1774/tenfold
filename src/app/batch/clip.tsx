@@ -55,6 +55,7 @@ export default function ClipEditsSheet() {
             {project.title}
           </AppText>
           <AppText variant="label" color={colors.textMuted} tabular>
+            {(project.clips?.length ?? 1) > 1 ? `${project.clips?.length} clips · ` : ''}
             {formatDuration(project.media?.durationSec ?? 0)}
           </AppText>
         </View>

@@ -28,6 +28,16 @@ export const Engine = {
       posterUri: 'file:///p.jpg',
     }));
   },
+  canAddClips: () => true,
+  async joinProjects(id: string, others: string[]) {
+    calls.push({ fn: 'joinProjects', id, t: Date.now(), opts: { others } });
+    return others.map((o, i) => ({
+      id: `k${o}`,
+      title: `IMG_2${i}.MOV`,
+      media: { durationSec: 5 + i, width: 1920, height: 1080, fps: 30, isHDR: false, hasAudio: true },
+      posterUri: `file:///${o}.jpg`,
+    }));
+  },
   async deleteProject(id: string) {
     calls.push({ fn: 'deleteProject', id, t: Date.now() });
   },

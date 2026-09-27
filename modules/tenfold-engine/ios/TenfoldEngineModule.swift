@@ -50,6 +50,51 @@ public class TenfoldEngineModule: Module {
       return try encodeJSON(asset)
     }
 
+    // MARK: Clips (multi-clip projects: a project is its clips played in order; see ClipTimeline)
+
+    /// Adds a video file (camera recording) to a project as a new clip. AddedClip JSON.
+    AsyncFunction("addClip") { (projectId: String, uri: String, title: String) async -> String in
+      let added = await MediaImporter.addClip(projectId: projectId, uri: uri, title: title)
+      return (try? encodeJSON(added)) ?? "{}"
+    }
+
+    /// Photos picker for clips to add to a project. JSON [AddedClip] (empty when the picker was closed).
+    AsyncFunction("pickClips") { (projectId: String, maxCount: Int) async -> String in
+      guard let presenter = await MainActor.run(body: { ColorPicker.topViewController(from: self.appContext?.utilities?.currentViewController()) }) else {
+        return (try? encodeJSON([AddedClip(error: "Couldn't open Photos.")])) ?? "[]"
+      }
+      let added = await MediaImporter.pickClips(projectId: projectId, max: max(1, maxCount), presenter: presenter) { i, n in
+        self.sendEvent("onImportProgress", ["index": i, "total": n])
+      }
+      return (try? encodeJSON(added)) ?? "[]"
+    }
+
+    /// Files picker for one video to add to a project. AddedClip JSON (`error: "cancelled"` when closed).
+    AsyncFunction("pickVideoFile") { (projectId: String) async -> String in
+      guard let presenter = await MainActor.run(body: { ColorPicker.topViewController(from: self.appContext?.utilities?.currentViewController()) }) else {
+        return (try? encodeJSON(AddedClip(error: "Couldn't open Files."))) ?? "{}"
+      }
+      let added = await MediaImporter.pickVideoFile(projectId: projectId, presenter: presenter)
+      return (try? encodeJSON(added)) ?? "{}"
+    }
+
+    /// Joins picked videos into one project: the others' clips move into `projectId`, their projects are deleted.
+    AsyncFunction("joinProjects") { (projectId: String, otherIdsJSON: String) async throws -> String in
+      let others = try decodeJSON([String].self, otherIdsJSON)
+      for id in others { AnalysisCache.shared.remove(id) }
+      let added = await MediaImporter.joinProjects(targetId: projectId, otherIds: others)
+      AnalysisCache.shared.remove(projectId)
+      return try encodeJSON(added)
+    }
+
+    /// Deletes a clip's files and drops it from the project (never the first clip). The edit document decides
+    /// which clips play; this is only for clips no document uses (e.g. an add that failed).
+    AsyncFunction("removeClipFile") { (projectId: String, clipId: String) -> Bool in
+      let removed = ProjectStore.removeClip(projectId, clipId)
+      AnalysisCache.shared.remove(projectId)
+      return removed
+    }
+
     // MARK: Colour picker
 
     /// System colour picker over whatever is on screen (the captions sheet). Resolves "#RRGGBB", or null if closed.
@@ -121,41 +166,51 @@ public class TenfoldEngineModule: Module {
 
     // MARK: Analysis
 
-    AsyncFunction("analyze") { (projectId: String, optionsJSON: String) async throws -> String in
+    /// Analyses every clip, or only `clipIdsJSON` (clips just added). Returns the project analysis with the
+    /// clips in the order added. Progress events carry the clip index and count; `scope` is "clips" when
+    /// only some clips run (the editor adding clips), so the batch queue can ignore them.
+    AsyncFunction("analyze") { (projectId: String, optionsJSON: String, clipIdsJSON: String?) async throws -> String in
       let options = try decodeJSON(AnalysisOptions.self, optionsJSON)
+      let clipIds = try clipIdsJSON.map { try decodeJSON([String].self, $0) }
+      let scope = clipIds == nil ? "project" : "clips"
+      let current = ClipProgress()
       return try await JobRegistry.shared.run("\(projectId):analyze") {
-        let analysis = try await AnalysisEngine.analyze(projectId: projectId, options: options, transcriber: AppleTranscriber.isAvailable ? AppleTranscriber() : nil) { stage, fraction in
-          self.sendEvent("onJobProgress", ["projectId": projectId, "stage": stage, "fraction": fraction])
+        let analysis = try await AnalysisEngine.analyze(
+          projectId: projectId, clipIds: clipIds, options: options, transcriber: AppleTranscriber.isAvailable ? AppleTranscriber() : nil,
+          onClip: { i, n in current.set(i, n) }
+        ) { stage, fraction in
+          let (i, n) = current.get()
+          self.sendEvent("onJobProgress", ["projectId": projectId, "stage": stage, "fraction": fraction, "clipIndex": i, "clipCount": n, "scope": scope])
         }
-        AnalysisCache.shared.set(projectId, analysis)
+        AnalysisCache.shared.remove(projectId)
         return try encodeJSON(analysis)
       }
     }
 
-    AsyncFunction("getAnalysis") { (projectId: String) async throws -> String in
-      try encodeJSON(try AnalysisCache.shared.get(projectId))
+    /// The project analysis with the clips in `orderJSON` (a JSON array of clip ids; absent = the order added).
+    AsyncFunction("getAnalysis") { (projectId: String, orderJSON: String?) async throws -> String in
+      let order = try orderJSON.map { try decodeJSON([String].self, $0) }
+      return try encodeJSON(try AnalysisCache.shared.get(projectId, order: order))
     }
 
     AsyncFunction("plan") { (projectId: String, docJSON: String) async throws -> String in
       let doc = try decodeJSON(EditDocument.self, docJSON)
-      return try encodeJSON(EditPlanner.plan(doc: doc, analysis: try AnalysisCache.shared.get(projectId)))
+      return try encodeJSON(EditPlanner.plan(doc: doc, analysis: try AnalysisCache.shared.get(projectId, order: doc.clipOrder)))
     }
 
-    /// Recomputes silence/filler suggestions at a new strength from the stored analysis (no re-transcription).
-    AsyncFunction("suggestCuts") { (projectId: String, optionsJSON: String) async throws -> String in
+    /// Recomputes silence/filler/retake suggestions at a new strength from the stored analyses (no
+    /// re-transcription), clip by clip so nothing spans a clip boundary.
+    AsyncFunction("suggestCuts") { (projectId: String, optionsJSON: String, orderJSON: String?) async throws -> String in
       let options = try decodeJSON(AnalysisOptions.self, optionsJSON)
-      let a = try AnalysisCache.shared.get(projectId)
-      let r = AnalysisPlanner.detect(
-        envelope: a.envelopeDb, words: a.transcript?.words ?? [], wordTimingIsExact: a.transcript?.wordTimingIsExact ?? true,
-        language: a.transcript?.language ?? options.language, options: options)
-      return try encodeJSON(a.noSpeech ? [] : r.cuts)
+      let order = try orderJSON.map { try decodeJSON([String].self, $0) }
+      let (parts, primaryId) = try AnalysisCache.shared.parts(projectId, order: order)
+      return try encodeJSON(ClipTimeline.suggest(parts, primaryId: primaryId, options: options))
     }
 
+    /// Filmstrip frames for every clip (each tagged with its clip id and time in that clip).
     AsyncFunction("thumbnails") { (projectId: String, count: Int) async throws -> String in
       let meta = try ProjectStore.meta(projectId)
-      let source = ProjectStore.dir(projectId).appendingPathComponent(meta.sourceFile)
-      let thumbs = try await ThumbnailGenerator.strip(source: source, duration: meta.media.durationSec, count: count, dir: ProjectStore.subdir(projectId, "thumbs"))
-      return try encodeJSON(thumbs)
+      return try encodeJSON(try await ThumbnailGenerator.projectStrip(projectId: projectId, meta: meta, count: count))
     }
 
     // MARK: Export
@@ -166,12 +221,13 @@ public class TenfoldEngineModule: Module {
       return try await JobRegistry.shared.run("\(projectId):export") {
         let started = Date()
         let meta = try ProjectStore.meta(projectId)
-        let analysis = try AnalysisCache.shared.get(projectId)
-        let source = ProjectStore.dir(projectId).appendingPathComponent(meta.sourceFile)
+        let analysis = try AnalysisCache.shared.get(projectId, order: doc.clipOrder)
+        let clips = ProjectStore.clipSources(projectId, meta: meta, analysis: analysis)
         let quality: RenderQuality = options.quality == .uhd && min(meta.media.width, meta.media.height) >= 2160 ? .uhd : .hd
 
         // Need roughly 2× the source size free before writing (spec §8).
-        let sourceBytes = ProjectStore.size(of: source)
+        var sourceBytes: Int64 = 0
+        for c in clips { sourceBytes += ProjectStore.size(of: c.url) }
         if ProjectStore.freeDiskBytes() > 0 && ProjectStore.freeDiskBytes() < sourceBytes * 2 {
           throw EngineError.message("Not enough free space on your iPhone to export this video.")
         }
@@ -186,7 +242,9 @@ public class TenfoldEngineModule: Module {
 
         self.sendEvent("onJobProgress", ["projectId": projectId, "stage": "rendering", "fraction": 0])
         let plan = EditPlanner.plan(doc: doc, analysis: analysis)
-        let built = try await CompositionBuilder.build(source: source, media: meta.media, plan: plan, doc: doc, faces: analysis.faces, quality: quality, keepHDR: options.keepHDR)
+        let built = try await CompositionBuilder.build(
+          clips: clips, canvas: ProjectStore.canvasSize(meta), folder: ProjectStore.dir(projectId), plan: plan, doc: doc, faces: analysis.faces,
+          quality: quality, keepHDR: options.keepHDR)
         let name = "tenfold-\(Int(Date().timeIntervalSince1970)).mp4"
         let out = ProjectStore.subdir(projectId, "exports").appendingPathComponent(name)
         try await Exporter.export(built: built, plan: plan, captions: doc.captions, overlays: doc.textOverlays ?? [], options: options, to: out) { f in

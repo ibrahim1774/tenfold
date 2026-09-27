@@ -21,13 +21,35 @@ public enum AnalysisEngine {
       isHDR: traits.contains(.containsHDRVideo), hasAudio: hasAudio)
   }
 
-  public static func analyze(projectId: String, options: AnalysisOptions, transcriber: Transcriber?, progress: @escaping StageProgress) async throws -> Analysis {
+  /// Analyses the project's clips (all of them, or only `clipIds`), writing each clip's analysis to its own
+  /// file, and returns the project analysis in the order the clips were added. `onClip(index, count)` is
+  /// called as each clip starts, so progress can say which clip it is on.
+  public static func analyze(
+    projectId: String, clipIds: [String]? = nil, options: AnalysisOptions, transcriber: Transcriber?,
+    onClip: @escaping @Sendable (Int, Int) -> Void = { _, _ in }, progress: @escaping StageProgress
+  ) async throws -> Analysis {
     let meta = try ProjectStore.meta(projectId)
-    let source = ProjectStore.dir(projectId).appendingPathComponent(meta.sourceFile)
+    let all = meta.allClips
+    let targets = clipIds.map { ids in all.filter { ids.contains($0.id) } } ?? all
+    var fresh: [String: Analysis] = [:]
+    for (i, clip) in targets.enumerated() {
+      onClip(i, targets.count)
+      let source = ProjectStore.clipURL(projectId, clip)
+      let a = try await analyzeClip(source: source, media: clip.media, options: options, transcriber: transcriber, progress: progress)
+      try ProjectStore.write(a, projectId, ProjectStore.analysisFile(clip.id, meta: meta))
+      fresh[clip.id] = a
+    }
+    return try ProjectStore.combinedAnalysis(projectId, meta: meta, order: nil) { clip in
+      fresh[clip.id] ?? ProjectStore.readClipAnalysis(projectId, clip, meta: meta)
+    }
+  }
+
+  /// The pipeline for one video file; times from the file's start.
+  public static func analyzeClip(source: URL, media: MediaInfo, options: AnalysisOptions, transcriber: Transcriber?, progress: @escaping StageProgress) async throws -> Analysis {
     var warnings: [String] = []
 
     progress("extractingAudio", 0)
-    let samples = meta.media.hasAudio ? try await AudioExtractor.extract(url: source) { progress("extractingAudio", $0) } : []
+    let samples = media.hasAudio ? try await AudioExtractor.extract(url: source) { progress("extractingAudio", $0) } : []
     let envelope = Envelope.compute(samples: samples, sampleRate: AudioExtractor.sampleRate)
     try Task.checkCancellation()
 
@@ -53,7 +75,7 @@ public enum AnalysisEngine {
     try Task.checkCancellation()
 
     progress("detecting", 0)
-    let faces = await FaceTracker.track(source: source, duration: meta.media.durationSec) { progress("detecting", $0) }
+    let faces = await FaceTracker.track(source: source, duration: media.durationSec) { progress("detecting", $0) }
     try Task.checkCancellation()
 
     progress("planning", 0)
@@ -69,10 +91,9 @@ public enum AnalysisEngine {
     if detected.noSpeech { warnings.append("No speech detected, so nothing was cut.") }
 
     let analysis = Analysis(
-      media: meta.media, transcript: transcript, envelopeDb: envelope, noiseFloorDb: detected.levels.noiseFloorDb,
+      media: media, transcript: transcript, envelopeDb: envelope, noiseFloorDb: detected.levels.noiseFloorDb,
       speechThresholdDb: detected.levels.thresholdDb, speechCoverage: detected.levels.coverage, noSpeech: detected.noSpeech,
       cuts: detected.cuts, faces: faces, warnings: warnings)
-    try ProjectStore.write(analysis, projectId, "analysis.json")
     progress("planning", 1)
     return analysis
   }

@@ -93,7 +93,9 @@ public struct CaptionStyle: Sendable, Equatable {
 public enum EditPlanner {
   /// The one deterministic plan both the preview and the export render from.
   public static func plan(doc: EditDocument, analysis: Analysis) -> EditPlan {
-    let keep = CutPlanner.keepSegments(cuts: doc.cuts, duration: analysis.media.durationSec)
+    // Clip trims (multi-clip projects) are manual cuts at each clip's ends on the concatenated timeline.
+    let cuts = doc.cuts + ClipTimeline.trimCuts(doc.clipTrims, spans: analysis.clips ?? [])
+    let keep = CutPlanner.keepSegments(cuts: cuts, duration: analysis.media.durationSec)
     let mapper = TimeMapper(keep: keep)
     let words = analysis.transcript?.words ?? []
     let zoom = ZoomPlanner.plan(mapper: mapper, words: words, faces: analysis.faces, settings: doc.zoom)

@@ -32,6 +32,12 @@ const STAGE_SPAN: Record<string, [number, number]> = {
   saving: [0.95, 1],
 };
 
+/** Overall 0..1 of one analysis (or export) from a stage and its own fraction. */
+export function stageProgress(stage: string, fraction: number): number {
+  const [a, b] = STAGE_SPAN[stage] ?? [0, 1];
+  return a + (b - a) * Math.max(0, Math.min(1, fraction));
+}
+
 type QueueUI = { limitReached: boolean; setLimitReached: (v: boolean) => void };
 export const useQueueUI = create<QueueUI>((set) => ({ limitReached: false, setLimitReached: (limitReached) => set({ limitReached }) }));
 
@@ -69,14 +75,19 @@ export function startQueue() {
     if (p.status === 'exporting') updateProject(p.id, { status: 'exportQueued', progress: 0, stage: undefined });
     if (p.status === 'importing') updateProject(p.id, { status: 'failed', error: 'Import was interrupted.' });
   }
-  EngineEvents.onJobProgress(({ projectId, stage, fraction }) => {
+  EngineEvents.onJobProgress(({ projectId, stage, fraction, clipIndex, clipCount, scope }) => {
+    // Clips added in the editor report their own progress there; the video's status doesn't change.
+    if (scope === 'clips') return;
     const now = Date.now();
     // Throttle progress, but never drop a stage change ("Saving to Photos" arrives right after 100%).
     if (fraction < 1 && stage === lastStage[projectId] && now - (lastUpdate[projectId] ?? 0) < 100) return;
     lastUpdate[projectId] = now;
     lastStage[projectId] = stage;
-    const [a, b] = STAGE_SPAN[stage] ?? [0, 1];
-    useLibrary.getState().updateProject(projectId, { stage, progress: a + (b - a) * Math.max(0, Math.min(1, fraction)) });
+    const within = stageProgress(stage, fraction);
+    // A video of several clips is analysed clip by clip: progress runs once over all of them.
+    const clips = clipCount && clipCount > 1 ? clipCount : 1;
+    const progress = clips > 1 ? (Math.min(clips - 1, clipIndex ?? 0) + within) / clips : within;
+    useLibrary.getState().updateProject(projectId, { stage, progress });
   });
   // Exports only start in the foreground (iOS would cut them short); resume when the app comes back.
   AppState.addEventListener('change', (state) => {

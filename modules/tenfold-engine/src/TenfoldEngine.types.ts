@@ -4,6 +4,11 @@ export type JobProgressPayload = {
   projectId: string;
   stage: 'extractingAudio' | 'transcribing' | 'detecting' | 'planning' | 'rendering' | 'exporting' | 'saving';
   fraction: number;
+  /** Which clip the analysis is on (0-based) and how many it runs over. Absent from older builds. */
+  clipIndex?: number;
+  clipCount?: number;
+  /** "clips" when only some clips are analysed (the editor adding clips); "project" for a whole analysis. */
+  scope?: 'project' | 'clips';
 };
 
 export type ModelDownloadProgressPayload = { fraction: number };

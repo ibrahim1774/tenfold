@@ -21,7 +21,7 @@ struct FakeTranscriber: Transcriber {
   }
 }
 
-func makeClip(_ url: URL, seconds: Double = 6, size: CGSize = CGSize(width: 720, height: 1280), fps: Int32 = 30, transform: CGAffineTransform = .identity) async throws {
+func makeClip(_ url: URL, seconds: Double = 6, size: CGSize = CGSize(width: 720, height: 1280), fps: Int32 = 30, transform: CGAffineTransform = .identity, green: Bool = false) async throws {
   try? FileManager.default.removeItem(at: url)
   let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
   let vIn = AVAssetWriterInput(mediaType: .video, outputSettings: [
@@ -66,6 +66,7 @@ func makeClip(_ url: URL, seconds: Double = 6, size: CGSize = CGSize(width: 720,
   let frames = Int(seconds * Double(fps))
   var i = 0
   var spins = 0
+  var audioFinished = false
   while i < frames || Double(audioPos) / sr < seconds {
     let t = Double(i) / Double(fps)
     appendAudio(until: min(seconds, t + 0.1))
@@ -77,7 +78,7 @@ func makeClip(_ url: URL, seconds: Double = 6, size: CGSize = CGSize(width: 720,
         let ctx = CGContext(data: CVPixelBufferGetBaseAddress(pb), width: Int(size.width), height: Int(size.height), bitsPerComponent: 8,
                             bytesPerRow: CVPixelBufferGetBytesPerRow(pb), space: CGColorSpaceCreateDeviceRGB(),
                             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
-        ctx.setFillColor(CGColor(red: 0.15 + 0.1 * t, green: 0.2, blue: 0.45, alpha: 1))
+        ctx.setFillColor(green ? CGColor(red: 0.1, green: 0.55, blue: 0.15, alpha: 1) : CGColor(red: 0.15 + 0.1 * t, green: 0.2, blue: 0.45, alpha: 1))
         ctx.fill(CGRect(origin: .zero, size: size))
         ctx.setFillColor(CGColor(red: 0.95, green: 0.8, blue: 0.7, alpha: 1))
         ctx.fillEllipse(in: CGRect(x: 200 + t * 30, y: 700, width: 300, height: 360))
@@ -90,16 +91,22 @@ func makeClip(_ url: URL, seconds: Double = 6, size: CGSize = CGSize(width: 720,
         adaptor.append(pb, withPresentationTime: CMTime(value: CMTimeValue(i), timescale: fps))
       }
       i += 1
+      spins = 0
     } else {
       // Video input is busy: let audio run ahead so the writer can interleave and never deadlocks.
       appendAudio(until: seconds)
+      // All the sound is in: say so, or the writer may hold the last frames waiting to interleave more.
+      if Double(audioPos) / sr >= seconds && !audioFinished {
+        aIn.markAsFinished()
+        audioFinished = true
+      }
       spins += 1
       if spins > 20000 { throw EngineError.message("writer stalled at frame \(i), audio \(audioPos)") }
       try await Task.sleep(nanoseconds: 1_000_000)
     }
   }
   vIn.markAsFinished()
-  aIn.markAsFinished()
+  if !audioFinished { aIn.markAsFinished() }
   await writer.finishWriting()
   if writer.status != .completed { throw writer.error ?? EngineError.message("writer failed") }
 }
@@ -592,6 +599,247 @@ func audioSuite(src: URL, media: MediaInfo, outDir: URL, check: (Bool, String) -
   check(abs(ratio - 2) < 0.1, "volume above 100% amplifies")
 }
 
+// MARK: - Multi-clip projects
+
+func isGreenish(_ c: (Double, Double, Double)) -> Bool { c.1 > c.0 + 40 && c.1 > c.2 + 40 }
+func isBlueish(_ c: (Double, Double, Double)) -> Bool { c.2 > c.1 + 30 }
+
+/// Two clips (portrait blue, landscape green, 6 s each) in one project: analyze per clip, then export
+/// through the same path the module uses (combined analysis → plan → composition from both files).
+func clipSuite(outDir: URL, check: (Bool, String) -> Void) async throws {
+  let id = "harness-clips-\(Int(Date().timeIntervalSince1970))"
+  let folder = ProjectStore.dir(id)
+  let a = folder.appendingPathComponent("source.mov")
+  let b = folder.appendingPathComponent("source-k1.mov")
+  print("• clips: making a portrait and a landscape clip")
+  try await makeClip(a)
+  try await makeClip(b, size: CGSize(width: 1280, height: 720), green: true)
+  let ma = try await AnalysisEngine.probe(a)
+  let mb = try await AnalysisEngine.probe(b)
+  try ProjectStore.write(ProjectMeta(id: id, title: "Clips", sourceFile: "source.mov", createdAt: 0, media: ma, posterFile: nil), id, "meta.json")
+  let added = try ProjectStore.appendClip(id, ClipMeta(id: "k1", sourceFile: "source-k1.mov", media: mb, posterFile: nil, title: "Landscape"))
+  check(added.allClips.map(\.id) == ["c0", "k1"] && added.sourceFile == "source.mov", "legacy project gains a second clip; first stays source.mov")
+  check(abs(added.media.durationSec - ma.durationSec - mb.durationSec) < 1e-6 && added.media.width == ma.width, "project media: sum of durations, first clip's shape")
+
+  print("• clips: analysis per clip, concatenated")
+  let counter = ClipCounter()
+  let analysis = try await AnalysisEngine.analyze(projectId: id, options: AnalysisOptions(silence: .medium, fillers: .standard, language: "en"), transcriber: FakeTranscriber(), onClip: { i, n in counter.add(i, n) }) { _, _ in }
+  check(counter.seen == ["0/2", "1/2"], "progress names each clip (\(counter.seen))")
+  let meta = try ProjectStore.meta(id)
+  check(FileManager.default.fileExists(atPath: folder.appendingPathComponent("analysis.json").path) && FileManager.default.fileExists(atPath: folder.appendingPathComponent("analysis-k1.json").path), "one analysis file per clip")
+  let d0 = ma.durationSec
+  let total = ma.durationSec + mb.durationSec
+  check(abs(analysis.media.durationSec - total) < 1e-6, "project analysis spans both clips (\(analysis.media.durationSec))")
+  let words = analysis.transcript?.words ?? []
+  check(words.count == 22 && words[11].start > d0, "second clip's words follow the first (\(words.count))")
+  check(Set(analysis.cuts.map(\.id)).count == analysis.cuts.count, "cut ids unique")
+  check(analysis.cuts.filter { $0.reason == .silence && $0.accepted }.count == 2, "a silence cut in each clip")
+  check(!analysis.cuts.contains { $0.start < d0 && $0.end > d0 }, "no suggested cut spans the boundary")
+  check(analysis.envelopeDb.count == ClipTimeline.frameCount(ma.durationSec) + ClipTimeline.frameCount(mb.durationSec), "levels fitted per clip")
+  let thumbs = try await ThumbnailGenerator.projectStrip(projectId: id, meta: meta, count: 8)
+  check(thumbs.count == 8 && thumbs.filter { $0.clipId == "k1" }.count == 4 && (thumbs.last?.time ?? 0) > d0, "filmstrip frames from both clips (\(thumbs.count))")
+
+  func render(_ name: String, doc: EditDocument, captions: Bool = false) async throws -> (URL, EditPlan, Analysis, CGSize) {
+    var d = doc
+    if !captions { d.captions.enabled = false }
+    let m = try ProjectStore.meta(id)
+    let combined = try ProjectStore.combinedAnalysis(id, meta: m, order: d.clipOrder) { ProjectStore.readClipAnalysis(id, $0, meta: m) }
+    let plan = EditPlanner.plan(doc: d, analysis: combined)
+    let built = try await CompositionBuilder.build(
+      clips: ProjectStore.clipSources(id, meta: m, analysis: combined), canvas: ProjectStore.canvasSize(m), folder: folder, plan: plan, doc: d,
+      faces: combined.faces, quality: .hd)
+    let out = outDir.appendingPathComponent("harness-clips-\(name).mp4")
+    try await Exporter.export(built: built, plan: plan, captions: d.captions, overlays: d.textOverlays ?? [], options: ExportOptions(quality: .hd, watermark: false, saveToPhotos: false), to: out) { _ in }
+    return (out, plan, combined, built.renderSize)
+  }
+  func duration(_ u: URL) async throws -> Double { try await AVURLAsset(url: u).load(.duration).seconds }
+  /// A frame the way the editor's player shows it: the composition and its video composition, no export.
+  func previewFrame(_ d: EditDocument, at t: Double) async throws -> CGImage {
+    var doc = d
+    doc.captions.enabled = false
+    let m = try ProjectStore.meta(id)
+    let combined = try ProjectStore.combinedAnalysis(id, meta: m, order: doc.clipOrder) { ProjectStore.readClipAnalysis(id, $0, meta: m) }
+    let plan = EditPlanner.plan(doc: doc, analysis: combined)
+    let built = try await CompositionBuilder.build(
+      clips: ProjectStore.clipSources(id, meta: m, analysis: combined), canvas: ProjectStore.canvasSize(m), folder: folder, plan: plan, doc: doc,
+      faces: combined.faces, quality: .preview)
+    let g = AVAssetImageGenerator(asset: built.composition)
+    g.videoComposition = built.videoComposition
+    g.requestedTimeToleranceBefore = .zero
+    g.requestedTimeToleranceAfter = .zero
+    return try await g.image(at: CMTime(seconds: t, preferredTimescale: 600)).image
+  }
+  let body = CGRect(x: 0.4, y: 0.55, width: 0.2, height: 0.1)
+  var base = EditDocument(cuts: [])
+  base.zoom = ZoomSettings(mode: .off)
+  base.crop = CropSettings(auto916: true, aspect: "9:16")
+  func f(_ v: Double) -> String { String(format: "%.2f", v) }
+
+  print("• clips: both clips play in order; export length is the sum")
+  let (plainURL, plainPlan, _, size) = try await render("plain", doc: base)
+  let plainDur = try await duration(plainURL)
+  check(size == CGSize(width: 1080, height: 1920), "9:16 canvas \(size)")
+  check(abs(plainPlan.compDuration - total) < 0.01 && abs(plainDur - total) < 0.1, "export \(f(plainDur)) s = \(f(total)) s")
+  let p1 = try await frame(plainURL, at: 3, orient: false)
+  let p2 = try await frame(plainURL, at: 9, orient: false)
+  try ThumbnailGenerator.writeJPEG(p2, to: outDir.appendingPathComponent("harness-clips-landscape.jpg"))
+  check(isBlueish(meanColor(p1, body)) && isGreenish(meanColor(p2, body)), "3 s is the first clip, 9 s the second \(fmtColor(meanColor(p1, body))) \(fmtColor(meanColor(p2, body)))")
+  let edges = [CGRect(x: 0, y: 0.3, width: 0.02, height: 0.4), CGRect(x: 0.98, y: 0.3, width: 0.02, height: 0.4),
+               CGRect(x: 0.3, y: 0, width: 0.4, height: 0.02), CGRect(x: 0.3, y: 0.98, width: 0.4, height: 0.02)]
+  check(!edges.contains { isBlack(meanColor(p2, $0)) }, "automatic framing fills the canvas with the landscape clip too")
+  // The editor's player (no export): seeking either side of the join shows the right clip.
+  let before = try await previewFrame(base, at: d0 - 0.2)
+  let after = try await previewFrame(base, at: d0 + 0.2)
+  check(isBlueish(meanColor(before, body)) && isGreenish(meanColor(after, body)), "preview: 0.2 s either side of the join shows each clip")
+  let sound = try await readMono(plainURL)
+  check(rms(sound, 0.5, 1.8) > 0.15 && rms(sound, 6.5, 7.8) > 0.15, "each clip's own sound plays (\(f(rms(sound, 0.5, 1.8))), \(f(rms(sound, 6.5, 7.8))))")
+  try? FileManager.default.removeItem(at: plainURL)
+
+  print("• clips: a cut across the boundary")
+  var cutDoc = base
+  cutDoc.cuts = [Cut(id: "x", start: d0 - 1, end: d0 + 1, reason: .manual, accepted: true, confidence: 1)]
+  let (cutURL, cutPlan, _, _) = try await render("cut", doc: cutDoc)
+  let cutDur = try await duration(cutURL)
+  check(abs(cutPlan.compDuration - (total - 2)) < 0.01 && abs(cutDur - (total - 2)) < 0.1, "2 s removed (\(f(cutDur)) s)")
+  let c1 = try await frame(cutURL, at: d0 - 1.4, orient: false)
+  let c2 = try await frame(cutURL, at: d0 - 0.6, orient: false)
+  check(isBlueish(meanColor(c1, body)) && isGreenish(meanColor(c2, body)), "the join goes straight from clip 1 to clip 2")
+  try? FileManager.default.removeItem(at: cutURL)
+
+  print("• clips: reorder")
+  var reordered = base
+  reordered.clipOrder = ["k1", "c0"]
+  let (revURL, revPlan, revAnalysis, _) = try await render("reorder", doc: reordered)
+  let r1 = try await frame(revURL, at: 3, orient: false)
+  let r2 = try await frame(revURL, at: 9, orient: false)
+  check(abs(revPlan.compDuration - total) < 0.01, "same length")
+  check(isGreenish(meanColor(r1, body)) && isBlueish(meanColor(r2, body)), "second clip now plays first")
+  check(revAnalysis.clips?.first?.id == "k1" && (revAnalysis.transcript?.words.first?.start ?? 9) < 1, "analysis re-concatenated in the new order")
+  let pr = try await previewFrame(reordered, at: d0 + 0.2)
+  check(isBlueish(meanColor(pr, body)), "preview after a reorder: the first clip plays second")
+  try? FileManager.default.removeItem(at: revURL)
+
+  print("• clips: trims and delete")
+  var trimmed = base
+  trimmed.clipTrims = [ClipTrim(clipId: "c0", head: 0, tail: 1), ClipTrim(clipId: "k1", head: 2, tail: 0)]
+  let (trimURL, trimPlan, _, _) = try await render("trim", doc: trimmed)
+  let trimDur = try await duration(trimURL)
+  check(abs(trimPlan.compDuration - (total - 3)) < 0.01 && abs(trimDur - (total - 3)) < 0.1, "3 s trimmed (\(f(trimDur)) s)")
+  let t2 = try await frame(trimURL, at: d0 - 0.5, orient: false)
+  check(isGreenish(meanColor(t2, body)), "the second clip starts where the first was trimmed")
+  try? FileManager.default.removeItem(at: trimURL)
+  var deleted = base
+  deleted.clipOrder = ["k1"]
+  let (delURL, delPlan, _, _) = try await render("delete", doc: deleted)
+  let del1 = try await frame(delURL, at: 1, orient: false)
+  check(abs(delPlan.compDuration - mb.durationSec) < 0.01 && isGreenish(meanColor(del1, body)), "a clip left out of the order is gone")
+  try? FileManager.default.removeItem(at: delURL)
+
+  print("• clips: a caption across the boundary")
+  var capDoc = base
+  capDoc.captions = CaptionSettings(styleId: "pop")
+  // Merge the second clip's first caption into the first clip's last one, so one card spans the join.
+  capDoc.captionEdits = CaptionEdits(merges: [words[11].start])
+  let (capURL, capPlan, _, capSize) = try await render("caption", doc: capDoc, captions: true)
+  let across = capPlan.cards.first { $0.start < d0 && $0.end > d0 }
+  check(across != nil && (across?.words.contains { $0.index < 11 } ?? false) && (across?.words.contains { $0.index >= 11 } ?? false), "one card holds words from both clips (\(capPlan.cards.map(\.text)))")
+  if let card = across, let late = card.words.first(where: { $0.index >= 11 }) {
+    let t = (late.start + late.end) / 2
+    let (bare, _, _, _) = try await render("caption-none", doc: base)
+    let with = try await frame(capURL, at: t, orient: false)
+    let without = try await frame(bare, at: t, orient: false)
+    try ThumbnailGenerator.writeJPEG(with, to: outDir.appendingPathComponent("harness-clips-caption.jpg"))
+    let laid = CaptionLayerBuilder.layout(card: card, captions: capDoc.captions, style: CaptionStyle.resolve(capDoc.captions), render: capSize)
+    let box = laid.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+    let r = CGRect(x: box.minX / capSize.width, y: box.minY / capSize.height, width: box.width / capSize.width, height: box.height / capSize.height)
+    check(colorDiff(meanColor(with, r), meanColor(without, r)) > 10, "caption drawn over the second clip at \(f(t)) s")
+    try? FileManager.default.removeItem(at: bare)
+  }
+  try? FileManager.default.removeItem(at: capURL)
+
+  print("• clips: an added sound across the boundary stays continuous")
+  try makeTone(folder.appendingPathComponent("audio/tone.wav"), seconds: 8)
+  var sndDoc = base
+  sndDoc.audio.mode = .mute
+  sndDoc.audioClips = [AudioClip(id: "f", source: "file", file: "audio/tone.wav", start: d0 - 2, end: d0 + 2)]
+  let (sndURL, _, _, _) = try await render("sound", doc: sndDoc)
+  let snd = try await readMono(sndURL)
+  var worst = 1.0
+  var t = d0 - 1.9
+  while t < d0 + 1.8 {
+    worst = min(worst, rms(snd, t, t + 0.1))
+    t += 0.1
+  }
+  let toneRMS = 0.2 / 2.0.squareRoot()
+  print("  lowest 100 ms window around the join: \(f(worst)) (tone \(f(toneRMS)))")
+  check(worst > toneRMS * 0.85, "no gap at the clip join")
+  try? FileManager.default.removeItem(at: sndURL)
+
+  print("• clips: manual framing applies to every clip at its own size")
+  var fit = base
+  fit.crop = CropSettings(auto916: true, aspect: "9:16", scale: 1, offsetX: 0, offsetY: 0)
+  let (fitURL, _, _, _) = try await render("fit", doc: fit)
+  let f1 = try await frame(fitURL, at: 3, orient: false)
+  let f2 = try await frame(fitURL, at: 9, orient: false)
+  try ThumbnailGenerator.writeJPEG(f2, to: outDir.appendingPathComponent("harness-clips-fit.jpg"))
+  let top = CGRect(x: 0.3, y: 0.02, width: 0.4, height: 0.1)
+  let bottom = CGRect(x: 0.3, y: 0.88, width: 0.4, height: 0.1)
+  let middle = CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1)
+  check(!isBlack(meanColor(f1, top)) && !isBlack(meanColor(f1, bottom)), "portrait clip at Fit fills a 9:16 canvas")
+  check(isBlack(meanColor(f2, top)) && isBlack(meanColor(f2, bottom)) && !isBlack(meanColor(f2, middle)), "landscape clip at Fit is letterboxed, centred")
+  try? FileManager.default.removeItem(at: fitURL)
+
+  print("• clips: a phone-style portrait clip (stored landscape, rotated 90°) next to a landscape one")
+  // Added later and analysed on its own (clipIds), like a clip added in the editor.
+  let r = folder.appendingPathComponent("source-k2.mov")
+  try await makeClip(r, size: CGSize(width: 1280, height: 720), transform: CGAffineTransform(rotationAngle: .pi / 2))
+  let mr = try await AnalysisEngine.probe(r)
+  check(mr.width == 720 && mr.height == 1280, "probe reads it upright (\(mr.width)×\(mr.height))")
+  _ = try ProjectStore.appendClip(id, ClipMeta(id: "k2", sourceFile: "source-k2.mov", media: mr, posterFile: nil, title: "Rotated"))
+  let only = ClipCounter()
+  _ = try await AnalysisEngine.analyze(projectId: id, clipIds: ["k2"], options: AnalysisOptions(silence: .off, fillers: .off, language: "en"), transcriber: FakeTranscriber(), onClip: { i, n in only.add(i, n) }) { _, _ in }
+  check(only.seen == ["0/1"] && FileManager.default.fileExists(atPath: folder.appendingPathComponent("analysis-k2.json").path), "only the new clip is analysed")
+  let upright = try await frame(r, at: 1)
+  let expected = redCorner(upright)
+  for (name, order, at) in [("rotated-second", ["k1", "k2"], d0 + 3), ("rotated-first", ["k2", "k1"], 3.0)] {
+    var rot = base
+    rot.clipOrder = order
+    let img = try await previewFrame(rot, at: at)
+    try ThumbnailGenerator.writeJPEG(img, to: outDir.appendingPathComponent("harness-clips-\(name).jpg"))
+    check(expected != nil && redCorner(img) == expected, "\(name): marker in \(redCorner(img) ?? "none"), upright source \(expected ?? "none")")
+    check(!edges.contains { isBlack(meanColor(img, $0)) } && isBlueish(meanColor(img, body)), "\(name): rotated clip fills the frame, upright")
+    let other = try await previewFrame(rot, at: name == "rotated-second" ? 3 : d0 + 3)
+    check(isGreenish(meanColor(other, body)), "\(name): the landscape clip still plays on the other side")
+  }
+  var rotExport = base
+  rotExport.clipOrder = ["k2", "k1"]
+  let (rotURL, _, _, _) = try await render("rotated", doc: rotExport)
+  let re = try await frame(rotURL, at: 3, orient: false)
+  check(redCorner(re) == expected && isBlueish(meanColor(re, body)), "export: rotated clip first and upright (\(redCorner(re) ?? "none"))")
+  try? FileManager.default.removeItem(at: rotURL)
+
+  print("• clips: removing a clip's files")
+  check(!ProjectStore.removeClip(id, "c0"), "the first clip is never removed")
+  check(ProjectStore.removeClip(id, "k1") && !FileManager.default.fileExists(atPath: b.path), "second clip's file deleted")
+  check((try ProjectStore.meta(id)).allClips.map(\.id) == ["c0", "k2"], "and dropped from meta.json")
+  ProjectStore.delete(id)
+}
+
+final class ClipCounter: @unchecked Sendable {
+  private let lock = NSLock()
+  private var items: [String] = []
+  func add(_ i: Int, _ n: Int) {
+    lock.lock()
+    items.append("\(i)/\(n)")
+    lock.unlock()
+  }
+  var seen: [String] {
+    lock.lock()
+    defer { lock.unlock() }
+    return items
+  }
+}
+
 @main
 struct RenderHarness {
   static func main() async {
@@ -616,6 +864,17 @@ struct RenderHarness {
     func check(_ c: Bool, _ m: String) {
       print(c ? "  ok   \(m)" : "  FAIL \(m)")
       if !c { failed = true }
+    }
+    if CommandLine.arguments.contains("--clips") {
+      // Only the multi-clip suite.
+      do {
+        try await clipSuite(outDir: outDir, check: check)
+      } catch {
+        print("  FAIL threw \(error)")
+        failed = true
+      }
+      print(failed ? "\nCLIP SUITE FAILED" : "\nclip suite passed")
+      exit(failed ? 1 : 0)
     }
     if CommandLine.arguments.contains("--audio") {
       // Only the audio lanes (quick; also handy when disk space is short).
@@ -798,6 +1057,7 @@ struct RenderHarness {
       try await textOverlaySuite(src: src, media: media, outDir: outDir, check: check)
       try await audioSuite(src: src, media: media, outDir: outDir, check: check)
       ProjectStore.delete(id)
+      try await clipSuite(outDir: outDir, check: check)
     } catch {
       print("  FAIL threw \(error)")
       failed = true

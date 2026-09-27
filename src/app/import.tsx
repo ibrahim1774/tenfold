@@ -1,15 +1,15 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { importNewBatch, useImporting } from '@/batch/importClips';
-import { AppText, Background, Card, GradientButton, IconButton, ProgressBar, Thumb } from '@/design/components';
+import { importJoinedBatch, importNewBatch, useImporting } from '@/batch/importClips';
+import { AppText, Background, Card, Chip, ChipGroup, GradientButton, IconButton, ProgressBar, Thumb } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
 import { colors, motion, radii, spacing } from '@/design/tokens';
-import { EngineEvents, engineAvailable } from '@/engine';
+import { Engine, EngineEvents, engineAvailable } from '@/engine';
 import { maxBatchSize, tierOf, useEntitlements } from '@/state/entitlements';
 
 const FACTS: { icon: SFSymbol; text: string }[] = [
@@ -20,6 +20,11 @@ const FACTS: { icon: SFSymbol; text: string }[] = [
 
 export default function ImportScreen() {
   const insets = useSafeAreaInsets();
+  // Single clip: each picked video becomes its own video in the batch. Multiple clips: the picked videos
+  // are joined, in the order picked, into one video (more clips can be added in the editor).
+  const params = useLocalSearchParams<{ mode?: string }>();
+  const canJoin = Engine.canAddClips();
+  const [mode, setMode] = useState<'single' | 'multiple'>(params.mode === 'multiple' && canJoin ? 'multiple' : 'single');
   const isPro = useEntitlements((s) => s.isPro);
   const limit = maxBatchSize(useEntitlements((s) => tierOf(s)));
   const busy = useImporting((s) => s.busy);
@@ -32,7 +37,7 @@ export default function ImportScreen() {
   }, []);
 
   const pick = async () => {
-    const batchId = await importNewBatch();
+    const batchId = mode === 'multiple' ? await importJoinedBatch() : await importNewBatch();
     setProgress(null);
     if (batchId) {
       router.dismiss();
@@ -72,8 +77,18 @@ export default function ImportScreen() {
           Pick your clips
         </AppText>
         <AppText variant="body" color={colors.textSecondary} style={styles.text}>
-          Choose up to {limit} videos of someone talking to camera. You can add more to the batch later.
+          {mode === 'multiple'
+            ? `Choose up to ${limit} clips. They play one after another in the order you pick them, as one video.`
+            : `Choose up to ${limit} videos of someone talking to camera. You can add more to the batch later.`}
         </AppText>
+        {canJoin && !busy && (
+          <View style={styles.modes} accessibilityRole="radiogroup" accessibilityLabel="Each video is">
+            <ChipGroup>
+              <Chip label="Single clip" selected={mode === 'single'} onPress={() => setMode('single')} />
+              <Chip label="Multiple clips" selected={mode === 'multiple'} onPress={() => setMode('multiple')} />
+            </ChipGroup>
+          </View>
+        )}
 
         {copying ? (
           <Animated.View entering={FadeIn.duration(motion.fast)}>
@@ -160,4 +175,5 @@ const styles = StyleSheet.create({
   factRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
   factIcon: { width: 22, height: 20 },
   footer: { paddingHorizontal: spacing.gutter, gap: spacing.sm },
+  modes: { alignItems: 'center' },
 });

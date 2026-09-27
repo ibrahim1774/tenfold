@@ -319,8 +319,15 @@ export function setOriginalMuted(doc: EditDocument, muted: boolean): EditDocumen
  */
 export function syncAudioToCuts(prev: EditDocument | undefined, next: EditDocument, sourceDuration: number): EditDocument {
   if (!next.audioClips || !prev || prev.cuts === next.cuts || !(sourceDuration > 0)) return next;
-  const oldTotal = outputDuration(prev.cuts, sourceDuration);
-  const newTotal = outputDuration(next.cuts, sourceDuration);
+  return syncAudioToLength(next, outputDuration(prev.cuts, sourceDuration), outputDuration(next.cuts, sourceDuration));
+}
+
+/**
+ * The same, given the output length before and after the edit (multi-clip projects, where clips added,
+ * removed or trimmed change the length too; see src/editor/clips.ts).
+ */
+export function syncAudioToLength(next: EditDocument, oldTotal: number, newTotal: number): EditDocument {
+  if (!next.audioClips || !(oldTotal > 0) || !(newTotal > 0)) return next;
   if (Math.abs(oldTotal - newTotal) < 1e-6) return next;
   const clips: AudioClip[] = [];
   for (const c of next.audioClips) {

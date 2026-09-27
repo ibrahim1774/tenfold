@@ -541,6 +541,124 @@ struct CoreTests {
       check(lv.count == 4 && near(lv[0], 0.8, 1e-6) && lv[3] == 0, "waveform levels on the timeline scale (\(lv))")
     }
 
+    // MARK: Multi-clip projects
+
+    func media(_ d: Double, w: Double = 1080, h: Double = 1920, audio: Bool = true) -> MediaInfo {
+      MediaInfo(durationSec: d, width: w, height: h, fps: 30, isHDR: false, hasAudio: audio)
+    }
+    func clip(_ id: String, _ d: Double, w: Double = 1080, h: Double = 1920) -> ClipMeta {
+      ClipMeta(id: id, sourceFile: "source-\(id).mov", media: media(d, w: w, h: h), posterFile: nil, title: "Clip \(id)")
+    }
+    func clipAnalysis(_ d: Double, words: [Word], cuts: [Cut] = [], faces: [FacePoint] = [], envFrames: Int? = nil) -> Analysis {
+      let n = envFrames ?? ClipTimeline.frameCount(d)
+      return Analysis(media: media(d), transcript: Transcript(words: words, language: "en", engine: "t", wordTimingIsExact: true),
+                      envelopeDb: [Float](repeating: -20, count: n), noiseFloorDb: -60, speechThresholdDb: -38, speechCoverage: 0.8,
+                      noSpeech: false, cuts: cuts, faces: faces, warnings: [])
+    }
+
+    test("clips: concatenation offsets words, levels, faces and cuts; ids stay unique") {
+      let a = clip("c0", 3.01)
+      let b = clip("k1", 2.0, w: 1920, h: 1080)
+      // Clip a's envelope is one frame short, clip b's two frames long: both are fitted to their durations.
+      let pa = ClipTimeline.Part(clip: a, analysis: clipAnalysis(3.01, words: [w("hello", 0.5, 0.9), w("there", 1.0, 1.4)],
+        cuts: [Cut(id: "s1.000", start: 1.5, end: 2.5, reason: .silence, accepted: true, confidence: 1)],
+        faces: [FacePoint(time: 1, x: 0.4, y: 0.4)], envFrames: 150))
+      let pb = ClipTimeline.Part(clip: b, analysis: clipAnalysis(2.0, words: [w("again", 0.2, 0.6)],
+        cuts: [Cut(id: "s1.000", start: 1.0, end: 1.6, reason: .silence, accepted: true, confidence: 1)],
+        faces: [FacePoint(time: 0.5, x: 0.6, y: 0.5)], envFrames: 102))
+      let all = ClipTimeline.concatenate([pa, pb], primaryId: "c0", canvas: a.media)
+      check(near(all.media.durationSec, 5.01, 1e-9), "duration is the sum (\(all.media.durationSec))")
+      check(all.media.width == 1080 && all.media.height == 1920, "shape from the canvas clip")
+      check(all.envelopeDb.count == 151 + 100, "envelope fitted per clip (\(all.envelopeDb.count))")
+      let ws = all.transcript?.words ?? []
+      check(ws.count == 3 && near(ws[2].start, 3.21, 1e-9) && near(ws[2].end, 3.61, 1e-9), "second clip's words offset by 3.01 s")
+      check(all.cuts.map(\.id) == ["s1.000", "k1/s1.000"], "primary ids bare, others prefixed (\(all.cuts.map(\.id)))")
+      check(near(all.cuts[1].start, 4.01, 1e-9) && near(all.cuts[1].end, 4.61, 1e-9), "cut offset")
+      check(all.faces.count == 2 && near(all.faces[1].time, 3.51, 1e-9), "faces offset")
+      let spans = all.clips ?? []
+      check(spans.count == 2 && spans[1].id == "k1" && near(spans[1].start, 3.01, 1e-9) && near(spans[1].end, 5.01, 1e-9), "clip spans")
+      check(spans[0].wordStart == 0 && spans[0].wordCount == 2 && spans[1].wordStart == 2 && spans[1].wordCount == 1, "word ranges per clip")
+      // The plan over the concatenated timeline: kept = total − both silences; export length = sum of kept ranges.
+      var doc = EditDocument(cuts: all.cuts)
+      doc.zoom = ZoomSettings(mode: .off)
+      let plan = EditPlanner.plan(doc: doc, analysis: all)
+      check(near(plan.compDuration, 5.01 - 1.0 - 0.6, 1e-6), "output = sum of kept ranges (\(plan.compDuration))")
+      check(plan.cards.first.map { $0.words.count } ?? 0 >= 1, "captions continue across clips")
+    }
+
+    test("clips: play order, reordering re-concatenates") {
+      let clips = [clip("c0", 2), clip("k1", 3), clip("k2", 1)]
+      check(ClipTimeline.ordered(clips, order: nil).map(\.id) == ["c0", "k1", "k2"], "nil order = order added")
+      check(ClipTimeline.ordered(clips, order: ["k2", "zz", "c0", "k2"]).map(\.id) == ["k2", "c0"], "unknown and repeated ids ignored; left-out clips deleted")
+      check(ClipTimeline.ordered(clips, order: []).map(\.id) == ["c0"], "never empty")
+      let parts = [
+        ClipTimeline.Part(clip: clips[0], analysis: clipAnalysis(2, words: [w("one", 0.1, 0.4)])),
+        ClipTimeline.Part(clip: clips[1], analysis: clipAnalysis(3, words: [w("two", 0.1, 0.4)])),
+      ]
+      let forward = ClipTimeline.concatenate(parts, primaryId: "c0")
+      let reversed = ClipTimeline.concatenate(parts.reversed(), primaryId: "c0")
+      check(forward.transcript?.words.map(\.text) == ["one", "two"] && reversed.transcript?.words.map(\.text) == ["two", "one"], "word order follows play order")
+      check(near(reversed.transcript?.words[1].start ?? -1, 3.1, 1e-9), "clip c0 now starts at 3 s")
+      check(reversed.clips?.first?.id == "k1" && near(reversed.clips?[1].start ?? -1, 3, 1e-9), "spans follow play order")
+    }
+
+    test("clips: trims are manual cuts at plan time, clamped, never stored") {
+      let parts = [
+        ClipTimeline.Part(clip: clip("c0", 4), analysis: clipAnalysis(4, words: [])),
+        ClipTimeline.Part(clip: clip("k1", 3), analysis: clipAnalysis(3, words: [])),
+      ]
+      let all = ClipTimeline.concatenate(parts, primaryId: "c0")
+      var doc = EditDocument()
+      doc.zoom = ZoomSettings(mode: .off)
+      doc.captions.enabled = false
+      doc.clipTrims = [ClipTrim(clipId: "c0", head: 0, tail: 1), ClipTrim(clipId: "k1", head: 0.5, tail: 0), ClipTrim(clipId: "gone", head: 1, tail: 1)]
+      let cuts = ClipTimeline.trimCuts(doc.clipTrims, spans: all.clips ?? [])
+      check(cuts.count == 2 && cuts.allSatisfy { $0.reason == .manual && $0.accepted }, "one manual cut per trimmed end (\(cuts.count))")
+      check(near(cuts[0].start, 3) && near(cuts[0].end, 4) && near(cuts[1].start, 4) && near(cuts[1].end, 4.5), "at the clip ends")
+      let plan = EditPlanner.plan(doc: doc, analysis: all)
+      check(near(plan.compDuration, 5.5, 1e-6) && doc.cuts.isEmpty, "7 s − 1.5 s trimmed = 5.5 s (\(plan.compDuration))")
+      let over = ClipTimeline.clamped(ClipTrim(clipId: "k1", head: 2.5, tail: 2.5), length: 3)
+      check(near(over.head, 2.5, 1e-9) && near(over.tail, 0.3, 1e-9), "at least 0.2 s of a clip stays (\(over))")
+    }
+
+    test("clips: retakes never match across a clip boundary") {
+      func line(_ text: String, from t0: Double) -> [Word] {
+        text.split(separator: " ").enumerated().map { i, t in w(String(t), t0 + Double(i) * 0.3, t0 + Double(i) * 0.3 + 0.25) }
+      }
+      let first = line("so today we are going to", from: 0.2)
+      let second = line("so today we are going to talk about it.", from: 0.2)
+      let a = clip("c0", 2.2), b = clip("k1", 3.2)
+      let parts = [ClipTimeline.Part(clip: a, analysis: clipAnalysis(2.2, words: first)), ClipTimeline.Part(clip: b, analysis: clipAnalysis(3.2, words: second))]
+      let opts = AnalysisOptions(silence: .off, fillers: .off, retakes: true, language: "en")
+      let joined = ClipTimeline.concatenate(parts, primaryId: "c0").transcript?.words ?? []
+      check(!RetakeDetector.detect(words: joined).isEmpty, "the same words in one clip would be a retake")
+      let perClip = ClipTimeline.suggest(parts, primaryId: "c0", options: opts)
+      check(!perClip.contains { $0.reason == .retake }, "per-clip detection finds none across the boundary (\(perClip.map(\.id)))")
+      // Inside one clip it still works, and the id carries the clip.
+      let inside = ClipTimeline.Part(clip: clip("k2", 6), analysis: clipAnalysis(6, words: line("so today we are going to", from: 0) + line("so today we are going to talk about it.", from: 2.5)))
+      let found = ClipTimeline.suggest([parts[0], inside], primaryId: "c0", options: opts).filter { $0.reason == .retake }
+      check(found.count == 1 && found[0].id.hasPrefix("k2/") && found[0].start >= 2.2, "retake inside a later clip, offset and prefixed")
+    }
+
+    test("clips: legacy project and document decode unchanged") {
+      let meta = try decodeJSON(ProjectMeta.self, #"{"id":"p","title":"Talk","sourceFile":"source.mov","createdAt":0,"media":{"durationSec":6,"width":720,"height":1280,"fps":30,"isHDR":false,"hasAudio":true},"posterFile":"poster.jpg"}"#)
+      check(meta.clips == nil && meta.allClips.count == 1, "no clips: one legacy clip")
+      check(meta.primaryClip.id == ClipTimeline.legacyClipId && meta.primaryClip.sourceFile == "source.mov" && meta.primaryClip.posterFile == "poster.jpg", "legacy clip c0 = the source file")
+      let doc = try decodeJSON(EditDocument.self, ##"{"version":1,"cuts":[{"id":"s","start":1,"end":2,"reason":"silence","accepted":true,"confidence":1}],"wordOverrides":[],"captions":{"styleId":"pop","font":"poppins","sizeScale":1,"colors":{"base":"#FFFFFF","active":"#FFE14D","stroke":"#000000","bg":"transparent"},"position":{"y":0.66},"uppercase":false,"maxWords":4,"enabled":true},"zoom":{"mode":"off","intensity":2,"faceFollow":true},"crop":{"auto916":true},"audio":{"mode":"original"}}"##)
+      check(doc.clipOrder == nil && doc.clipTrims == nil, "old document: no clip order or trims")
+      let a = clipAnalysis(6, words: [w("hi", 0.2, 0.5)])
+      check(a.clips == nil, "old analysis: no spans")
+      let plan = EditPlanner.plan(doc: doc, analysis: a)
+      check(near(plan.compDuration, 5, 1e-6), "plans exactly as before (\(plan.compDuration))")
+      let joined = ClipTimeline.concatenate([ClipTimeline.Part(clip: meta.primaryClip, analysis: clipAnalysis(6, words: [w("hi", 0.2, 0.5)], cuts: doc.cuts))], primaryId: "c0")
+      check(joined.cuts.map(\.id) == ["s"] && joined.warnings.isEmpty && near(joined.media.durationSec, 6), "one clip concatenates to itself")
+      var multi = meta
+      multi.clips = [meta.primaryClip, clip("k1", 4)]
+      let round = try decodeJSON(ProjectMeta.self, try encodeJSON(multi))
+      check(round.allClips.map(\.id) == ["c0", "k1"] && round.sourceFile == "source.mov", "clips round-trip; sourceFile stays the first clip")
+      check(ProjectMeta.derivedMedia(round.allClips).map { near($0.durationSec, 10) && $0.width == 720 } ?? false, "project media: sum of clips, first clip's shape")
+    }
+
     print("\n\(passes) passed, \(failures) failed")
     exit(failures == 0 ? 0 : 1)
   }

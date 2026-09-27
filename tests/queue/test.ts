@@ -2,8 +2,9 @@ import { calls, control, running } from './mockEngine';
 import { runCaptionEditTests } from './captionEdits';
 import { runTextOverlayTests } from './textOverlays';
 import { runAudioClipTests } from './audioClips';
+import { runClipTests } from './clips';
 import { AppState } from './rnMock';
-import { importIntoBatch } from '@/batch/importClips';
+import { importIntoBatch, importJoinedBatch } from '@/batch/importClips';
 import { cancelBatch, queueExports, retryProject, setPaused, startBatch, startQueue, useQueueUI } from '@/batch/queue';
 import { clampPlacement, fillUserScale, fitScale, MAX_SCALE, MIN_SCALE } from '@/editor/frame';
 import { setAllEdits, setEdit, setPresetId } from '@/state/batchSetup';
@@ -242,9 +243,32 @@ async function main() {
   const sent = calls.filter((c) => c.fn === 'export' && c.id === tpid).at(-1)?.doc;
   check(JSON.stringify(sent?.textOverlays) === JSON.stringify([title]), `export received the overlays (${JSON.stringify(sent?.textOverlays)})`);
 
+  console.log('• clips: joined import makes one video of several clips; the export gets its clip order and trims');
+  control.pickCount = 3;
+  const jb = await importJoinedBatch();
+  control.pickCount = 1;
+  const jp = jb ? projectsOf(lib().batches[jb], lib().projects) : [];
+  check(jp.length === 1 && jp[0].clips?.length === 3, `one video with 3 clips (${jp.length} videos, ${jp[0]?.clips?.length} clips)`);
+  check(jp[0]?.clips?.[0].id === 'c0' && jp[0]?.clips?.[1].title === 'Clip 20', 'first clip is c0, titles cleaned');
+  check(jp[0]?.media?.durationSec === 10 + 5 + 6, `video length is the clips’ sum (${jp[0]?.media?.durationSec})`);
+  check(calls.some((c) => c.fn === 'joinProjects' && c.opts.others.length === 2), 'the other picks were joined into the first');
+  if (jb && jp[0]) {
+    startBatch(jb);
+    check(await until(() => statuses(jb).every((s) => s === 'ready')), 'analysed as one video');
+    const jd = lib().docs[jp[0].id];
+    check(!!jd && jd.clipOrder === undefined, 'docFromAnalysis unchanged: plays every clip in order');
+    lib().setDoc(jp[0].id, { ...jd, clipOrder: ['c0', ...jp[0].clips!.slice(1).map((c) => c.id).reverse()], clipTrims: [{ clipId: 'c0', head: 0.5, tail: 0 }] });
+    queueExports([jp[0].id]);
+    check(await until(() => statuses(jb).every((s) => s === 'done')), 'exported');
+    const jsent = calls.filter((c) => c.fn === 'export' && c.id === jp[0].id).at(-1)?.doc;
+    check(jsent?.clipOrder?.length === 3 && jsent.clipOrder[0] === 'c0' && jsent.clipTrims?.[0]?.head === 0.5, `export received clipOrder and clipTrims (${JSON.stringify(jsent?.clipOrder)})`);
+    lib().deleteBatch(jb);
+  }
+
   runCaptionEditTests(check);
   runTextOverlayTests(check);
   runAudioClipTests(check);
+  runClipTests(check);
 
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);
