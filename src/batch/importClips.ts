@@ -2,7 +2,7 @@ import { Alert } from 'react-native';
 import { create } from 'zustand';
 
 import { Engine, type ImportedAsset } from '../engine';
-import { maxBatchSize, useEntitlements } from '../state/entitlements';
+import { maxBatchSize, tierOf, useEntitlements } from '../state/entitlements';
 import { useLibrary } from '../state/library';
 import { batchPreset } from '../state/presets';
 import { useSettings } from '../state/settings';
@@ -41,7 +41,7 @@ function capped(assets: ImportedAsset[], max: number) {
 /** Opens the Photos picker and creates a new batch. Returns the batch id, or null if nothing was picked. */
 export function importNewBatch(): Promise<string | null> {
   return exclusive<string | null>(null, async () => {
-    const limit = maxBatchSize(useEntitlements.getState().isPro);
+    const limit = maxBatchSize(tierOf(useEntitlements.getState()));
     try {
       const assets = capped(report(await Engine.pickVideos(limit)), limit);
       if (assets.length === 0) return null;
@@ -58,7 +58,7 @@ export function importIntoBatch(batchId: string): Promise<void> {
   return exclusive(undefined, async () => {
     const batch = useLibrary.getState().batches[batchId];
     if (!batch) return;
-    const room = maxBatchSize(useEntitlements.getState().isPro) - batch.projectIds.length;
+    const room = maxBatchSize(tierOf(useEntitlements.getState())) - batch.projectIds.length;
     if (room <= 0) return;
     try {
       const assets = capped(report(await Engine.pickVideos(room)), room);

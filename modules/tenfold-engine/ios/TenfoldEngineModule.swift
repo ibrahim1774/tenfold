@@ -44,6 +44,22 @@ public class TenfoldEngineModule: Module {
       return try encodeJSON(assets)
     }
 
+    /// Imports a video file (camera recording or bundled sample) the same way a Photos pick is imported.
+    AsyncFunction("importFile") { (uri: String, title: String) async throws -> String in
+      let asset = await MediaImporter.importFile(uri: uri, title: title)
+      return try encodeJSON(asset)
+    }
+
+    // MARK: Colour picker
+
+    /// System colour picker over whatever is on screen (the captions sheet). Resolves "#RRGGBB", or null if closed.
+    AsyncFunction("pickColor") { (initialHex: String) async -> String? in
+      guard let presenter = await MainActor.run(body: { ColorPicker.topViewController(from: self.appContext?.utilities?.currentViewController()) }) else {
+        return nil
+      }
+      return await ColorPicker.pick(initialHex: initialHex, from: presenter)
+    }
+
     // MARK: Speech (Apple SpeechAnalyzer; assets managed by iOS)
 
     AsyncFunction("speechStatus") { (language: String) async -> String in

@@ -70,6 +70,14 @@ export const Engine = {
   thermalState: () => live()?.thermalState() ?? 'nominal',
   isLowPowerMode: () => live()?.isLowPowerMode() ?? false,
   freeDiskBytes: () => live()?.freeDiskBytes() ?? 0,
+  /** True when this build has the system colour picker (older builds don't: use a swatch grid). */
+  canPickColor: () => typeof live()?.pickColor === 'function',
+  /** System colour picker. "#RRGGBB", or null when closed without a choice or unavailable in this build. */
+  pickColor: async (initialHex: string): Promise<string | null> => {
+    const m = live();
+    if (typeof m?.pickColor !== 'function') return null;
+    return (await m.pickColor(initialHex)) ?? null;
+  },
 };
 
 type Sub = { remove(): void };

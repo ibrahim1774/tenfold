@@ -23,7 +23,8 @@ import type { AudioMode, FillerLevel, SilenceLevel, ZoomMode } from '@/engine/ty
 import { importIntoBatch, useImporting } from '@/batch/importClips';
 import { startBatch } from '@/batch/queue';
 import { setCaptionStyle as setStyle, setPresetId as setPreset, updatePreset } from '@/state/batchSetup';
-import { exportsLeft as freeExportsLeft, FREE_LIMITS, maxBatchSize, useEntitlements } from '@/state/entitlements';
+import { exportsLeft as freeExportsLeft, FREE_LIMITS, maxBatchSize, tierOf, useEntitlements } from '@/state/entitlements';
+import { tourTarget } from '@/tour/targets';
 import { formatDuration, projectsOf, useLibrary } from '@/state/library';
 import { PRESET_OPTIONS } from '@/state/presets';
 import { BatchEdits } from '@/batch/BatchEdits';
@@ -112,7 +113,7 @@ export default function BatchSetupScreen() {
 
   const captionsOn = edits.some((e) => e.captions);
   const reframeOn = edits.some((e) => e.reframe);
-  const limit = maxBatchSize(isPro);
+  const limit = maxBatchSize(tierOf(ent));
   const full = clips.length >= limit;
   const footerNotes = (isPro ? 0 : 1) + (clips.length === 0 && !importing ? 1 : 0);
   const footerHeight = FOOTER + footerNotes * FOOTER_NOTE + insets.bottom;
@@ -152,6 +153,7 @@ export default function BatchSetupScreen() {
             </AppText>
           )}
         </View>
+        <View ref={tourTarget('setup.clips')} collapsable={false}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
           {clips.map((c, i) => {
             const dur = formatDuration(c.media?.durationSec ?? 0);
@@ -194,9 +196,10 @@ export default function BatchSetupScreen() {
             </View>
           )}
         </ScrollView>
+        </View>
 
         {/* 2. Edits: what runs, for the whole batch. */}
-        <View style={[styles.gutter, styles.block]}>
+        <View ref={tourTarget('setup.edits')} collapsable={false} style={[styles.gutter, styles.block]}>
           <BatchEdits batch={batch} clips={clips} selections={edits} />
         </View>
 
@@ -393,12 +396,14 @@ export default function BatchSetupScreen() {
             Add at least one clip to generate.
           </AppText>
         )}
-        <GradientButton
-          title={importing ? 'Adding clips…' : `Generate ${clips.length} ${clips.length === 1 ? 'video' : 'videos'}`}
-          shape="pill"
-          disabled={clips.length === 0 || importing}
-          onPress={start}
-        />
+        <View ref={tourTarget('setup.generate')} collapsable={false}>
+          <GradientButton
+            title={importing ? 'Adding clips…' : `Generate ${clips.length} ${clips.length === 1 ? 'video' : 'videos'}`}
+            shape="pill"
+            disabled={clips.length === 0 || importing}
+            onPress={start}
+          />
+        </View>
       </View>
     </View>
   );

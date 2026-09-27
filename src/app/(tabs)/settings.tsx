@@ -10,7 +10,8 @@ import { AppText, Background, ProgressBar, Toggle, useTabBarSpace } from '@/desi
 import type { SFSymbol } from '@/design/symbols';
 import { colors, radii, spacing } from '@/design/tokens';
 import { Engine, engineAvailable } from '@/engine';
-import { exportsLeft, useEntitlements } from '@/state/entitlements';
+import { exportsResetDate, exportsUsedThisMonth, FREE_LIMITS, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
+import { useOnboarding } from '@/state/onboarding';
 import { PRESET_OPTIONS } from '@/state/presets';
 import { useSettings } from '@/state/settings';
 import { prepareSpeech, refreshSpeechStatus } from '@/state/speech';
@@ -43,7 +44,9 @@ export default function SettingsScreen() {
   const bottom = useTabBarSpace();
   const { speech, speechProgress, speechLocale, defaultPreset, keepHDR, setDefaultPreset, setKeepHDR, setOnboarded } = useSettings();
   const ent = useEntitlements();
-  const isPro = ent.isPro;
+  const tier = tierOf(ent);
+  const isPro = tier !== 'free';
+  const resetTour = useOnboarding((s) => s.resetTour);
   const engine = engineAvailable();
   const [storage, setStorage] = useState<number | null>(null);
 
@@ -92,7 +95,14 @@ export default function SettingsScreen() {
             ? 'Unavailable'
             : '…';
 
-  const left = exportsLeft(ent);
+  const used = Math.min(FREE_LIMITS.exportsPerMonth, exportsUsedThisMonth(ent));
+  const resets = exportsResetDate().toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+
+  const replayTour = () => {
+    resetTour();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Tour is on', 'It shows the next time you open batch setup and the editor.');
+  };
   const presets = PRESET_OPTIONS.filter((p) => p.id !== 'custom');
 
   return (
@@ -106,7 +116,20 @@ export default function SettingsScreen() {
         </AppText>
 
         <Group title="Plan">
-          <Row icon="crown" title="Plan" value={isPro ? 'Pro' : `Free · ${left} ${left === 1 ? 'export' : 'exports'} left`} />
+          <Row icon="crown" title="Plan" value={TIER_NAMES[tier]} />
+          {!isPro && (
+            <View
+              style={styles.meter}
+              accessible
+              accessibilityLabel={`${used} of ${FREE_LIMITS.exportsPerMonth} free exports used. Resets on ${resets}.`}>
+              <ProgressBar progress={used / FREE_LIMITS.exportsPerMonth} height={4} />
+              <AppText variant="caption" color={colors.textSecondary} tabular>
+                {used} of {FREE_LIMITS.exportsPerMonth} free exports used · resets on {resets}
+              </AppText>
+              <View style={[styles.divider, { left: ROW_PAD + ICON_BOX + ICON_GAP }]} />
+            </View>
+          )}
+          <Row icon="square.grid.2x2" title="See plans" accessory="chevron" onPress={() => router.push('/paywall')} />
           {isPro ? (
             <Row
               icon="creditcard"
@@ -114,20 +137,12 @@ export default function SettingsScreen() {
               accessory="external"
               onPress={() => Linking.openURL('https://apps.apple.com/account/subscriptions')}
             />
-          ) : (
-            <Row
-              icon="arrow.up.circle"
-              title="See Pro plans"
-              subtitle="Unlimited exports, batches of 20, no watermark"
-              accessory="chevron"
-              onPress={() => router.push('/paywall')}
-            />
-          )}
+          ) : null}
           <Row
             icon="arrow.clockwise"
             title="Restore purchases"
             action
-            onPress={() => Alert.alert('Not available yet', 'Purchases arrive with the Superwall integration.')}
+            onPress={() => Alert.alert('Not available yet', 'Purchases arrive with the App Store release.')}
             last
           />
         </Group>
@@ -187,6 +202,8 @@ export default function SettingsScreen() {
 
         <Group title="About">
           <Row icon="bolt.horizontal" title="Video engine" value={engine ? 'Connected' : 'Update the app'} />
+          <Row icon="play.rectangle" title="Replay the demo" accessory="chevron" onPress={() => router.push('/demo')} />
+          <Row icon="hand.point.up.left" title="Replay the tour" action onPress={replayTour} />
           <Row icon="arrow.counterclockwise" title="Replay onboarding" action onPress={replayOnboarding} last />
         </Group>
       </ScrollView>
@@ -328,5 +345,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   progress: { paddingLeft: ROW_PAD + ICON_BOX + ICON_GAP, paddingRight: ROW_PAD, paddingBottom: 14, marginTop: -4 },
+  meter: { gap: spacing.sm, paddingLeft: ROW_PAD + ICON_BOX + ICON_GAP, paddingRight: ROW_PAD, paddingBottom: 12, marginTop: -2 },
   privacy: { flexDirection: 'row', alignItems: 'center', gap: ICON_GAP, paddingHorizontal: ROW_PAD, paddingVertical: 14 },
 });

@@ -4,65 +4,39 @@ import { SymbolView } from 'expo-symbols';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CAPTION_PRESETS } from '@/captions/presets';
 import { AppText, Background, GradientButton, IconButton } from '@/design/components';
-import type { SFSymbol } from '@/design/symbols';
-import { colors, radii, spacing } from '@/design/tokens';
-import { FREE_LIMITS, PRO_BATCH_SIZE, useEntitlements } from '@/state/entitlements';
+import { colors, motion, radii, spacing } from '@/design/tokens';
+import {
+  annualSavingPercent,
+  PLANS,
+  perMonth,
+  planFor,
+  priceLine,
+  renewalLine,
+  TRIAL_DAYS,
+  type Billing,
+  type PlanInfo,
+} from '@/onboarding/plans';
+import { tierOf, useEntitlements, type Tier } from '@/state/entitlements';
 import { useSettings } from '@/state/settings';
 
-type Plan = 'monthly' | 'yearly';
-
-// M5: products, prices and trial eligibility come from Superwall. These strings are
-// placeholders replaced by the store's localized price strings; never ship them hardcoded.
-const MOCK_OFFERING: Record<Plan, { price: string; amount: number; per: string; trialDays: number }> = {
-  monthly: { price: '$9.99', amount: 9.99, per: 'month', trialDays: 0 },
-  yearly: { price: '$49.99', amount: 49.99, per: 'year', trialDays: 7 },
-};
-
-const yearlyPerMonth = `$${(MOCK_OFFERING.yearly.amount / 12).toFixed(2)}`;
-const yearlySaving = Math.round((1 - MOCK_OFFERING.yearly.amount / (MOCK_OFFERING.monthly.amount * 12)) * 100);
-const freeCaptionStyles = CAPTION_PRESETS.filter((p) => p.free).length;
-
-// What Pro adds, each with what the free plan gets today (numbers come from the same limits the app enforces).
-const FEATURES: { icon: SFSymbol; title: string; free: string }[] = [
-  { icon: 'infinity', title: 'Unlimited exports', free: `Free: ${FREE_LIMITS.exportsPerMonth} a month` },
-  { icon: 'square.stack', title: `Batches of up to ${PRO_BATCH_SIZE} clips`, free: `Free: ${FREE_LIMITS.batchSize} at a time` },
-  { icon: 'drop', title: 'No watermark', free: 'Free: exports carry a small Tenfold watermark' },
-  { icon: '4k.tv', title: '4K export', free: 'From 4K source clips. Free: 1080p' },
-  {
-    icon: 'captions.bubble',
-    title: `All ${CAPTION_PRESETS.length} caption styles`,
-    free: `Free: ${freeCaptionStyles} styles`,
-  },
-];
-
-const LINKS = [
-  { label: 'Restore purchases', onPress: () => Alert.alert('Restore purchases', 'Restoring arrives with subscriptions in the next update.') },
-  // Apple's standard licence agreement until Tenfold has its own terms page.
-  { label: 'Terms', onPress: () => WebBrowser.openBrowserAsync('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/') },
-  {
-    label: 'Privacy',
-    onPress: () =>
-      Alert.alert('Privacy', 'Tenfold edits everything on your iPhone. No account, no uploads, no analytics. Your videos never leave your phone.'),
-  },
-];
+const NOT_YET = 'Purchases arrive with the App Store release.';
 
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { from } = useLocalSearchParams<{ from?: string }>();
-  const [plan, setPlan] = useState<Plan>('yearly');
-  const setPro = useEntitlements((s) => s.setPro);
+  const current = useEntitlements((s) => tierOf(s));
+  const setTier = useEntitlements((s) => s.setTier);
   const setOnboarded = useSettings((s) => s.setOnboarded);
-  const offer = MOCK_OFFERING[plan];
+  const [billing, setBilling] = useState<Billing>('annual');
+  const [tier, setSelected] = useState<Tier>(current === 'free' ? 'pro' : current);
+  const [notice, setNotice] = useState<string | null>(null);
   const fromOnboarding = from === 'onboarding';
-
-  const choose = (p: Plan) => {
-    if (p !== plan) Haptics.selectionAsync();
-    setPlan(p);
-  };
+  const plan = planFor(tier);
+  const saving = annualSavingPercent(planFor('pro'));
 
   const close = () => {
     if (fromOnboarding) {
@@ -73,95 +47,118 @@ export default function PaywallScreen() {
     }
   };
 
-  const subscribe = () => {
-    // Placeholder until Superwall (M5): dev builds can unlock Pro to test; release builds never get it free.
+  const pickBilling = (b: Billing) => {
+    if (b === billing) return;
+    Haptics.selectionAsync();
+    setBilling(b);
+  };
+  const pickTier = (t: Tier) => {
+    if (t === tier) return;
+    Haptics.selectionAsync();
+    setSelected(t);
+    setNotice(null);
+  };
+
+  const confirm = () => {
+    // TODO(M5): Superwall purchase. Until then dev builds switch tiers locally to test limits;
+    // release builds never unlock anything for free.
+    if (tier === 'free') {
+      if (__DEV__) setTier('free');
+      close();
+      return;
+    }
     if (__DEV__) {
-      setPro(true);
+      setTier(tier);
       close();
     } else {
-      Alert.alert('Coming soon', 'Subscriptions open with the next update.');
+      setNotice(NOT_YET);
     }
   };
 
-  const cta = offer.trialDays > 0 ? `Start ${offer.trialDays}-day free trial` : `Subscribe for ${offer.price} a ${offer.per}`;
-  const terms =
-    offer.trialDays > 0
-      ? `Free for ${offer.trialDays} days, then ${offer.price} a ${offer.per}. Cancel anytime in Settings.`
-      : `${offer.price} a ${offer.per}. Cancel anytime in Settings.`;
+  const links = [
+    { label: 'Restore purchases', onPress: () => setNotice(NOT_YET) },
+    // Apple's standard licence agreement until Tenfold has its own terms page.
+    { label: 'Terms', onPress: () => WebBrowser.openBrowserAsync('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/') },
+    {
+      label: 'Privacy',
+      onPress: () =>
+        Alert.alert('Privacy', 'Tenfold edits everything on your iPhone. No account, no uploads, no analytics. Your videos never leave your phone.'),
+    },
+  ];
 
   return (
     <View style={[styles.flex, { paddingTop: insets.top + spacing.xs, paddingBottom: insets.bottom + spacing.xs }]}>
       <Background />
 
       <View style={styles.top}>
-        <IconButton icon="xmark" label={fromOnboarding ? 'Continue with free plan' : 'Close'} size={44} tone="ghost" onPress={close} />
+        <IconButton icon="xmark" label={fromOnboarding ? 'Not now' : 'Close'} size={44} tone="ghost" onPress={close} />
       </View>
 
       <ScrollView style={styles.flex} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
-          <AppText variant="label" color={colors.textSecondary}>
-            Tenfold Pro
+          <AppText variant="display" accessibilityRole="header">
+            Try Tenfold Pro free for {TRIAL_DAYS} days
           </AppText>
-          <AppText variant="display">Unlimited exports, no watermark</AppText>
           <AppText variant="body" color={colors.textSecondary}>
             Everything still runs on your iPhone. No account, no uploads.
           </AppText>
         </View>
 
-        <View style={styles.group}>
-          {FEATURES.map((f, i) => (
-            <View key={f.title} style={[styles.featureRow, i > 0 && styles.divider]} accessible accessibilityLabel={`${f.title}. ${f.free}`}>
-              <SymbolView name={f.icon} size={20} tintColor={colors.textPrimary} weight="regular" style={styles.featureIcon} />
-              <View style={styles.flex}>
-                <AppText variant="bodyStrong">{f.title}</AppText>
-                <AppText variant="label" color={colors.textMuted}>
-                  {f.free}
+        <View style={styles.segment} accessibilityRole="tablist">
+          {(['monthly', 'annual'] as Billing[]).map((b) => {
+            const on = billing === b;
+            return (
+              <Pressable
+                key={b}
+                onPress={() => pickBilling(b)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={b === 'annual' ? `Annual, save ${saving}%` : 'Monthly'}
+                style={[styles.segmentItem, on && styles.segmentOn]}>
+                <AppText variant="chip" color={on ? colors.textInverse : colors.textPrimary}>
+                  {b === 'annual' ? 'Annual' : 'Monthly'}
                 </AppText>
-              </View>
-            </View>
-          ))}
+                {b === 'annual' && saving > 0 ? (
+                  <View style={styles.savePill}>
+                    <AppText variant="caption" color={colors.accentText} tabular>
+                      Save {saving}%
+                    </AppText>
+                  </View>
+                ) : null}
+              </Pressable>
+            );
+          })}
         </View>
 
         <View style={styles.plans} accessibilityRole="radiogroup">
-          <PlanRow
-            selected={plan === 'yearly'}
-            onPress={() => choose('yearly')}
-            name="Yearly"
-            badge={`Save ${yearlySaving}%`}
-            price={`${MOCK_OFFERING.yearly.price} a year`}
-            detail={`${yearlyPerMonth} a month · ${MOCK_OFFERING.yearly.trialDays} days free`}
-          />
-          <PlanRow
-            selected={plan === 'monthly'}
-            onPress={() => choose('monthly')}
-            name="Monthly"
-            price={`${MOCK_OFFERING.monthly.price} a month`}
-            detail="No free trial"
-          />
+          {PLANS.map((p) => (
+            <PlanCard key={p.tier} plan={p} billing={billing} selected={tier === p.tier} current={current === p.tier} onPress={() => pickTier(p.tier)} />
+          ))}
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        <GradientButton title={cta} shape="pill" onPress={subscribe} />
+        <GradientButton title={`Continue with ${plan.name}`} shape="pill" onPress={confirm} />
+        {notice ? (
+          <Animated.View entering={FadeIn.duration(motion.fast)}>
+            <AppText variant="caption" color={colors.textPrimary} style={styles.center} accessibilityLiveRegion="polite">
+              {notice}
+            </AppText>
+          </Animated.View>
+        ) : null}
         <AppText variant="caption" color={colors.textMuted} tabular style={styles.center}>
-          {terms}
+          {renewalLine(plan, billing)}
         </AppText>
 
-        {fromOnboarding && (
-          <Pressable onPress={close} accessibilityRole="button" style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
-            <AppText variant="bodyStrong" color={colors.textSecondary}>
-              Continue with free plan
-            </AppText>
-          </Pressable>
-        )}
+        <Pressable onPress={close} accessibilityRole="button" style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
+          <AppText variant="bodyStrong" color={colors.textSecondary}>
+            Not now
+          </AppText>
+        </Pressable>
 
         <View style={styles.links}>
-          {LINKS.map(({ label, onPress }) => (
-            <Pressable
-              key={label}
-              onPress={onPress}
-              accessibilityRole="link"
-              style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+          {links.map(({ label, onPress }) => (
+            <Pressable key={label} onPress={onPress} accessibilityRole="link" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
               <AppText variant="caption" color={colors.textMuted}>
                 {label}
               </AppText>
@@ -173,50 +170,64 @@ export default function PaywallScreen() {
   );
 }
 
-function PlanRow({
+function PlanCard({
+  plan,
+  billing,
   selected,
+  current,
   onPress,
-  name,
-  badge,
-  price,
-  detail,
 }: {
+  plan: PlanInfo;
+  billing: Billing;
   selected: boolean;
+  current: boolean;
   onPress: () => void;
-  name: string;
-  badge?: string;
-  price: string;
-  detail: string;
 }) {
+  const price = priceLine(plan, billing);
+  const detail = plan.price ? (billing === 'annual' ? perMonth(plan) : `${TRIAL_DAYS} days free`) : null;
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${name}, ${price}. ${detail}${badge ? `. ${badge}` : ''}`}
+      accessibilityLabel={`${plan.name}, ${price}${current ? ', your plan' : ''}. ${plan.features.join(', ')}`}
       style={({ pressed }) => [styles.plan, selected && styles.planOn, pressed && styles.pressed]}>
-      <SymbolView
-        name={selected ? 'checkmark.circle.fill' : 'circle'}
-        size={22}
-        tintColor={selected ? colors.textPrimary : colors.textMuted}
-        weight="regular"
-      />
-      <View style={styles.flex}>
-        <View style={styles.planName}>
-          <AppText variant="bodyStrong">{name}</AppText>
-          {badge ? (
-            <AppText variant="caption" color={colors.orange} tabular>
-              {badge}
+      <View style={styles.planHead}>
+        <SymbolView
+          name={selected ? 'checkmark.circle.fill' : 'circle'}
+          size={22}
+          tintColor={selected ? colors.textPrimary : colors.textMuted}
+          weight="regular"
+        />
+        <View style={styles.flex}>
+          <View style={styles.planName}>
+            <AppText variant="bodyStrong">{plan.name}</AppText>
+            {current ? (
+              <AppText variant="caption" color={colors.textMuted}>
+                Your plan
+              </AppText>
+            ) : null}
+          </View>
+          {detail ? (
+            <AppText variant="label" color={colors.textSecondary} tabular>
+              {detail}
             </AppText>
           ) : null}
         </View>
-        <AppText variant="label" color={colors.textSecondary} tabular>
-          {detail}
+        <AppText variant="bodyStrong" tabular>
+          {price}
         </AppText>
       </View>
-      <AppText variant="bodyStrong" tabular>
-        {price}
-      </AppText>
+      <View style={styles.features}>
+        {plan.features.map((f) => (
+          <View key={f} style={styles.feature}>
+            <SymbolView name="checkmark" size={12} tintColor={colors.textSecondary} weight="regular" />
+            <AppText variant="label" color={colors.textSecondary}>
+              {f}
+            </AppText>
+          </View>
+        ))}
+      </View>
     </Pressable>
   );
 }
@@ -225,27 +236,25 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { textAlign: 'center' },
   top: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: spacing.md },
-  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.xxl },
+  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.sm, paddingBottom: spacing.xl, gap: spacing.xl },
   head: { gap: spacing.sm },
 
-  group: {
-    borderRadius: radii.card,
-    borderCurve: 'continuous',
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-    overflow: 'hidden',
+  segment: { flexDirection: 'row', padding: 3, borderRadius: radii.button, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  segmentItem: {
+    flex: 1,
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderRadius: radii.button - 3,
   },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, minHeight: 60 },
-  featureIcon: { width: 24, height: 24 },
-  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderStrong },
+  segmentOn: { backgroundColor: colors.textPrimary },
+  savePill: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: radii.round, backgroundColor: colors.bg },
 
   plans: { gap: spacing.md },
   plan: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    minHeight: 64,
+    gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderRadius: radii.card,
@@ -255,9 +264,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   planOn: { borderColor: colors.textPrimary, backgroundColor: colors.cardHigh },
+  planHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
   planName: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  features: { paddingLeft: 22 + spacing.md, gap: 2 },
+  feature: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 
-  footer: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.sm },
+  footer: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.xs },
   textButton: { minHeight: 44, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
   links: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xs },
   link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md },

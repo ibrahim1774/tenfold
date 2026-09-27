@@ -9,7 +9,11 @@ declare class TenfoldEngineModule extends NativeModule<TenfoldEngineModuleEvents
   isLowPowerMode(): boolean;
   freeDiskBytes(): number;
   setKeepAwake(on: boolean): Promise<void>;
+  /** System colour picker; resolves "#RRGGBB", or null when closed without a choice. Absent in older builds. */
+  pickColor?(initialHex: string): Promise<string | null>;
   pickVideos(maxCount: number): Promise<string>;
+  /** Imports a video file (file:// or dev-server http URL) into a new project; ImportedAsset JSON. Absent in older builds. */
+  importFile?(uri: string, title: string): Promise<string>;
   speechStatus(language: string): Promise<string>;
   prepareSpeech(language: string): Promise<string>;
   analyze(projectId: string, optionsJSON: string): Promise<string>;

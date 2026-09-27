@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreGraphics
+import CoreText
 import Foundation
 
 // End-to-end media check on macOS: synthetic clip → analyze → plan → composition → HEVC export
@@ -353,6 +354,54 @@ struct RenderHarness {
         try? FileManager.default.removeItem(at: o2)
       }
       print("  style frames written")
+
+      print("• caption look overrides (background, outline)")
+      // Samples just outside the words (inside the box's padding) and over the words, per override,
+      // against the same frame with no background.
+      struct Look { var name: String; var background: String; var outline: String }
+      let looks = [
+        Look(name: "none", background: "none", outline: "none"), Look(name: "box", background: "box", outline: "none"),
+        Look(name: "translucent", background: "translucent", outline: "none"), Look(name: "highlight", background: "highlight", outline: "none"),
+        Look(name: "outline-thin", background: "none", outline: "thin"), Look(name: "outline-thick", background: "none", outline: "thick"),
+      ]
+      var beside: [String: (Double, Double, Double)] = [:]
+      var over: [String: (Double, Double, Double)] = [:]
+      for look in looks {
+        var d4 = doc
+        d4.zoom = ZoomSettings(mode: .off)
+        d4.captions = CaptionSettings(
+          styleId: "pop", font: "poppins", colors: CaptionColors(base: "#FFFFFF", active: "#7C4DFF", stroke: "#000000", bg: "#000000"),
+          background: look.background, outline: look.outline, shadow: false, animation: "none")
+        let p4 = EditPlanner.plan(doc: d4, analysis: analysis)
+        let b4 = try await CompositionBuilder.build(source: src, media: media, plan: p4, doc: d4, faces: analysis.faces, quality: .hd)
+        let o4 = outDir.appendingPathComponent("harness-look-\(look.name).mp4")
+        try await Exporter.export(built: b4, plan: p4, captions: d4.captions, options: ExportOptions(quality: .hd, watermark: false, saveToPhotos: false), to: o4) { _ in }
+        let card = p4.cards.first { $0.words.count >= 2 } ?? p4.cards[0]
+        let laid = CaptionLayerBuilder.layout(card: card, captions: d4.captions, style: CaptionStyle.resolve(d4.captions), render: b4.renderSize)
+        let target = laid[min(1, laid.count - 1)]
+        let f = target.frame
+        let size = CGFloat(CTFontGetSize(target.font))
+        let rw = b4.renderSize.width, rh = b4.renderSize.height
+        // A strip just left of the word, inside the box / pill padding, at mid height.
+        let strip = CGRect(x: (f.minX - size * 0.12) / rw, y: (f.midY - f.height * 0.15) / rh, width: size * 0.08 / rw, height: f.height * 0.3 / rh)
+        let img = try await frame(o4, at: (target.word.start + target.word.end) / 2, orient: false)
+        try ThumbnailGenerator.writeJPEG(img, to: outDir.appendingPathComponent("harness-look-\(look.name).jpg"))
+        beside[look.name] = meanColor(img, strip)
+        over[look.name] = meanColor(img, CGRect(x: f.minX / rw, y: f.minY / rh, width: f.width / rw, height: f.height / rh))
+        try? FileManager.default.removeItem(at: o4)
+      }
+      func lum(_ c: (Double, Double, Double)?) -> Double { guard let c else { return -1 } ; return 0.2126 * c.0 + 0.7152 * c.1 + 0.0722 * c.2 }
+      func fmt(_ c: (Double, Double, Double)?) -> String { guard let c else { return "nil" } ; return String(format: "(%.0f, %.0f, %.0f)", c.0, c.1, c.2) }
+      let bgNone = lum(beside["none"]), bgBox = lum(beside["box"]), bgTrans = lum(beside["translucent"])
+      check(bgBox < 12 && bgNone > 30, "box: black box beside the word (\(fmt(beside["box"])) vs none \(fmt(beside["none"])))")
+      check(bgTrans > bgBox + 8 && bgTrans < bgNone - 8, "translucent: between box and none (\(fmt(beside["translucent"])))")
+      if let h = beside["highlight"] {
+        check(h.2 > 180 && h.0 > 80 && h.1 < 150, "highlight: violet pill behind the spoken word \(fmt(h))")
+      } else {
+        check(false, "highlight sampled")
+      }
+      check(lum(over["outline-thick"]) < lum(over["outline-thin"]) - 3 && lum(over["outline-thin"]) < lum(over["none"]) - 1,
+            "outline: thick darker than thin darker than none (\(Int(lum(over["outline-thick"]))) < \(Int(lum(over["outline-thin"]))) < \(Int(lum(over["none"]))))")
 
       print("• captions in other aspect ratios")
       for (aspect, expect) in [("16:9", CGSize(width: 1920, height: 1080)), ("1:1", CGSize(width: 1080, height: 1080)), ("4:5", CGSize(width: 1080, height: 1350))] {

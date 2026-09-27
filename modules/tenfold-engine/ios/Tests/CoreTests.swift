@@ -283,6 +283,108 @@ struct CoreTests {
       check(!legacy.isManual, "documents without scale stay on automatic framing")
     }
 
+    // Caption edits. Eight words in two natural groups of four ("One two three four" / "five six seven eight").
+    let cw = [
+      w("One", 0, 0.3), w("two", 0.3, 0.6), w("three", 0.6, 0.9), w("four", 0.9, 1.2),
+      w("five", 1.2, 1.5), w("six", 1.5, 1.8), w("seven", 1.8, 2.1), w("eight", 2.1, 2.4),
+    ]
+    let cm = TimeMapper(keep: [TimeRange(start: 0, end: 4)])
+    func groups(_ edits: CaptionEdits?) -> CaptionGrouper.Output {
+      CaptionGrouper.groupAll(words: cw, overrides: [], mapper: cm, maxWords: 4, uppercase: false, envelope: [], emphasis: false, edits: edits)
+    }
+
+    test("caption ids come from the first word and survive re-grouping") {
+      let g = groups(nil)
+      check(g.cards.map(\.id) == ["w0", "w4"], "ids \(g.cards.map(\.id))")
+      // The editor's split stores the split point and pins the group's old end (the next group's start),
+      // so later groups keep their words and ids.
+      let split = groups(CaptionEdits(boundaries: [0.6, 1.2]))
+      check(split.cards.map(\.id) == ["w0", "w2", "w4"], "splitting the first group keeps w4 (\(split.cards.map(\.id)))")
+      check(split.cards[2].words.count == 4, "w4 keeps its 4 words")
+    }
+
+    test("caption split at a word boundary produces two groups") {
+      let g = groups(CaptionEdits(boundaries: [1.5]))  // start of "six"
+      check(g.cards.map { $0.words.count } == [4, 1, 3], "4 + 1 + 3, got \(g.cards.map { $0.words.count })")
+      check(g.cards.map(\.id) == ["w0", "w4", "w5"], "ids \(g.cards.map(\.id))")
+      check(g.cards[2].words.first?.text == "six", "second half starts at the split")
+    }
+
+    test("caption merge joins two groups, even past the word limit") {
+      let g = groups(CaptionEdits(merges: [1.2]))  // start of "five"
+      check(g.cards.count == 1 && g.cards[0].words.count == 8, "one group of 8, got \(g.cards.map { $0.words.count })")
+      check(g.cards.first?.id == "w0", "merged group keeps the first id")
+      // A merge also overrides punctuation and pauses.
+      var punct = cw
+      punct[3].text = "four."
+      let p = CaptionGrouper.group(words: punct, overrides: [], mapper: cm, maxWords: 8, uppercase: false, envelope: [], emphasis: false, edits: CaptionEdits(merges: [1.2]))
+      check(p.count == 1, "merge beats the full stop (\(p.count))")
+      // A split at the same place wins over a merge.
+      let both = groups(CaptionEdits(boundaries: [1.2], merges: [1.2]))
+      check(both.cards.count == 2, "split wins over merge at the same boundary (\(both.cards.count))")
+    }
+
+    test("hidden caption groups are removed from the render and listed separately") {
+      let g = groups(CaptionEdits(hidden: ["w4"]))
+      check(g.cards.map(\.id) == ["w0"], "only w0 shown")
+      check(g.hidden.map(\.id) == ["w4"], "w4 listed as hidden")
+      let visible = CaptionGrouper.group(words: cw, overrides: [], mapper: cm, maxWords: 4, uppercase: false, envelope: [], emphasis: false, edits: CaptionEdits(hidden: ["w0"]))
+      check(visible.map(\.id) == ["w4"], "group() returns visible cards only")
+    }
+
+    test("caption retime moves edges and clamps to neighbours") {
+      let moved = groups(CaptionEdits(timing: [CaptionTiming(id: "w4", start: 1.4, end: 3.0)]))
+      check(near(moved.cards[1].start, 1.4, 1e-9) && near(moved.cards[1].end, 3.0, 1e-9), "retimed w4 \(moved.cards[1].start)–\(moved.cards[1].end)")
+      // Pulling w4's start into w0 stops at w0's end.
+      let early = groups(CaptionEdits(timing: [CaptionTiming(id: "w4", start: 0.5)]))
+      check(near(early.cards[1].start, early.cards[0].end, 1e-9), "start clamps to previous end (\(early.cards[1].start) vs \(early.cards[0].end))")
+      // Pushing w0's end past w4's start stops there.
+      let late = groups(CaptionEdits(timing: [CaptionTiming(id: "w0", end: 2.0)]))
+      check(near(late.cards[0].end, late.cards[1].start, 1e-9), "end clamps to next start (\(late.cards[0].end))")
+      // Never shorter than 0.3 s.
+      let tiny = groups(CaptionEdits(timing: [CaptionTiming(id: "w4", start: 2.0, end: 2.05)]))
+      check(tiny.cards[1].end - tiny.cards[1].start >= CaptionGrouper.minRetimeSec - 1e-9, "min 0.3 s (\(tiny.cards[1].end - tiny.cards[1].start))")
+      // Never past the clip end.
+      let past = groups(CaptionEdits(timing: [CaptionTiming(id: "w4", end: 9)]))
+      check(near(past.cards[1].end, 4, 1e-9), "clamped to the clip (\(past.cards[1].end))")
+      // Retime is in source time: a cut before the card shifts it with the composition.
+      let cut = TimeMapper(keep: [TimeRange(start: 0, end: 0.3), TimeRange(start: 0.6, end: 4)])
+      // With "two" cut, the groups are [One three four five] and [six seven eight] (w5).
+      let shifted = CaptionGrouper.group(words: cw, overrides: [], mapper: cut, maxWords: 4, uppercase: false, envelope: [], emphasis: false, edits: CaptionEdits(timing: [CaptionTiming(id: "w5", start: 1.6)]))
+      check(shifted.last?.id == "w5" && shifted.last.map { near($0.start, 1.3, 1e-9) } == true, "source 1.6 → comp 1.3 (\(shifted.last?.start ?? -1))")
+    }
+
+    test("old documents without captionEdits or style overrides decode") {
+      let json = """
+      {"version":1,"cuts":[],"wordOverrides":[],"captions":{"styleId":"pop","font":"poppins","sizeScale":1,
+       "colors":{"base":"#FFFFFF","active":"#FFE14D","stroke":"#000000","bg":"transparent"},
+       "position":{"y":0.66},"uppercase":false,"maxWords":4,"enabled":true},
+       "zoom":{"mode":"off","intensity":2,"faceFollow":true},"crop":{"auto916":true},"audio":{"mode":"original"}}
+      """
+      let doc = try decodeJSON(EditDocument.self, json)
+      check(doc.captionEdits == nil && doc.captions.background == nil && doc.captions.animation == nil, "optional fields absent")
+      let withEdits = try decodeJSON(EditDocument.self, json.replacingOccurrences(of: "\"version\":1,", with: #""version":1,"captionEdits":{"hidden":["w3"],"timing":[{"id":"w0","end":1.5}]},"#))
+      check(withEdits.captionEdits?.hidden == ["w3"] && withEdits.captionEdits?.timing?.first?.end == 1.5, "captionEdits decode")
+      check(withEdits.captionEdits?.boundaries == nil, "missing lists stay nil")
+    }
+
+    test("caption style resolve merges overrides onto the preset") {
+      let pop = CaptionStyle.resolve(CaptionSettings(styleId: "pop"))
+      check(pop == CaptionStyle.forId("pop") && pop.background == .none && pop.strokeWidth == 6, "no overrides = preset")
+      check(CaptionStyle.forId("boxed").background == .box && CaptionStyle.forId("highlight").background == .highlight, "preset backgrounds")
+      let o = CaptionStyle.resolve(CaptionSettings(styleId: "pop", background: "translucent", outline: "thick", shadow: false, animation: "karaoke"))
+      check(o.background == .translucent && o.strokeWidth == 10 && !o.shadow && o.animation == .karaoke, "all overrides applied")
+      check(o.sizeRatio == CaptionStyle.forId("pop").sizeRatio, "size stays the preset's")
+      let thin = CaptionStyle.resolve(CaptionSettings(styleId: "outline", outline: "thin"))
+      check(thin.strokeWidth == 4, "thin = 4")
+      let none = CaptionStyle.resolve(CaptionSettings(styleId: "boxed", background: "none", outline: "none"))
+      check(none.background == .none && none.strokeWidth == 0, "overrides can switch off")
+      let custom = CaptionStyle.resolve(CaptionSettings(styleId: "custom", baseStyleId: "karaoke", shadow: false))
+      check(custom.animation == .karaoke && custom.emphasis && !custom.shadow, "custom builds on its base preset")
+      let junk = CaptionStyle.resolve(CaptionSettings(styleId: "boxed", background: "sparkles", animation: "wiggle"))
+      check(junk == CaptionStyle.forId("boxed"), "unknown values keep the preset")
+    }
+
     print("\n\(passes) passed, \(failures) failed")
     exit(failures == 0 ? 0 : 1)
   }

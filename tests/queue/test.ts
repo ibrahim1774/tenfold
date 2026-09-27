@@ -1,4 +1,5 @@
 import { calls, control, running } from './mockEngine';
+import { runCaptionEditTests } from './captionEdits';
 import { AppState } from './rnMock';
 import { importIntoBatch } from '@/batch/importClips';
 import { cancelBatch, queueExports, retryProject, setPaused, startBatch, startQueue, useQueueUI } from '@/batch/queue';
@@ -224,7 +225,85 @@ async function main() {
   check(clampPlacement({ scale: 9, offsetX: 0, offsetY: 0 }, 1920, 1080, 1080, 1920).scale === MAX_SCALE, 'scale capped');
   check(clampPlacement({ scale: 0.2, offsetX: 0, offsetY: 0 }, 1920, 1080, 1080, 1920).scale === MIN_SCALE, 'scale floored');
 
+  await onboardingSection(check);
+
+  runCaptionEditTests(check);
+
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);
 }
 main();
+
+/* ---------- Onboarding, plans, tour (stage 2b) ---------- */
+// Imports are hoisted, so they can sit with the section they serve.
+import { computePayoff } from '@/onboarding/savings';
+import { annualSavingPercent, planFor, PLANS, TRIAL_DAYS } from '@/onboarding/plans';
+import { exportsLeft as entExportsLeft, STUDIO_BATCH_SIZE, tierOf } from '@/state/entitlements';
+import { ONBOARDING_STORE_KEY, tourDue, useOnboarding } from '@/state/onboarding';
+import { initialTour, TOUR_STEPS, tourReducer } from '@/tour/steps';
+import kv from './kvMock';
+
+async function onboardingSection(check: (c: boolean, m: string) => void) {
+  console.log('• payoff maths: hours back a month');
+  const a = computePayoff('3-5', '10-30'); // 4 × 4.33 = 17.32 videos; × (20 − 2) = 311.8 min
+  check(a?.hours === 5, `3-5 a week, 10-30 min → 5 h (${a?.hours})`);
+  check(a?.lines.length === 2 && a.lines[0].includes('4.33') && a.lines[1].includes('2 min'), `maths shown (${a?.lines.join(' | ')})`);
+  const b = computePayoff('1-2', 'under10'); // 6.5 videos × 3 min = 19.5 min
+  check(b?.hours === 0, `1-2 a week, under 10 min → 0 h, never negative (${b?.hours})`);
+  const c = computePayoff('6+', '60+'); // 25.98 × 58 = 1506.8 min
+  check(c?.hours === 25, `6+ a week, 60+ min → 25 h (${c?.hours})`);
+  check(computePayoff(null, '10-30') === null && computePayoff('3-5', null) === null && computePayoff(null, null) === null, 'a skipped answer → no payoff screen');
+
+  console.log('• tiers: free 10, pro 20, studio 50; isPro derived');
+  const ent = useEntitlements.getState();
+  ent.setTier('free');
+  check(!useEntitlements.getState().isPro && maxBatchSize(tierOf(useEntitlements.getState())) === 10, 'free: 10, not pro');
+  ent.setTier('pro');
+  check(useEntitlements.getState().isPro && maxBatchSize(tierOf(useEntitlements.getState())) === 20, 'pro: 20, isPro');
+  ent.setTier('studio');
+  check(useEntitlements.getState().isPro && STUDIO_BATCH_SIZE === 50 && maxBatchSize(tierOf(useEntitlements.getState())) === 50, 'studio: 50, isPro');
+  check(entExportsLeft(useEntitlements.getState()) === Infinity, 'studio exports are unlimited');
+  useEntitlements.setState({ tier: 'free', isPro: true });
+  check(tierOf(useEntitlements.getState()) === 'pro', 'legacy isPro: true counts as pro');
+  ent.setPro(false);
+  check(useEntitlements.getState().tier === 'free' && !useEntitlements.getState().isPro, 'setPro(false) → free');
+  useEntitlements.setState({ exportsUsed: 0 });
+
+  console.log('• plans: 3-day trial, annual saving is computed');
+  check(TRIAL_DAYS === 3, 'trial is 3 days');
+  check(annualSavingPercent(planFor('pro')) === 33 && annualSavingPercent(planFor('studio')) === 33, `annual saves 33% (${annualSavingPercent(planFor('pro'))}, ${annualSavingPercent(planFor('studio'))})`);
+  check(PLANS.map((p) => p.tier).join(',') === 'free,pro,studio' && planFor('free').price === null, 'three tiers, Starter is free');
+
+  console.log('• onboarding store persists answers and tour flags');
+  const ob = useOnboarding.getState();
+  ob.setRole('coach');
+  ob.setVideosPerWeek('3-5');
+  ob.setMinutesPerVideo(null);
+  ob.setTourEnabled(true);
+  ob.markTourSeen('batchSetup');
+  const saved = JSON.parse(kv.getItemSync(ONBOARDING_STORE_KEY) ?? '{}');
+  const st = saved.state ?? {};
+  check(saved.version === 1, `store version 1 (${saved.version})`);
+  check(st.role === 'coach' && st.videosPerWeek === '3-5' && st.minutesPerVideo === null, `answers saved (${JSON.stringify(st)})`);
+  check(st.tourEnabled === true && st.tourSeen?.batchSetup === true && st.tourSeen?.editor === false, 'tour flags saved');
+  check(!tourDue(useOnboarding.getState(), 'batchSetup') && tourDue(useOnboarding.getState(), 'editor'), 'tour due only where not seen');
+  useOnboarding.getState().resetTour();
+  check(tourDue(useOnboarding.getState(), 'batchSetup') && tourDue(useOnboarding.getState(), 'editor'), 'replay the tour resets both screens');
+
+  console.log('• tour steps progress: next, back, skip, done');
+  let t = tourReducer(initialTour, { type: 'next' });
+  check(t === initialTour, 'next before start does nothing');
+  t = tourReducer(t, { type: 'start', screen: 'batchSetup' });
+  check(t.screen === 'batchSetup' && t.index === 0 && !t.done, 'starts at step 1');
+  t = tourReducer(t, { type: 'next' });
+  t = tourReducer(t, { type: 'back' });
+  t = tourReducer(t, { type: 'back' });
+  check(t.index === 0, 'back stops at step 1');
+  for (let i = 0; i < TOUR_STEPS.batchSetup.length - 1; i++) t = tourReducer(t, { type: 'next' });
+  check(t.index === 2 && !t.done, `last step is 3 of 3 (${t.index + 1})`);
+  t = tourReducer(t, { type: 'next' });
+  check(t.done, 'next on the last step finishes');
+  const s = tourReducer(tourReducer({ ...initialTour }, { type: 'start', screen: 'editor' }), { type: 'skip' });
+  check(s.done && s.index === 0, 'skip finishes at once');
+  check(TOUR_STEPS.batchSetup.length === 3 && TOUR_STEPS.editor.length === 3, 'three steps per screen');
+}

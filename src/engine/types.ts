@@ -16,7 +16,13 @@ export type CaptionStyleId =
   | 'outline'
   | 'handwritten'
   | 'minimal'
-  | 'subtle';
+  | 'subtle'
+  /** A preset the user changed; `baseStyleId` names the preset it started from. */
+  | 'custom';
+/** How the spoken word is shown (Swift CaptionAnimation). */
+export type CaptionAnimation = 'pop' | 'karaoke' | 'box' | 'none' | 'underline' | 'highlight' | 'neon' | 'reveal' | 'classic';
+export type CaptionBackground = 'none' | 'box' | 'translucent' | 'highlight';
+export type CaptionOutline = 'none' | 'thin' | 'thick';
 export type CaptionFont =
   | 'tiktok'
   | 'typewriter'
@@ -83,6 +89,27 @@ export type CaptionSettings = {
   uppercase: boolean;
   maxWords: number;
   enabled: boolean;
+  /** The preset a 'custom' style starts from. */
+  baseStyleId?: Exclude<CaptionStyleId, 'custom'>;
+  // Look overrides on top of the preset; absent = the preset's own (Swift CaptionStyle.resolve).
+  background?: CaptionBackground;
+  outline?: CaptionOutline;
+  shadow?: boolean;
+  animation?: CaptionAnimation;
+};
+
+/**
+ * Hand edits to caption groups. A group's id is "w" + its first word's transcript index, so ids stay
+ * the same when other groups are split, merged or retimed. All times are source seconds.
+ */
+export type CaptionEdits = {
+  /** A group must start here (split). The start of the new group's first word. */
+  boundaries?: number[];
+  /** The grouper must not break here (merge). The start of the absorbed group's first word. */
+  merges?: number[];
+  /** Ids of hidden groups. */
+  hidden?: string[];
+  timing?: { id: string; start?: number; end?: number }[];
 };
 
 export type EditDocument = {
@@ -96,6 +123,8 @@ export type EditDocument = {
   audio: { mode: AudioMode };
   /** Split points (source seconds) the user added on the timeline. UI only: the engine ignores them. */
   splits?: number[];
+  /** Split / merge / hide / retime edits to caption groups. */
+  captionEdits?: CaptionEdits;
   /** Pause/filler strength last picked in the editor (UI only). */
   levels?: { silence: SilenceLevel; fillers: FillerLevel; retakes?: boolean };
 };
@@ -129,7 +158,7 @@ export type BatchPreset = {
 export type CompSegment = { start: number; end: number; compStart: number; compEnd: number };
 export type ZoomEvent = { at: number; scale: number; anchorX: number; anchorY: number; ramp: number };
 export type CardWord = { index: number; text: string; start: number; end: number; emphasis: boolean };
-export type CaptionCard = { start: number; end: number; words: CardWord[] };
+export type CaptionCard = { id: string; start: number; end: number; words: CardWord[] };
 
 export type EditPlan = {
   segments: CompSegment[];
@@ -137,6 +166,8 @@ export type EditPlan = {
   zoom: ZoomEvent[];
   cards: CaptionCard[];
   removedSec: number;
+  /** Groups the user hid (not rendered). Absent from builds before caption edits. */
+  hiddenCards?: CaptionCard[];
 };
 
 export type ImportedAsset = {

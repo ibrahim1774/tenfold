@@ -1,8 +1,15 @@
-import type { CaptionFont, CaptionSettings, CaptionStyleId } from '../engine/types';
+import type {
+  CaptionAnimation,
+  CaptionBackground,
+  CaptionFont,
+  CaptionOutline,
+  CaptionSettings,
+  CaptionStyleId,
+} from '../engine/types';
 
 // Mirrored in Swift (Engine/Core/CaptionStyles.swift + CaptionLayerBuilder). Keep both in sync.
 
-export type CaptionAnimation = 'pop' | 'karaoke' | 'box' | 'none' | 'underline' | 'highlight' | 'neon' | 'reveal' | 'classic';
+export type { CaptionAnimation, CaptionBackground, CaptionOutline };
 
 export type CaptionPreset = {
   id: CaptionStyleId;
@@ -174,12 +181,85 @@ export const CAPTION_FORMATS: { maxWords: number; name: string }[] = [
 
 export const CAPTION_COLORS = ['#FFE14D', '#7C4DFF', '#FF3DCB', '#4DD8FF', '#FF7A59', '#5BE3A5', '#FFFFFF'];
 
+/** Extra swatches for the colour grid when the system colour picker isn't available. */
+export const MORE_CAPTION_COLORS = [
+  '#000000', '#1C1C1E', '#8E8E93', '#FF453A', '#FF9F0A', '#FFD60A',
+  '#32D74B', '#64D2FF', '#0A84FF', '#5E5CE6', '#BF5AF2', '#FF375F',
+];
+
+/**
+ * Look defaults per preset, matching Swift CaptionStyle.forId (background, outline width, shadow).
+ * The engine's preset outlines are 6–10 px; they read as the nearest of Thin (4) / Thick (10).
+ */
+const PRESET_LOOK: Record<Exclude<CaptionStyleId, 'custom'>, { background: CaptionBackground; outline: CaptionOutline; shadow: boolean }> = {
+  pop: { background: 'none', outline: 'thin', shadow: true },
+  tiktok: { background: 'box', outline: 'none', shadow: false },
+  highlight: { background: 'highlight', outline: 'none', shadow: true },
+  oneword: { background: 'none', outline: 'thick', shadow: true },
+  karaoke: { background: 'none', outline: 'none', shadow: true },
+  boxed: { background: 'box', outline: 'none', shadow: false },
+  neon: { background: 'none', outline: 'none', shadow: false },
+  typewriter: { background: 'none', outline: 'none', shadow: true },
+  outline: { background: 'none', outline: 'thick', shadow: false },
+  handwritten: { background: 'none', outline: 'none', shadow: true },
+  minimal: { background: 'none', outline: 'none', shadow: true },
+  subtle: { background: 'none', outline: 'none', shadow: true },
+};
+
+/**
+ * "Custom": shown when a preset's look was changed. Not part of CAPTION_PRESETS (that list is the
+ * catalogue the paywall counts and the batch setup shows); `presetById('custom')` returns it.
+ */
+export const CUSTOM_PRESET: CaptionPreset = { ...CAPTION_PRESETS[0], id: 'custom', name: 'Custom', free: true };
+
 export function presetById(id: CaptionStyleId): CaptionPreset {
+  if (id === 'custom') return CUSTOM_PRESET;
   return CAPTION_PRESETS.find((p) => p.id === id) ?? CAPTION_PRESETS[0];
 }
 
+/** The catalogue preset these settings are built on ('custom' → the preset it started from). */
+export function basePresetId(c: Pick<CaptionSettings, 'styleId' | 'baseStyleId'>): Exclude<CaptionStyleId, 'custom'> {
+  if (c.styleId !== 'custom') return c.styleId;
+  return c.baseStyleId ?? 'pop';
+}
+
+export function basePreset(c: Pick<CaptionSettings, 'styleId' | 'baseStyleId'>): CaptionPreset {
+  return presetById(basePresetId(c));
+}
+
+export type CaptionLook = { background: CaptionBackground; outline: CaptionOutline; shadow: boolean; animation: CaptionAnimation };
+
+/** The look the engine renders: overrides, else the base preset's own (Swift CaptionStyle.resolve). */
+export function lookOf(c: CaptionSettings): CaptionLook {
+  const id = basePresetId(c);
+  const d = PRESET_LOOK[id] ?? PRESET_LOOK.pop;
+  return {
+    background: c.background ?? d.background,
+    outline: c.outline ?? d.outline,
+    shadow: c.shadow ?? d.shadow,
+    animation: c.animation ?? presetById(id).animation,
+  };
+}
+
+/** Look-changing properties: changing any of them turns the style into 'custom'. */
+export type LookPatch = Partial<Pick<CaptionSettings, 'font' | 'colors' | 'uppercase' | 'background' | 'outline' | 'shadow' | 'animation'>>;
+
+/**
+ * Applies a change to the look and marks the style 'custom' (built on the same preset). Layout
+ * (size, position, words on screen) and the on/off switch are not "look" and use plain spreads.
+ */
+export function withLook(c: CaptionSettings, patch: LookPatch): CaptionSettings {
+  return { ...c, ...patch, styleId: 'custom', baseStyleId: basePresetId(c) };
+}
+
+/** Back to the base preset's own look (drops 'custom' and every override), keeping layout and on/off. */
+export function withoutLook(c: CaptionSettings): CaptionSettings {
+  const fresh = captionSettingsFromPreset(basePresetId(c));
+  return { ...fresh, sizeScale: c.sizeScale, position: c.position, maxWords: c.maxWords, enabled: c.enabled };
+}
+
 export function captionSettingsFromPreset(id: CaptionStyleId): CaptionSettings {
-  const p = presetById(id);
+  const p = presetById(id === 'custom' ? 'pop' : id);
   return {
     styleId: p.id,
     font: p.font,

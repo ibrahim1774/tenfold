@@ -23,12 +23,26 @@ import { editsOf } from '@/batch/edits';
 import { ASPECTS, aspectOf, aspectRatioValue } from '@/editor/aspect';
 import { fillUserScale, type Placement } from '@/editor/frame';
 import { FrameCanvas } from '@/editor/FrameCanvas';
-import { Panel, ToolBar, type ToolId } from '@/editor/Panel';
-import { regionsOf, Timeline, toSource, type Region } from '@/editor/Timeline';
+import { ActionBar, Panel, ToolBar, type ToolId } from '@/editor/Panel';
+import { clearPreviewRequest, usePreviewBus } from '@/editor/previewBus';
+import { regionsOf, Timeline, toSource, type Region, type TimelineSelection } from '@/editor/Timeline';
+import { restorableSec, trimClip } from '@/editor/trim';
+import {
+  captionText,
+  editCaptionText,
+  mergeCaption,
+  resetCaptionEdits,
+  retimeCaption,
+  revertToOriginal as revertedDoc,
+  setCaptionHidden,
+  splitCaption,
+  type EditResult,
+} from '@/captions/edits';
 import {
   Engine,
   TenfoldPreviewView,
   type Analysis,
+  type CaptionCard,
   type Cut,
   type EditDocument,
   type EditPlan,
@@ -40,6 +54,7 @@ import {
 } from '@/engine';
 import { commitDoc, redoDoc, undoDoc, useEditHistory } from '@/state/history';
 import { docFromAnalysis, formatDuration, useLibrary } from '@/state/library';
+import { tourTarget } from '@/tour/targets';
 
 type Tool = Exclude<ToolId, 'captions'> | null;
 
@@ -74,6 +89,17 @@ const FILLERS: { v: FillerLevel; l: string }[] = [
   { v: 'aggressive', l: 'Aggressive' },
 ];
 
+/**
+ * Builds from before caption edits return cards without ids or hidden cards: fill them in the same way
+ * the engine does ("w" + first word index) so selection keeps working until the app is rebuilt.
+ */
+const NO_CARDS: CaptionCard[] = [];
+
+function withCaptionIds(p: EditPlan): EditPlan {
+  const fill = (c: CaptionCard): CaptionCard => (c.id ? c : { ...c, id: `w${c.words[0]?.index ?? 0}` });
+  return { ...p, cards: p.cards.map(fill), hiddenCards: (p.hiddenCards ?? []).map(fill) };
+}
+
 /** Unique id for a cut the user makes (module scope: ids use the clock, which render code must not). */
 function newId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
@@ -101,8 +127,11 @@ export default function EditorScreen() {
   // Why Split / Delete didn't happen, shown under the timeline until the next edit or scrub.
   const [notice, setNotice] = useState<{ text: string; key: string } | null>(null);
   const [levelsError, setLevelsError] = useState<string | null>(null);
-  // Selection is tied to the document it was made on, so any edit (or undo) clears it.
-  const [selection, setSelection] = useState<{ region: Region; key: string } | null>(null);
+  // One selection at a time. A clip selection is tied to the document it was made on, so any edit (or
+  // undo) clears it; a caption is selected by its stable id and stays selected through its own edits.
+  const [selection, setSelection] = useState<{ kind: 'region'; region: Region; key: string } | { kind: 'caption'; id: string } | null>(null);
+  // Caption group whose text is being retyped in place.
+  const [editingCaption, setEditingCaption] = useState<string | null>(null);
   // Shape reported by the native preview, remembered with the aspect setting that produced it.
   const [rendered, setRendered] = useState<{ aspect: string; value: number; size: string } | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -133,7 +162,7 @@ export default function EditorScreen() {
     let alive = true;
     const id = setTimeout(() => {
       Engine.plan(projectId, doc)
-        .then((p) => alive && setPlan(p))
+        .then((p) => alive && setPlan(withCaptionIds(p)))
         .catch(() => {});
     }, 60);
     return () => {
@@ -259,8 +288,115 @@ export default function EditorScreen() {
     }
     return out;
   }, [doc?.splits, segments]);
-  const selected = selection && selection.key === docJSON ? selection.region : null;
-  const onSelect = useCallback((region: Region | null) => setSelection(region ? { region, key: docJSON } : null), [docJSON]);
+  const selected = selection?.kind === 'region' && selection.key === docJSON ? selection.region : null;
+  // Every caption group in time order, hidden ones included (they stay selectable so they can be shown).
+  const allCards = useMemo(() => [...(plan?.cards ?? []), ...(plan?.hiddenCards ?? [])].sort((a, b) => a.start - b.start), [plan]);
+  const hiddenIds = useMemo(() => new Set((plan?.hiddenCards ?? []).map((c) => c.id)), [plan]);
+  const selectedCard = selection?.kind === 'caption' ? (allCards.find((c) => c.id === selection.id) ?? null) : null;
+  // The React Compiler (app.json) memoises this, so playback ticks don't re-render the timeline's tracks.
+  const selectedCardId = selectedCard?.id ?? null;
+  const timelineSelection: TimelineSelection = selected
+    ? { kind: 'region', region: selected }
+    : selectedCardId
+      ? { kind: 'caption', id: selectedCardId }
+      : null;
+  const onSelect = useCallback(
+    (s: TimelineSelection) => {
+      setEditingCaption(null);
+      setNotice(null);
+      if (!s) setSelection(null);
+      else if (s.kind === 'region') setSelection({ kind: 'region', region: s.region, key: docJSON });
+      else {
+        setPlaying(false);
+        setSelection({ kind: 'caption', id: s.id });
+      }
+    },
+    [docJSON],
+  );
+
+  // Removed footage next to the selected clip's ends: how far each end can be dragged outward.
+  const restorable = useMemo(() => {
+    const dur = project?.media?.durationSec ?? plan?.compDuration ?? 0;
+    if (!selected) return { start: 0, end: 0 };
+    return { start: restorableSec(segments, selected, 'start', dur), end: restorableSec(segments, selected, 'end', dur) };
+  }, [selected, segments, project?.media?.durationSec, plan?.compDuration]);
+
+  const onTrimRegion = useCallback(
+    (region: Region, side: 'start' | 'end', delta: number) => {
+      const latest = useLibrary.getState().docs[projectId];
+      if (!latest) return false;
+      const dur = useLibrary.getState().projects[projectId]?.media?.durationSec ?? plan?.compDuration ?? 0;
+      const next = trimClip(latest, segments, region, side, delta, dur, newId);
+      if (!next) return false;
+      commit(next);
+      setSelection(null);
+      return true;
+    },
+    [projectId, segments, plan?.compDuration, commit],
+  );
+
+  const onRetimeCaption = useCallback(
+    (card: CaptionCard, edge: { start?: number; end?: number }) => {
+      const latest = useLibrary.getState().docs[projectId];
+      if (!latest) return false;
+      commit(retimeCaption(latest, card, segments, edge));
+      return true;
+    },
+    [projectId, segments, commit],
+  );
+
+  // Caption actions (contextual tool bar). Each reads the saved document, so it is one undo step.
+  const applyCaptionEdit = (result: EditResult) => {
+    if ('error' in result) setNotice({ text: result.error, key: docJSON });
+    else commit(result.doc);
+  };
+  const nextCard = (card: CaptionCard) => allCards[allCards.indexOf(card) + 1];
+  const splitCaptionAtPlayhead = () => {
+    const latest = useLibrary.getState().docs[projectId];
+    if (!latest || !selectedCard) return;
+    applyCaptionEdit(splitCaption(latest, selectedCard, nextCard(selectedCard), words, time));
+  };
+  const mergeCaptionWithNext = () => {
+    const latest = useLibrary.getState().docs[projectId];
+    if (!latest || !selectedCard) return;
+    applyCaptionEdit(mergeCaption(latest, selectedCard, nextCard(selectedCard), words));
+  };
+  const toggleCaptionHidden = () => {
+    const latest = useLibrary.getState().docs[projectId];
+    if (!latest || !selectedCard) return;
+    commit(setCaptionHidden(latest, selectedCard.id, !hiddenIds.has(selectedCard.id)));
+  };
+  const saveCaptionText = (card: CaptionCard, raw: string) => {
+    setEditingCaption(null);
+    const latest = useLibrary.getState().docs[projectId];
+    if (!latest) return;
+    const next = editCaptionText(latest, card, raw, words);
+    if (next) commit(next);
+  };
+
+  // "Play 3 s" in the captions sheet: from the first caption, for that long.
+  const planRef = useRef(plan);
+  useEffect(() => {
+    planRef.current = plan;
+  }, [plan]);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = usePreviewBus.subscribe((s) => {
+      const request = s.request;
+      if (!request) return;
+      clearPreviewRequest();
+      const t = planRef.current?.cards[0]?.start ?? 0;
+      setTime(t);
+      preview.current?.seek(t).catch(() => {});
+      setPlaying(true);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setPlaying(false), request.seconds * 1000);
+    });
+    return () => {
+      unsubscribe();
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
 
   const splitAtPlayhead = () => {
     if (!doc) return;
@@ -321,19 +457,20 @@ export default function EditorScreen() {
     router.push({ pathname: '/editor/info', params });
   };
 
-  // Back to the untouched clip: no cuts, captions, zoom or reframing. One undoable step.
+  // Back to the untouched clip: no cuts, captions (edits and style changes too), zoom or reframing.
+  // One undoable step (src/captions/edits.ts).
   const revertToOriginal = () => {
-    if (!doc) return;
-    commit({
-      ...doc,
-      cuts: [],
-      captions: { ...doc.captions, enabled: false },
-      zoom: { ...doc.zoom, mode: 'off' },
-      crop: { auto916: false, aspect: 'original', scale: 1, offsetX: 0, offsetY: 0 },
-      audio: { mode: 'original' },
-      splits: [],
-      levels: { silence: 'off', fillers: 'off' },
-    });
+    const latest = useLibrary.getState().docs[projectId];
+    if (!latest) return;
+    setSelection(null);
+    commit(revertedDoc(latest));
+  };
+
+  // Split / merge / hide / retime on captions go; the caption style and spelling fixes stay.
+  const resetCaptions = () => {
+    const latest = useLibrary.getState().docs[projectId];
+    if (!latest?.captionEdits) return;
+    commit(resetCaptionEdits(latest));
   };
 
   // Tenfold's edit for this video again, from its analysis and the edits checked for it.
@@ -344,14 +481,23 @@ export default function EditorScreen() {
 
   const openMenu = () => {
     setPlaying(false);
-    const options = ['Revert to original', 'Re-apply Tenfold’s edit', 'Video info', 'Cancel'];
+    // "Reset caption edits" only when there are some (split, merge, hide or retime).
+    const hasCaptionEdits = !!useLibrary.getState().docs[projectId]?.captionEdits;
+    const items: { title: string; run: () => void }[] = [
+      { title: 'Revert to original', run: revertToOriginal },
+      { title: 'Re-apply Tenfold’s edit', run: reapplyEdit },
+      ...(hasCaptionEdits ? [{ title: 'Reset caption edits', run: resetCaptions }] : []),
+      { title: 'Video info', run: showInfo },
+    ];
     ActionSheetIOS.showActionSheetWithOptions(
-      { options, cancelButtonIndex: 3, destructiveButtonIndex: 0, title: project?.title, message: 'Undo reverses either change.' },
-      (i) => {
-        if (i === 0) revertToOriginal();
-        else if (i === 1) reapplyEdit();
-        else if (i === 2) showInfo();
+      {
+        options: [...items.map((o) => o.title), 'Cancel'],
+        cancelButtonIndex: items.length,
+        destructiveButtonIndex: 0,
+        title: project?.title,
+        message: 'Undo reverses these edits.',
       },
+      (i) => items[i]?.run(),
     );
   };
 
@@ -427,7 +573,7 @@ export default function EditorScreen() {
   const frameAspect = rendered && rendered.aspect === aspect ? rendered.value : aspectRatioValue(aspect, project.media ?? undefined);
   const maxW = screenW - spacing.gutter * 2;
   // While a word is being retyped the preview shrinks, so the Words panel stays visible above the keyboard.
-  const maxH = editingWord != null ? 120 : Math.min(460, screenH * 0.46);
+  const maxH = editingWord != null || editingCaption != null ? 120 : Math.min(460, screenH * 0.46);
   const frameW = Math.round(Math.min(maxW, maxH * frameAspect));
   const frameH = Math.round(frameW / frameAspect);
   // Manual placement on the canvas (see src/editor/frame.ts). Automatic framing reads as Fill.
@@ -499,12 +645,12 @@ export default function EditorScreen() {
     <View style={styles.flex}>
       <Background />
       <View style={[styles.flex, { paddingTop: insets.top + 4 }]}>
-        <View style={styles.gutter}>
+        <View ref={tourTarget('editor.header')} style={styles.gutter}>
           <ScreenHeader
             title={project.title}
             right={
               <>
-                <IconButton icon="ellipsis" label="More: revert, re-apply edit, video info" size={44} iconScale={0.45} onPress={openMenu} />
+                <IconButton icon="ellipsis" label="More: revert, re-apply edit, reset caption edits, video info" size={44} iconScale={0.45} onPress={openMenu} />
                 <GradientButton
                   title="Export"
                   height={44}
@@ -613,8 +759,24 @@ export default function EditorScreen() {
           contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
           showsVerticalScrollIndicator={false}
           automaticallyAdjustKeyboardInsets>
-          <View style={[styles.gutter, styles.toolRow]}>
-            <ToolBar tools={TOOLS} active={tool} onPress={onTool} />
+          <View ref={tourTarget('editor.tools')} style={[styles.gutter, styles.toolRow]}>
+            {/* A selected caption swaps the project tools for what can be done to it. */}
+            {selectedCard ? (
+              <ActionBar
+                label="Caption actions"
+                actions={[
+                  { id: 'text', icon: 'character.cursor.ibeam', label: 'Edit text', onPress: () => setEditingCaption(selectedCard.id) },
+                  { id: 'split', icon: 'scissors', label: 'Split', onPress: splitCaptionAtPlayhead, disabled: selectedCard.words.length < 2 },
+                  { id: 'merge', icon: 'arrow.right.to.line', label: 'Merge', onPress: mergeCaptionWithNext, disabled: !nextCard(selectedCard) },
+                  hiddenIds.has(selectedCard.id)
+                    ? { id: 'show', icon: 'eye', label: 'Show', onPress: toggleCaptionHidden }
+                    : { id: 'hide', icon: 'eye.slash', label: 'Hide', onPress: toggleCaptionHidden },
+                  { id: 'done', icon: 'checkmark', label: 'Done', onPress: () => onSelect(null) },
+                ]}
+              />
+            ) : (
+              <ToolBar tools={TOOLS} active={tool} onPress={onTool} />
+            )}
           </View>
 
           {plan && (
@@ -622,23 +784,31 @@ export default function EditorScreen() {
               segments={segments}
               compDuration={plan.compDuration}
               cards={plan.cards}
+              hiddenCards={plan.hiddenCards ?? NO_CARDS}
               envelopeDb={analysis.envelopeDb}
               thumbs={thumbs}
               splits={compSplits}
-              selected={selected}
+              selection={timelineSelection}
+              restorable={restorable}
               time={time}
               muted={muted}
               onScrubStart={onScrubStart}
               onScrub={onScrub}
               onScrubEnd={onScrubEnd}
               onSelect={onSelect}
+              onTrimRegion={onTrimRegion}
+              onRetimeCaption={onRetimeCaption}
             />
           )}
 
           {plan && (
-            <View style={[styles.gutter, styles.editBar]}>
-              <EditAction icon="scissors" label="Split" onPress={splitAtPlayhead} />
-              <EditAction icon="trash" label="Delete" onPress={deleteSelected} disabled={!selected} danger />
+            <View ref={tourTarget('editor.editbar')} style={[styles.gutter, styles.editBar]}>
+              {!selectedCard && (
+                <>
+                  <EditAction icon="scissors" label="Split" onPress={splitAtPlayhead} />
+                  <EditAction icon="trash" label="Delete" onPress={deleteSelected} disabled={!selected} danger />
+                </>
+              )}
               {/* Only messages the user caused show here; the strip explains itself by use. */}
               <AppText
                 variant="caption"
@@ -646,13 +816,46 @@ export default function EditorScreen() {
                 style={styles.editHint}
                 numberOfLines={2}
                 accessibilityLiveRegion="polite">
-                {shownNotice ?? (selected ? 'Clip selected' : '')}
+                {shownNotice ?? (selected ? 'Clip selected. Drag its ends to trim.' : selectedCard ? 'Caption selected. Drag its ends to change when it shows.' : '')}
               </AppText>
             </View>
           )}
 
           <View style={[styles.gutter, styles.panel]}>
-            {tool === null && (
+            {selectedCard && (
+              <Panel
+                title={hiddenIds.has(selectedCard.id) ? 'Caption (hidden)' : 'Caption'}
+                detail={`${selectedCard.start.toFixed(1)}–${selectedCard.end.toFixed(1)} s · ${selectedCard.words.length === 1 ? '1 word' : `${selectedCard.words.length} words`}`}>
+                {editingCaption === selectedCard.id ? (
+                  <TextInput
+                    autoFocus
+                    defaultValue={captionText(selectedCard, doc, words)}
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    submitBehavior="blurAndSubmit"
+                    keyboardAppearance="dark"
+                    selectionColor={colors.accent}
+                    accessibilityLabel="Caption text"
+                    accessibilityHint="Done saves it. Leave it empty to use the transcribed words."
+                    onEndEditing={(e) => saveCaptionText(selectedCard, e.nativeEvent.text)}
+                    style={styles.captionInput}
+                  />
+                ) : (
+                  <PressableScale
+                    haptic={false}
+                    scaleTo={0.98}
+                    onPress={() => setEditingCaption(selectedCard.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Caption text: ${selectedCard.words.map((w) => w.text).join(' ')}`}
+                    accessibilityHint="Edits the text."
+                    style={styles.captionTextBox}>
+                    <AppText variant="body">{selectedCard.words.map((w) => w.text).join(' ')}</AppText>
+                  </PressableScale>
+                )}
+              </Panel>
+            )}
+
+            {!selectedCard && tool === null && (
               <Panel title="This edit" animate={false}>
                 <AppText variant="bodyStrong" tabular>
                   {summary}
@@ -690,7 +893,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {tool === 'words' && (
+            {!selectedCard && tool === 'words' && (
               <Panel title="Words" detail="Tap a word to cut or restore it. Hold it to fix the spelling.">
                 {words.length === 0 ? (
                   <AppText variant="label" color={colors.textSecondary}>
@@ -702,7 +905,8 @@ export default function EditorScreen() {
                       const cut = cutForWord(i);
                       const removed = !!cut?.accepted;
                       const candidate = !!cut && !cut.accepted && cut.reason !== 'manual';
-                      const text = overrides.get(i) ?? w.text;
+                      // An empty override (caption text retyped with fewer words) keeps the word in the video: show it.
+                      const text = overrides.get(i) || w.text;
                       if (editingWord === i) {
                         return (
                           <TextInput
@@ -755,7 +959,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {tool === 'cuts' && (
+            {!selectedCard && tool === 'cuts' && (
               <Panel title="Cuts" detail="Pauses, filler words and retakes taken out of this video.">
                 <View style={styles.statRow}>
                   <Stat value={String(acceptedPauses)} label="Pauses" />
@@ -806,7 +1010,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {tool === 'zoom' && (
+            {!selectedCard && tool === 'zoom' && (
               <Panel title="Zoom" detail="Punches in at each cut to hide the jump. Dynamic also zooms on new sentences.">
                 <ChipGroup>
                   {ZOOMS.map((z) => (
@@ -831,7 +1035,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {tool === 'crop' && (
+            {!selectedCard && tool === 'crop' && (
               <Panel
                 title="Frame"
                 detail={
@@ -906,7 +1110,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {tool === 'audio' && (
+            {!selectedCard && tool === 'audio' && (
               <Panel title="Audio" detail="The sound recorded with the clip.">
                 <ToggleRow title="Mute original audio" value={muted} onChange={(v) => commit({ ...doc, audio: { mode: v ? 'mute' : 'original' } })} />
               </Panel>
@@ -1069,6 +1273,19 @@ const styles = StyleSheet.create({
   wordRemoved: { backgroundColor: colors.dangerSoft },
   wordCandidate: { borderColor: colors.danger, borderStyle: 'dashed' },
   strike: { textDecorationLine: 'line-through' },
+  captionTextBox: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: radii.tile, backgroundColor: colors.chipFill },
+  captionInput: {
+    ...typeScale.body,
+    lineHeight: undefined,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radii.tile,
+    color: colors.textPrimary,
+    backgroundColor: colors.cardHigh,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
   statRow: { flexDirection: 'row', justifyContent: 'space-between' },
   stat: { alignItems: 'center', flex: 1, gap: 2 },
 });

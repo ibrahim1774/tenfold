@@ -111,7 +111,41 @@ export function ToolBar({ tools, active, onPress }: { tools: { id: ToolId; icon:
   );
 }
 
+export type BarAction = { id: string; icon: SFSymbol; label: string; onPress: () => void; disabled?: boolean; danger?: boolean };
+
+/**
+ * The tool row's contextual form: what can be done to the selected thing (a caption), laid out like the
+ * tool row so the bar doesn't jump when the selection changes.
+ */
+export function ActionBar({ actions, label }: { actions: BarAction[]; label: string }) {
+  return (
+    <View style={styles.tools} accessibilityRole="toolbar" accessibilityLabel={label}>
+      {actions.map((a) => {
+        const tint = a.disabled ? colors.textMuted : a.danger ? colors.danger : colors.textPrimary;
+        return (
+          <PressableScale
+            key={a.id}
+            haptic={false}
+            scaleTo={0.94}
+            disabled={a.disabled}
+            onPress={a.onPress}
+            accessibilityRole="button"
+            accessibilityLabel={a.label}
+            accessibilityState={{ disabled: a.disabled }}
+            style={[styles.tool, a.disabled && styles.toolOff]}>
+            <SymbolView name={a.icon} size={22} weight="regular" tintColor={tint} />
+            <AppText variant="caption" color={tint} numberOfLines={1} style={styles.toolLabel}>
+              {a.label}
+            </AppText>
+          </PressableScale>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  toolOff: { opacity: 0.5 },
   card: { gap: spacing.lg },
   head: { gap: 2 },
   groupLabel: { marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.lg, letterSpacing: 0.4 },

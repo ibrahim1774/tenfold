@@ -10,7 +10,7 @@ import { AppText, Background, Card, GradientButton, IconButton, ProgressBar, Thu
 import type { SFSymbol } from '@/design/symbols';
 import { colors, motion, radii, spacing } from '@/design/tokens';
 import { EngineEvents, engineAvailable } from '@/engine';
-import { maxBatchSize, useEntitlements } from '@/state/entitlements';
+import { maxBatchSize, tierOf, useEntitlements } from '@/state/entitlements';
 
 const FACTS: { icon: SFSymbol; text: string }[] = [
   { icon: 'doc.on.doc', text: 'Clips are copied into Tenfold. Your originals in Photos stay untouched.' },
@@ -21,7 +21,7 @@ const FACTS: { icon: SFSymbol; text: string }[] = [
 export default function ImportScreen() {
   const insets = useSafeAreaInsets();
   const isPro = useEntitlements((s) => s.isPro);
-  const limit = maxBatchSize(isPro);
+  const limit = maxBatchSize(useEntitlements((s) => tierOf(s)));
   const busy = useImporting((s) => s.busy);
   const [progress, setProgress] = useState<{ index: number; total: number } | null>(null);
   const available = engineAvailable();

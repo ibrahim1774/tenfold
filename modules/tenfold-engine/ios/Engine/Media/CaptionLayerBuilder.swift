@@ -138,6 +138,13 @@ public enum CaptionLayerBuilder {
     return l
   }
 
+  /// Box fill: the document's box colour (a dark default when it has none); translucent is the same at 55% alpha.
+  static func boxColor(_ bg: String, background: CaptionBackground) -> CGColor {
+    let solid = ColorParser.cgColor(bg) ?? ColorParser.make(0.06, 0.07, 0.13, 0.85)
+    guard background == .translucent else { return solid }
+    return solid.copy(alpha: 0.55) ?? solid
+  }
+
   // MARK: - Tree
 
   public static func build(plan: EditPlan, captions: CaptionSettings, render: CGSize, contentsScale: CGFloat = 1, watermark: Bool = false) -> CALayer {
@@ -145,11 +152,13 @@ public enum CaptionLayerBuilder {
     root.frame = CGRect(origin: .zero, size: render)
     root.masksToBounds = true
     let total = plan.compDuration
-    let style = CaptionStyle.forId(captions.styleId)
+    let style = CaptionStyle.resolve(captions)
     let base = ColorParser.cgColor(captions.colors.base) ?? ColorParser.white
     let active = ColorParser.cgColor(captions.colors.active) ?? base
     let stroke = ColorParser.cgColor(captions.colors.stroke) ?? ColorParser.black
-    let bg = ColorParser.cgColor(captions.colors.bg) ?? ColorParser.make(0.06, 0.07, 0.13, 0.85)
+    let bg = boxColor(captions.colors.bg, background: style.background)
+    let boxed = style.background == .box || style.background == .translucent
+    let pill = style.background == .highlight
     // Outline strokes scale with the frame's short side (preset stroke is in 1080-wide pixels).
     let strokeW = style.strokeWidth * Double(unit(render)) / 1080
 
@@ -162,7 +171,7 @@ public enum CaptionLayerBuilder {
         cardLayer.opacity = 0
         cardLayer.add(visibility(card.start, card.end, total: total), forKey: "visible")
 
-        if style.animation == .box {
+        if boxed && style.animation != .classic {
           let rect = words.map(\.frame).reduce(words[0].frame) { $0.union($1) }
           let pad = rect.height / CGFloat(max(1, Set(words.map { $0.frame.minY }).count)) * 0.28
           let shape = CAShapeLayer()
@@ -171,7 +180,7 @@ public enum CaptionLayerBuilder {
           cardLayer.addSublayer(shape)
         }
 
-        if style.animation == .classic {
+        if boxed && style.animation == .classic {
           // TikTok "text background": one rounded box per line.
           let lines = Dictionary(grouping: words, by: { Int($0.frame.minY.rounded()) }).values
           for line in lines {
@@ -196,7 +205,7 @@ public enum CaptionLayerBuilder {
           }
           let local = CGRect(origin: .zero, size: frame.size)
           let w = lw.word
-          if style.animation == .highlight {
+          if pill {
             // Coloured pill behind the word being spoken.
             let size = CTFontGetSize(lw.font)
             let pill = CALayer()
@@ -228,6 +237,11 @@ public enum CaptionLayerBuilder {
             hl.add(visibility(w.start, w.end, total: total), forKey: "active")
             container.addSublayer(hl)
           case .pop, .karaoke, .box:
+            // On a highlight pill the spoken word keeps the text colour (the pill carries the highlight).
+            if pill {
+              if style.animation == .pop, let p = pop(w.start, total: total) { container.add(p, forKey: "pop") }
+              break
+            }
             let hl = text(w.text, font: lw.font, fill: active, stroke: stroke, strokeWidth: strokeW, origin: .zero, scale: contentsScale)
             hl.opacity = 0
             // Karaoke keeps spoken words lit until the card ends; pop and box light the current word only.

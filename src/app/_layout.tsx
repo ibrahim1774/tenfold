@@ -9,6 +9,7 @@ import { startQueue } from '@/batch/queue';
 import { colors } from '@/design/tokens';
 import { useSettings } from '@/state/settings';
 import { refreshSpeechStatus } from '@/state/speech';
+import { TourHost } from '@/tour/TourHost';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -40,6 +41,7 @@ export default function RootLayout() {
           <Stack.Protected guard={onboarded}>
             <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
             <Stack.Screen name="import" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="record" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="batch/setup" />
             <Stack.Screen
               name="batch/clip"
@@ -57,7 +59,7 @@ export default function RootLayout() {
               name="editor/captions"
               options={{
                 presentation: 'formSheet',
-                sheetAllowedDetents: [0.8, 1],
+                sheetAllowedDetents: [0.5, 1],
                 sheetGrabberVisible: true,
                 sheetCornerRadius: 28,
                 contentStyle: { backgroundColor: colors.bgRaised },
@@ -73,12 +75,36 @@ export default function RootLayout() {
                 contentStyle: { backgroundColor: colors.bgRaised },
               }}
             />
+            {/* Style and font lists, stacked over the captions sheet (itself a form sheet in this stack). */}
+            <Stack.Screen
+              name="editor/style-picker"
+              options={{
+                presentation: 'formSheet',
+                sheetAllowedDetents: [1],
+                sheetGrabberVisible: true,
+                sheetCornerRadius: 28,
+                contentStyle: { backgroundColor: colors.bgRaised },
+              }}
+            />
+            <Stack.Screen
+              name="editor/font-picker"
+              options={{
+                presentation: 'formSheet',
+                sheetAllowedDetents: [1],
+                sheetGrabberVisible: true,
+                sheetCornerRadius: 28,
+                contentStyle: { backgroundColor: colors.bgRaised },
+              }}
+            />
             <Stack.Screen name="export/[projectId]" options={{ presentation: 'modal' }} />
           </Stack.Protected>
 
           {/* Reachable from onboarding (last step) and from inside the app. */}
           <Stack.Screen name="paywall" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="demo" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
         </Stack>
+        {/* Coach marks for the batch setup and editor tours, above every pushed screen. */}
+        <TourHost />
       </ThemeProvider>
     </GestureHandlerRootView>
   );

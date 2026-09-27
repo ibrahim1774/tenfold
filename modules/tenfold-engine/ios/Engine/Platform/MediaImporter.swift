@@ -68,7 +68,38 @@ public final class MediaImporter: NSObject, PHPickerViewControllerDelegate {
       ProjectStore.delete(id)
       return ImportedAsset(projectId: id, title: title, media: nil, posterUri: nil, error: copied.localizedDescription)
     }
+    return await finish(id: id, dest: dest, title: title)
+  }
 
+  /// Imports a video file (a camera recording, the bundled sample clip) into a new project folder.
+  /// `uri` is a file:// URL, or an http(s) URL in dev builds where Metro serves bundled assets.
+  nonisolated public static func importFile(uri: String, title: String) async -> ImportedAsset {
+    let id = UUID().uuidString.lowercased()
+    guard let url = URL(string: uri) ?? URL(string: "file://" + uri) else {
+      return ImportedAsset(projectId: id, title: title, media: nil, posterUri: nil, error: "Couldn't read this video.")
+    }
+    let ext = url.pathExtension.isEmpty ? "mov" : url.pathExtension
+    let dest = ProjectStore.dir(id).appendingPathComponent("source.\(ext)")
+    do {
+      try? FileManager.default.removeItem(at: dest)
+      if url.isFileURL {
+        try FileManager.default.copyItem(at: url, to: dest)
+      } else {
+        let (tmp, response) = try await URLSession.shared.download(from: url)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+          throw EngineError.message("Couldn't load this video (HTTP \(http.statusCode)).")
+        }
+        try FileManager.default.moveItem(at: tmp, to: dest)
+      }
+    } catch {
+      ProjectStore.delete(id)
+      return ImportedAsset(projectId: id, title: title, media: nil, posterUri: nil, error: error.localizedDescription)
+    }
+    return await finish(id: id, dest: dest, title: title)
+  }
+
+  /// Probes the copied file, writes the poster and meta, and reports the asset. Deletes the project on failure.
+  nonisolated private static func finish(id: String, dest: URL, title: String) async -> ImportedAsset {
     do {
       let media = try await AnalysisEngine.probe(dest)
       if media.durationSec > AnalysisEngine.maxDuration {

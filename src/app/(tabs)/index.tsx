@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,9 +19,11 @@ import {
 } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
 import { colors, motion, radii, spacing } from '@/design/tokens';
+import { importNewBatch, useImporting } from '@/batch/importClips';
+import { EngineEvents, engineAvailable } from '@/engine';
 import type { Batch } from '@/engine/types';
 import { BatchCard, openBatch, summarize, type BatchSummary } from '@/library/BatchCard';
-import { maxBatchSize, useEntitlements } from '@/state/entitlements';
+import { maxBatchSize, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
 import { useLibrary } from '@/state/library';
 import { useSettings } from '@/state/settings';
 import { prepareSpeech } from '@/state/speech';
@@ -28,8 +31,9 @@ import { prepareSpeech } from '@/state/speech';
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarSpace();
-  const isPro = useEntitlements((s) => s.isPro);
-  const limit = maxBatchSize(isPro);
+  const tier = useEntitlements((s) => tierOf(s));
+  const isPro = tier !== 'free';
+  const limit = maxBatchSize(tier);
   const batchMap = useLibrary((s) => s.batches);
   const projects = useLibrary((s) => s.projects);
 
@@ -50,24 +54,22 @@ export default function HomeScreen() {
           <AppText variant="display" accessibilityRole="header" style={styles.flex}>
             Tenfold
           </AppText>
-          <ProPill isPro={isPro} />
+          <ProPill isPro={isPro} name={TIER_NAMES[tier]} />
         </View>
 
         {empty ? (
-          <View style={styles.intro}>
-            <AppText variant="body" color={colors.textSecondary}>
-              Turn up to {limit} talking clips into edited videos at once: pauses cut, captions added, framed for
-              vertical. Everything happens on this iPhone.
+          <FirstBatchCard limit={limit} />
+        ) : (
+          <View style={styles.action}>
+            <View style={styles.actionRow}>
+              <GradientButton title="New batch" icon="plus" onPress={() => router.push('/import')} style={styles.flex} />
+              <OutlineButton title="Record" icon="video" onPress={() => router.push('/record')} style={styles.record} />
+            </View>
+            <AppText variant="caption" color={colors.textMuted} style={styles.center}>
+              Up to {limit} clips per batch
             </AppText>
           </View>
-        ) : null}
-
-        <View style={styles.action}>
-          <GradientButton title="New batch" icon="plus" onPress={() => router.push('/import')} />
-          <AppText variant="caption" color={colors.textMuted} style={styles.center}>
-            Up to {limit} clips per batch
-          </AppText>
-        </View>
+        )}
 
         <SpeechBanner />
 
@@ -118,12 +120,64 @@ export default function HomeScreen() {
   );
 }
 
-function ProPill({ isPro }: { isPro: boolean }) {
+/** Empty Home: one card with the one thing to do first. */
+function FirstBatchCard({ limit }: { limit: number }) {
+  const busy = useImporting((s) => s.busy);
+  const [copying, setCopying] = useState<{ index: number; total: number } | null>(null);
+  const available = engineAvailable();
+
+  useEffect(() => {
+    const sub = EngineEvents.onImportProgress(setCopying);
+    return () => sub.remove();
+  }, []);
+
+  const importClips = async () => {
+    const batchId = await importNewBatch();
+    setCopying(null);
+    if (batchId) router.push({ pathname: '/batch/setup', params: { batchId } });
+  };
+
+  const title =
+    busy && copying && copying.total > 0
+      ? `Copying ${Math.min(copying.index + 1, copying.total)} of ${copying.total}`
+      : busy
+        ? 'Waiting for Photos'
+        : 'Import clips';
+
+  return (
+    <Card style={styles.firstCard}>
+      <View style={styles.firstText}>
+        <AppText variant="title" accessibilityRole="header">
+          Make your first batch
+        </AppText>
+        <AppText variant="body" color={colors.textSecondary}>
+          Up to {limit} talking clips at once: pauses cut, captions added, framed for vertical. All on this iPhone.
+        </AppText>
+      </View>
+      <GradientButton title={title} icon={busy ? false : 'photo.on.rectangle'} disabled={busy || !available} onPress={importClips} />
+      <OutlineButton title="Record a clip" icon="video" onPress={() => router.push('/record')} disabled={busy} />
+      <AppText variant="caption" color={colors.textMuted} style={styles.center} tabular>
+        {available ? 'Importing needs no permissions.' : 'This build doesn’t include the video engine. Install the latest build to import clips.'}
+      </AppText>
+      <PressableScale
+        haptic={false}
+        onPress={() => router.push('/demo')}
+        accessibilityRole="link"
+        style={styles.demoLink}>
+        <AppText variant="chip" color={colors.accentText}>
+          Replay the demo
+        </AppText>
+      </PressableScale>
+    </Card>
+  );
+}
+
+function ProPill({ isPro, name }: { isPro: boolean; name: string }) {
   if (isPro) {
     return (
-      <View style={styles.proPill} accessible accessibilityLabel="Tenfold Pro is active">
+      <View style={styles.proPill} accessible accessibilityLabel={`Tenfold ${name} is active`}>
         <SymbolView name="crown.fill" size={15} tintColor="#FFC24D" weight="regular" />
-        <AppText variant="chip">Pro</AppText>
+        <AppText variant="chip">{name}</AppText>
       </View>
     );
   }
@@ -247,8 +301,12 @@ const styles = StyleSheet.create({
   center: { textAlign: 'center' },
   content: { paddingHorizontal: spacing.gutter, gap: spacing.xxl },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
-  intro: { marginTop: -spacing.md },
   action: { gap: spacing.sm },
+  actionRow: { flexDirection: 'row', gap: spacing.sm },
+  record: { paddingHorizontal: spacing.sm },
+  firstCard: { gap: spacing.md },
+  firstText: { gap: spacing.xs, marginBottom: spacing.xs },
+  demoLink: { minHeight: 44, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
   proPill: {
     flexDirection: 'row',
     alignItems: 'center',
