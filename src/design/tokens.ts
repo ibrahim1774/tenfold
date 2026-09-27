@@ -69,17 +69,22 @@ export const fonts = {
   bold: 'Poppins-Bold',
 } as const;
 
+/**
+ * Six sizes, no more (docs/DESIGN.md): 30 screen titles · 20 section/sheet titles · 15 body ·
+ * 14 controls · 13 secondary · 12 small print. Legacy names map onto them.
+ */
 export const type = {
-  hero: { fontFamily: fonts.semiBold, fontSize: 32, lineHeight: 40, letterSpacing: -0.6 },
-  display: { fontFamily: fonts.semiBold, fontSize: 30, lineHeight: 38, letterSpacing: -0.5 },
-  title: { fontFamily: fonts.medium, fontSize: 22, lineHeight: 28, letterSpacing: -0.2 },
-  section: { fontFamily: fonts.medium, fontSize: 19, lineHeight: 26, letterSpacing: -0.2 },
-  body: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 22 },
-  bodyStrong: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
-  chip: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 20 },
+  display: { fontFamily: fonts.semiBold, fontSize: 30, lineHeight: 36, letterSpacing: -0.6 },
+  title: { fontFamily: fonts.semiBold, fontSize: 20, lineHeight: 26, letterSpacing: -0.3 },
+  body: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 21 },
+  bodyStrong: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 21 },
+  chip: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 19 },
   label: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18 },
   caption: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 16 },
-  cta: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
+  // Legacy aliases (same sizes as above).
+  hero: { fontFamily: fonts.semiBold, fontSize: 30, lineHeight: 36, letterSpacing: -0.6 },
+  section: { fontFamily: fonts.semiBold, fontSize: 20, lineHeight: 26, letterSpacing: -0.3 },
+  cta: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 21 },
 } as const;
 
 export const sizes = {
@@ -89,9 +94,15 @@ export const sizes = {
   tabBarHeight: 72,
 } as const;
 
+/**
+ * Motion explains a change; it never decorates (docs/DESIGN.md). Critically damped springs (no bounce),
+ * short ease-out timings, and no entrance animations on screens or lists.
+ */
 export const motion = {
-  spring: { damping: 18, stiffness: 160 },
+  spring: { damping: 30, stiffness: 320, overshootClamping: true },
   pressScale: 0.97,
+  fast: 160,
+  base: 240,
 } as const;
 
 // Mock thumbnail palettes (M0 only; real thumbnails come from the engine in M1).

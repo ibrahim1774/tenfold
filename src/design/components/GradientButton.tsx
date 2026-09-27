@@ -18,11 +18,11 @@ export type GradientButtonProps = {
   shape?: 'rounded' | 'pill';
 };
 
-/** Violet → orange CTA ("Create with AI", "Generate Video" in the reference). */
+/** The one primary action on a screen (docs/DESIGN.md: at most one gradient button per screen). */
 export function GradientButton({
   title,
   onPress,
-  icon = 'sparkles',
+  icon = false,
   trailingArrow,
   disabled,
   style,
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
   wrap: {
     justifyContent: 'center',
     alignItems: 'center',
-    boxShadow: '0 10px 30px rgba(160,80,255,0.28)',
+    boxShadow: '0 8px 24px rgba(160,80,255,0.2)',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
   outline: {

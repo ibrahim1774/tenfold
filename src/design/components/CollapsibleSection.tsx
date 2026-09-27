@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
-import { colors, spacing } from '../tokens';
+import { colors, motion, spacing } from '../tokens';
 import { AppText } from './AppText';
 import { Card } from './Card';
 import { IconButton } from './IconButton';
@@ -18,7 +18,7 @@ export function CollapsibleSection({ title, summary, initiallyOpen = false, chil
   const [open, setOpen] = useState(initiallyOpen);
 
   return (
-    <Animated.View layout={LinearTransition.springify().damping(18).stiffness(160)}>
+    <Animated.View layout={LinearTransition.duration(motion.base)}>
       <Card>
         <View style={styles.header}>
           <View style={styles.titles}>
@@ -37,7 +37,7 @@ export function CollapsibleSection({ title, summary, initiallyOpen = false, chil
           />
         </View>
         {open && (
-          <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(120)} style={styles.body}>
+          <Animated.View entering={FadeIn.duration(motion.fast)} exiting={FadeOut.duration(120)} style={styles.body}>
             {children}
           </Animated.View>
         )}

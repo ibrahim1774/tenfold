@@ -1,4 +1,3 @@
-import { SymbolView } from 'expo-symbols';
 import { StyleSheet, View } from 'react-native';
 
 import { colors, spacing } from '../tokens';
@@ -15,19 +14,16 @@ export type SuggestionCardProps = {
   onSecondary?: () => void;
 };
 
-/** "AI Suggestion" card with two buttons. */
+/** A fact about the clip and what to do about it, with two plain actions. */
 export function SuggestionCard({ title, body, primary, secondary, onPrimary, onSecondary }: SuggestionCardProps) {
   return (
     <Card style={styles.card}>
-      <View style={styles.head}>
-        <SymbolView name="sparkles" size={20} tintColor={colors.textPrimary} weight="light" />
-        <AppText variant="bodyStrong">{title}</AppText>
-      </View>
+      <AppText variant="bodyStrong">{title}</AppText>
       <AppText variant="label" color={colors.textSecondary}>
         {body}
       </AppText>
       <View style={styles.buttons}>
-        <OutlineButton title={primary} tone="violet" height={44} onPress={onPrimary} style={styles.flex} />
+        <OutlineButton title={primary} height={44} onPress={onPrimary} style={styles.flex} />
         <OutlineButton title={secondary} height={44} onPress={onSecondary} style={styles.flex} />
       </View>
     </Card>
@@ -36,7 +32,6 @@ export function SuggestionCard({ title, body, primary, secondary, onPrimary, onS
 
 const styles = StyleSheet.create({
   card: { gap: spacing.sm },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   buttons: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
   flex: { flex: 1 },
 });
