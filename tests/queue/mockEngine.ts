@@ -12,10 +12,25 @@ export const control = {
   /** Export fails once with a cancellation the user didn't ask for (iOS ended background time). */
   systemCancel: new Set<string>(),
   saveError: undefined as string | undefined,
+  /** How many clips the simulated Photos picker returns (it may ignore the limit, like a buggy picker would). */
+  pickCount: 1,
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+let picked = 0;
 export const Engine = {
+  async pickVideos(max: number) {
+    calls.push({ fn: 'pickVideos', t: Date.now(), opts: { max } });
+    return Array.from({ length: control.pickCount }, () => ({
+      projectId: `picked${picked++}`,
+      title: `IMG_1${picked}.MOV`,
+      media: { durationSec: 10, width: 1080, height: 1920, fps: 30, isHDR: false, hasAudio: true },
+      posterUri: 'file:///p.jpg',
+    }));
+  },
+  async deleteProject(id: string) {
+    calls.push({ fn: 'deleteProject', id, t: Date.now() });
+  },
   async analyze(id: string, o: any) {
     calls.push({ fn: 'analyze', id, t: Date.now(), opts: o });
     running.analyze++;

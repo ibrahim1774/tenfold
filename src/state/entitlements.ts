@@ -6,7 +6,7 @@ import { persistStorage } from './storage';
 // Free vs Pro (spec §5.3). M5 replaces `isPro` with Superwall subscription status.
 export const FREE_LIMITS = {
   exportsPerMonth: 3,
-  batchSize: 5,
+  batchSize: 10,
 } as const;
 
 export const PRO_BATCH_SIZE = 20;

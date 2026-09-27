@@ -1,6 +1,6 @@
 import { captionSettingsFromPreset } from '../captions/presets';
 import { ALL_OFF, ALL_ON, editsForPreset, editsOf } from '../batch/edits';
-import type { BatchPreset, CaptionStyleId, EditKey, PresetId } from '../engine/types';
+import type { BatchPreset, CaptionStyleId, EditKey, EditSelection, PresetId } from '../engine/types';
 import { useLibrary } from './library';
 import { useSettings } from './settings';
 import { batchPreset } from './presets';
@@ -50,4 +50,9 @@ export function setAllEdits(batchId: string, value: boolean) {
   const b = lib().batches[batchId];
   if (!b) return;
   for (const id of b.projectIds) lib().updateProject(id, { edits: value ? { ...ALL_ON } : { ...ALL_OFF } });
+}
+
+/** Replaces one video's edits (the clip sheet's "Same as batch"). */
+export function setClipEdits(projectId: string, edits: EditSelection) {
+  if (lib().projects[projectId]) lib().updateProject(projectId, { edits: { ...edits } });
 }

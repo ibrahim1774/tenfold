@@ -32,12 +32,18 @@ function report(assets: ImportedAsset[]) {
   return assets.filter((a) => !a.error);
 }
 
+/** Keeps at most `max` clips. The picker already enforces the limit; anything past it is deleted, not added. */
+function capped(assets: ImportedAsset[], max: number) {
+  assets.slice(max).forEach((a) => Engine.deleteProject(a.projectId).catch(() => {}));
+  return assets.slice(0, max);
+}
+
 /** Opens the Photos picker and creates a new batch. Returns the batch id, or null if nothing was picked. */
 export function importNewBatch(): Promise<string | null> {
   return exclusive<string | null>(null, async () => {
-    const isPro = useEntitlements.getState().isPro;
+    const limit = maxBatchSize(useEntitlements.getState().isPro);
     try {
-      const assets = report(await Engine.pickVideos(maxBatchSize(isPro)));
+      const assets = capped(report(await Engine.pickVideos(limit)), limit);
       if (assets.length === 0) return null;
       return useLibrary.getState().createBatch(assets, batchPreset(useSettings.getState().defaultPreset, useSettings.getState().platforms));
     } catch (e) {
@@ -55,7 +61,7 @@ export function importIntoBatch(batchId: string): Promise<void> {
     const room = maxBatchSize(useEntitlements.getState().isPro) - batch.projectIds.length;
     if (room <= 0) return;
     try {
-      const assets = report(await Engine.pickVideos(room));
+      const assets = capped(report(await Engine.pickVideos(room)), room);
       if (!assets.length) return;
       const lib = useLibrary.getState();
       lib.addToBatch(batchId, assets);

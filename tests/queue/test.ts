@@ -1,9 +1,10 @@
 import { calls, control, running } from './mockEngine';
 import { AppState } from './rnMock';
+import { importIntoBatch } from '@/batch/importClips';
 import { cancelBatch, queueExports, retryProject, setPaused, startBatch, startQueue, useQueueUI } from '@/batch/queue';
 import { clampPlacement, fillUserScale, fitScale, MAX_SCALE, MIN_SCALE } from '@/editor/frame';
 import { setAllEdits, setEdit, setPresetId } from '@/state/batchSetup';
-import { useEntitlements } from '@/state/entitlements';
+import { FREE_LIMITS, maxBatchSize, PRO_BATCH_SIZE, useEntitlements } from '@/state/entitlements';
 import { projectsOf, useLibrary } from '@/state/library';
 import { batchPreset } from '@/state/presets';
 
@@ -190,6 +191,28 @@ async function main() {
   check(lib().projects[q1].edits?.captions === false && lib().projects[q2].edits?.captions === true, 'per-video caption choice survives the preset change');
   setPresetId(b, 'punchy');
   check(lib().batches[b].projectIds.every((id) => lib().projects[id].edits!.zoom === true), 'punchy turns zoom back on everywhere');
+
+  console.log('• batch limit: free 10, pro 20, the 11th clip is refused');
+  check(FREE_LIMITS.batchSize === 10 && maxBatchSize(false) === 10, `free batch size is 10 (${maxBatchSize(false)})`);
+  check(PRO_BATCH_SIZE === 20 && maxBatchSize(true) === 20, `pro batch size is 20 (${maxBatchSize(true)})`);
+  useEntitlements.setState({ isPro: false });
+  const pickCalls = () => calls.filter((c) => c.fn === 'pickVideos');
+  b = newBatch(9);
+  let before = pickCalls().length;
+  control.pickCount = 3; // a picker that ignores the limit
+  await importIntoBatch(b);
+  check(pickCalls().length === before + 1 && pickCalls().at(-1)?.opts.max === 1, `9 clips: picker asked for 1 more (${JSON.stringify(pickCalls().at(-1)?.opts)})`);
+  check(lib().batches[b].projectIds.length === 10, `batch stops at 10 (${lib().batches[b].projectIds.length})`);
+  check(calls.filter((c) => c.fn === 'deleteProject').length >= 2, 'clips past the limit are deleted, not added');
+  before = pickCalls().length;
+  await importIntoBatch(b);
+  check(pickCalls().length === before, 'at 10 clips the picker does not open for free');
+  check(lib().batches[b].projectIds.length === 10, 'the 11th clip is refused for free');
+  useEntitlements.setState({ isPro: true });
+  control.pickCount = 1;
+  await importIntoBatch(b);
+  check(lib().batches[b].projectIds.length === 11 && pickCalls().at(-1)?.opts.max === 10, `pro adds an 11th (max ${pickCalls().at(-1)?.opts.max})`);
+  lib().deleteBatch(b);
 
   console.log('• framing math matches the engine (same numbers as CoreTests)');
   const near = (a: number, b: number, e = 1e-6) => Math.abs(a - b) < e;

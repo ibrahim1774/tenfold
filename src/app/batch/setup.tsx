@@ -7,7 +7,6 @@ import { CAPTION_COLORS, CAPTION_FONTS, CAPTION_FORMATS, CAPTION_PRESETS } from 
 import {
   AppText,
   Background,
-  Card,
   Chip,
   ChipGroup,
   CollapsibleSection,
@@ -15,22 +14,21 @@ import {
   OptionLabel,
   OutlineButton,
   ScreenHeader,
-  StyleTile,
   Thumb,
   ToggleRow,
   seedOf,
 } from '@/design/components';
-import { colors, radii, spacing } from '@/design/tokens';
+import { colors, radii, sizes, spacing } from '@/design/tokens';
 import type { AudioMode, FillerLevel, SilenceLevel, ZoomMode } from '@/engine/types';
 import { importIntoBatch, useImporting } from '@/batch/importClips';
 import { startBatch } from '@/batch/queue';
-import { Engine } from '@/engine';
 import { setCaptionStyle as setStyle, setPresetId as setPreset, updatePreset } from '@/state/batchSetup';
 import { exportsLeft as freeExportsLeft, FREE_LIMITS, maxBatchSize, useEntitlements } from '@/state/entitlements';
 import { formatDuration, projectsOf, useLibrary } from '@/state/library';
 import { PRESET_OPTIONS } from '@/state/presets';
-import { batchAspect, editsOf } from '@/batch/edits';
-import { EditsChecklist } from '@/batch/EditsChecklist';
+import { BatchEdits } from '@/batch/BatchEdits';
+import { batchAspect, batchEdits, editsOf, sameEdits } from '@/batch/edits';
+import { Engine } from '@/engine';
 
 const SILENCE: { v: SilenceLevel; l: string }[] = [
   { v: 'light', l: 'Light' },
@@ -55,15 +53,17 @@ const POSITIONS = [
   { y: 0.5, l: 'Middle' },
   { y: 0.66, l: 'Lower' },
 ];
-const SAMPLE = 'three tips that work';
 const FRAMES = ['9:16', '4:5', '1:1', '16:9'] as const;
+
+// Footer: top padding + primary button + the gap under it (the bottom inset is added at render).
+const FOOTER = 12 + sizes.ctaHeight + 8;
+const FOOTER_NOTE = 16 + 8; // one caption line + its gap
 
 export default function BatchSetupScreen() {
   const insets = useSafeAreaInsets();
   const { batchId } = useLocalSearchParams<{ batchId: string }>();
   const batch = useLibrary((s) => s.batches[batchId]);
   const projects = useLibrary((s) => s.projects);
-  const removeProject = useLibrary((s) => s.removeProject);
   const deleteBatch = useLibrary((s) => s.deleteBatch);
   const importing = useImporting((s) => s.busy);
   const ent = useEntitlements();
@@ -82,24 +82,13 @@ export default function BatchSetupScreen() {
 
   const preset = batch.preset;
   const clips = projectsOf(batch, projects);
-  const total = clips.reduce((s, c) => s + (c.media?.durationSec ?? 0), 0);
   const a = preset.analysis;
   const edits = clips.map((c) => editsOf(c, batch));
+  const common = batchEdits(edits);
   const update = (patch: Parameters<typeof updatePreset>[1]) => updatePreset(batchId, patch);
   const setPresetId = (id: Parameters<typeof setPreset>[1]) => setPreset(batchId, id);
   const setCaptionStyle = (id: Parameters<typeof setStyle>[1]) => setStyle(batchId, id);
-  const removeClip = (id: string) =>
-    Alert.alert('Remove this clip?', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => {
-          removeProject(id);
-          Engine.deleteProject(id).catch(() => {});
-        },
-      },
-    ]);
+  const openClip = (projectId: string) => router.push({ pathname: '/batch/clip', params: { batchId, projectId } });
 
   const discard = () =>
     Alert.alert('Discard this batch?', 'The clips are removed from Tenfold. Your originals in Photos stay.', [
@@ -121,15 +110,18 @@ export default function BatchSetupScreen() {
     router.replace({ pathname: '/batch/[batchId]', params: { batchId } });
   };
 
-  const captionsOn = clips.some((_, i) => edits[i].captions);
-  const reframeOn = clips.some((_, i) => edits[i].reframe);
+  const captionsOn = edits.some((e) => e.captions);
+  const reframeOn = edits.some((e) => e.reframe);
   const limit = maxBatchSize(isPro);
+  const full = clips.length >= limit;
+  const footerNotes = (isPro ? 0 : 1) + (clips.length === 0 && !importing ? 1 : 0);
+  const footerHeight = FOOTER + footerNotes * FOOTER_NOTE + insets.bottom;
 
   return (
     <View style={styles.flex}>
       <Background />
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 4, paddingBottom: insets.bottom + 140 }}
+        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: footerHeight + spacing.lg }}
         showsVerticalScrollIndicator={false}>
         <View style={styles.gutter}>
           <ScreenHeader
@@ -149,141 +141,98 @@ export default function BatchSetupScreen() {
           />
         </View>
 
-        {/* 1. Clips */}
-        <View style={[styles.gutter, styles.sectionHead, styles.firstSection]}>
+        {/* 1. Clips: one sideways strip, so 10 clips take the height of 3. Tap a clip for its edits. */}
+        <View style={[styles.gutter, styles.head, styles.firstBlock]}>
           <AppText variant="title" accessibilityRole="header">
             Clips
           </AppText>
           {clips.length > 0 && (
             <AppText variant="label" color={colors.textSecondary} tabular>
-              {isPro ? clips.length : `${clips.length} of ${limit}`} · {formatDuration(total)}
+              {full ? (isPro ? `Up to ${limit} clips per batch` : `Free plan: up to ${limit} clips per batch`) : `${clips.length} of ${limit}`}
             </AppText>
           )}
         </View>
-        {clips.length === 0 ? (
-          <View style={styles.gutter}>
-            <Card dashed padded={false}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
+          {clips.map((c, i) => {
+            const dur = formatDuration(c.media?.durationSec ?? 0);
+            const differs = common !== null && !sameEdits(edits[i], common);
+            return (
               <Pressable
-                onPress={() => importIntoBatch(batchId)}
-                disabled={importing}
-                style={({ pressed }) => [styles.dropEmpty, pressed && styles.pressed]}
+                key={c.id}
+                onPress={() => openClip(c.id)}
                 accessibilityRole="button"
-                accessibilityLabel={importing ? 'Adding your clips' : 'Add clips'}
-                accessibilityState={{ busy: importing }}>
-                <SymbolView name={importing ? 'hourglass' : 'plus'} size={20} tintColor={colors.textPrimary} weight="regular" />
-                <View style={styles.flex}>
-                  <AppText variant="bodyStrong">{importing ? 'Adding your clips…' : 'Add clips'}</AppText>
-                  <AppText variant="label" color={colors.textMuted} tabular>
-                    Up to {limit} talking-head videos from Photos
-                  </AppText>
-                </View>
+                accessibilityLabel={`${c.title}, ${dur}${differs ? ', different edits' : ''}`}
+                accessibilityHint="Shows this clip's edits"
+                style={({ pressed }) => pressed && styles.pressed}>
+                <Thumb seed={seedOf(c.id)} uri={c.posterUri} style={styles.thumb}>
+                  {differs && <View style={styles.differs} />}
+                  <View style={styles.duration}>
+                    <AppText variant="caption" tabular>
+                      {dur}
+                    </AppText>
+                  </View>
+                </Thumb>
               </Pressable>
-            </Card>
-          </View>
-        ) : (
-          <>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbs}>
-              {clips.map((c) => {
-                const dur = formatDuration(c.media?.durationSec ?? 0);
-                return (
-                  <Pressable
-                    key={c.id}
-                    onLongPress={() => removeClip(c.id)}
-                    delayLongPress={350}
-                    accessibilityLabel={`${c.title}, ${dur}`}
-                    accessibilityHint="Long press to remove"
-                    accessibilityActions={[{ name: 'remove', label: 'Remove clip' }]}
-                    onAccessibilityAction={(e) => e.nativeEvent.actionName === 'remove' && removeClip(c.id)}
-                    style={({ pressed }) => pressed && styles.pressed}>
-                    <Thumb seed={seedOf(c.id)} uri={c.posterUri} style={styles.thumb}>
-                      <View style={styles.duration}>
-                        <AppText variant="caption" tabular>
-                          {dur}
-                        </AppText>
-                      </View>
-                    </Thumb>
-                  </Pressable>
-                );
-              })}
-              {clips.length < limit && (
-                <Pressable
-                  onPress={() => importIntoBatch(batchId)}
-                  disabled={importing}
-                  style={({ pressed }) => [styles.addThumb, (importing || pressed) && styles.pressed]}
-                  accessibilityRole="button"
-                  accessibilityLabel={importing ? 'Adding clips' : 'Add clips'}
-                  accessibilityState={{ busy: importing }}>
-                  <SymbolView name={importing ? 'hourglass' : 'plus'} size={20} tintColor={colors.textSecondary} weight="regular" />
-                </Pressable>
-              )}
-            </ScrollView>
-            <AppText variant="caption" color={colors.textMuted} style={[styles.gutter, styles.hint]}>
-              Touch and hold a clip to remove it.
-            </AppText>
-          </>
-        )}
-
-        {/* 2. Edits: which edits run, per video. */}
-        <View style={[styles.gutter, styles.section]}>
-          <EditsChecklist batch={batch} clips={clips} />
-        </View>
-
-        {/* 3. Style: how the checked edits look. Subordinate to Edits. */}
-        <View style={[styles.gutter, styles.section, styles.styleSection]}>
-          <View style={styles.titleBlock}>
-            <AppText variant="title" accessibilityRole="header">
-              Style
-            </AppText>
-            <AppText variant="label" color={colors.textSecondary}>
-              How the checked edits look.
-            </AppText>
-          </View>
-          <ChipGroup>
-            {PRESET_OPTIONS.filter((p) => p.id !== 'custom').map((p) => (
-              <Chip key={p.id} label={p.name} selected={preset.presetId === p.id} onPress={() => setPresetId(p.id)} />
-            ))}
-            {preset.presetId === 'custom' && <Chip label="Custom" selected />}
-          </ChipGroup>
-        </View>
-
-        <View style={[styles.gutter, styles.subHead]}>
-          <View style={styles.flex}>
-            <AppText variant="bodyStrong">Captions</AppText>
-            {clips.length > 0 && !captionsOn && (
-              <AppText variant="caption" color={colors.textMuted}>
-                Captions are off for every video.
+            );
+          })}
+          {!full && (
+            <Pressable
+              onPress={() => importIntoBatch(batchId)}
+              disabled={importing}
+              style={({ pressed }) => [styles.addTile, (importing || pressed) && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel={importing ? 'Adding clips' : 'Add clips'}
+              accessibilityState={{ busy: importing }}>
+              <SymbolView name={importing ? 'hourglass' : 'plus'} size={20} tintColor={colors.textPrimary} weight="regular" />
+            </Pressable>
+          )}
+          {clips.length === 0 && (
+            <View style={styles.emptyNote}>
+              <AppText variant="label" color={colors.textSecondary} tabular>
+                {importing ? 'Adding your clips…' : `Add up to ${limit} clips from Photos`}
               </AppText>
-            )}
-          </View>
+            </View>
+          )}
+        </ScrollView>
+
+        {/* 2. Edits: what runs, for the whole batch. */}
+        <View style={[styles.gutter, styles.block]}>
+          <BatchEdits batch={batch} clips={clips} selections={edits} />
+        </View>
+
+        {/* 3. Style: how the edits look. */}
+        <View style={[styles.gutter, styles.head, styles.headAction, styles.block]}>
+          <AppText variant="title" accessibilityRole="header">
+            Style
+          </AppText>
           <Pressable
             onPress={() => router.push({ pathname: '/editor/captions', params: { batchId } })}
-            hitSlop={8}
-            style={styles.textButton}
+            hitSlop={6}
+            style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}
             accessibilityRole="button"
             accessibilityLabel="All caption options">
-            <AppText variant="label" color={colors.textSecondary}>
-              All options
+            <AppText variant="chip" color={colors.textSecondary}>
+              More…
             </AppText>
           </Pressable>
         </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          {PRESET_OPTIONS.filter((p) => p.id !== 'custom').map((p) => (
+            <Chip key={p.id} label={p.name} selected={preset.presetId === p.id} onPress={() => setPresetId(p.id)} />
+          ))}
+          {preset.presetId === 'custom' && <Chip label="Custom" selected />}
+        </ScrollView>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tiles}
+          contentContainerStyle={styles.chipRow}
           style={clips.length > 0 && !captionsOn && styles.muted}>
-          {CAPTION_PRESETS.map((p, i) => {
+          {CAPTION_PRESETS.map((p) => {
             const locked = !isPro && !p.free;
             return (
-              <StyleTile
+              <Chip
                 key={p.id}
-                name={p.name}
-                seed={i + 3}
-                sample={SAMPLE}
-                highlight={p.colors.active}
-                animation={p.animation}
-                fontFamily={CAPTION_FONTS.find((f) => f.id === p.font)?.family}
-                uppercase={p.uppercase}
-                maxWords={p.maxWords}
+                label={p.name}
                 locked={locked}
                 selected={preset.captions.styleId === p.id}
                 onPress={() => (locked ? router.push('/paywall') : setCaptionStyle(p.id))}
@@ -291,19 +240,28 @@ export default function BatchSetupScreen() {
             );
           })}
         </ScrollView>
-
-        <View style={[styles.gutter, styles.frameBlock]}>
-          <AppText variant="bodyStrong">Frame</AppText>
-          <AppText variant="label" color={colors.textMuted}>
-            {clips.length > 0 && !reframeOn
-              ? 'Used by Reframe, which is off for every video.'
-              : 'Used by Reframe. Fills the frame and keeps the speaker in view.'}
+        {clips.length > 0 && !captionsOn && (
+          <AppText variant="caption" color={colors.textMuted} style={[styles.gutter, styles.note]}>
+            Captions are off for every clip.
           </AppText>
+        )}
+
+        {/* 4. Frame: the ratio Reframe crops to. */}
+        <View style={[styles.gutter, styles.head, styles.block]}>
+          <AppText variant="title" accessibilityRole="header">
+            Frame
+          </AppText>
+          <AppText variant="label" color={colors.textMuted}>
+            {clips.length > 0 && !reframeOn ? 'Reframe is off' : 'Used by Reframe'}
+          </AppText>
+        </View>
+        <View style={[styles.gutter, styles.frameRow]}>
           <ChipGroup>
             {FRAMES.map((f) => (
               <Chip
                 key={f}
                 label={f}
+                hitSlop={4}
                 selected={batchAspect(preset) === f}
                 onPress={() => update((p) => ({ ...p, crop: { auto916: f === '9:16', aspect: f } }))}
               />
@@ -311,8 +269,8 @@ export default function BatchSetupScreen() {
           </ChipGroup>
         </View>
 
-        {/* 4. Fine-tune */}
-        <View style={[styles.gutter, styles.section]}>
+        {/* 5. Fine-tune */}
+        <View style={[styles.gutter, styles.block]}>
           <CollapsibleSection title="Fine-tune" summary="Cut strength, zoom, caption font and colour, audio">
             <OptionLabel>Pause cutting</OptionLabel>
             <ChipGroup>
@@ -449,31 +407,22 @@ export default function BatchSetupScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   gutter: { paddingHorizontal: spacing.gutter },
-  firstSection: { marginTop: spacing.lg },
-  section: { marginTop: spacing.xxl + spacing.sm },
-  styleSection: { gap: spacing.md },
-  titleBlock: { gap: 2 },
-  sectionHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: spacing.md,
-  },
-  subHead: {
+  firstBlock: { marginTop: spacing.lg },
+  block: { marginTop: spacing.lg },
+  head: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.md,
-    marginTop: spacing.xl,
+    minHeight: 25,
     marginBottom: spacing.sm,
   },
-  textButton: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' },
+  headAction: { minHeight: 32 },
+  textButton: { minHeight: 32, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' },
   pressed: { opacity: 0.6 },
   muted: { opacity: 0.45 },
-  dropEmpty: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, minHeight: 72, paddingHorizontal: spacing.xl },
-  hint: { marginTop: spacing.sm },
-  thumbs: { paddingHorizontal: spacing.gutter, gap: spacing.sm },
-  thumb: { width: 64, height: 100, borderRadius: radii.thumb - 4, borderCurve: 'continuous' },
+  strip: { paddingHorizontal: spacing.gutter, gap: spacing.sm },
+  thumb: { width: 64, height: 88, borderRadius: radii.thumb, borderCurve: 'continuous' },
   duration: {
     position: 'absolute',
     bottom: 5,
@@ -482,19 +431,21 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: colors.overlay,
   },
-  addThumb: {
+  differs: { position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
+  addTile: {
     width: 64,
-    height: 100,
-    borderRadius: radii.thumb - 4,
+    height: 88,
+    borderRadius: radii.thumb,
     borderCurve: 'continuous',
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.borderStrong,
+    backgroundColor: colors.cardHigh,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tiles: { paddingHorizontal: spacing.gutter, gap: spacing.md },
-  frameBlock: { gap: spacing.sm, marginTop: spacing.xl },
+  emptyNote: { height: 88, justifyContent: 'center', paddingLeft: spacing.xs },
+  // 36 pt chips + 4 pt above and below = 44 pt touch targets inside the sideways rows (a ScrollView clips hitSlop).
+  chipRow: { paddingHorizontal: spacing.gutter, paddingVertical: 4, gap: spacing.sm },
+  note: { marginTop: spacing.xs },
+  frameRow: { paddingVertical: 4 },
   hRow: { flexDirection: 'row', gap: 10 },
   dot: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: 'rgba(255,255,255,0.15)' },
   dotSelected: { borderColor: '#FFFFFF', borderWidth: 3 },

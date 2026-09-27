@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type Insets } from 'react-native';
 
 import { colors, radii, sizes } from '../tokens';
 import { AppText } from './AppText';
@@ -11,13 +11,16 @@ export type ChipProps = {
   onPress?: () => void;
   disabled?: boolean;
   locked?: boolean;
+  /** Extends the touch area to 44 pt where the chip sits in a plain row (not inside a ScrollView, which clips it). */
+  hitSlop?: number | Insets;
 };
 
-export function Chip({ label, selected, onPress, disabled, locked }: ChipProps) {
+export function Chip({ label, selected, onPress, disabled, locked, hitSlop }: ChipProps) {
   return (
     <PressableScale
       onPress={onPress}
       disabled={disabled}
+      hitSlop={hitSlop}
       scaleTo={0.94}
       haptic="selection"
       accessibilityRole="button"

@@ -41,6 +41,16 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
             <Stack.Screen name="import" options={{ presentation: 'modal' }} />
             <Stack.Screen name="batch/setup" />
+            <Stack.Screen
+              name="batch/clip"
+              options={{
+                presentation: 'formSheet',
+                sheetAllowedDetents: [0.5, 1],
+                sheetGrabberVisible: true,
+                sheetCornerRadius: 28,
+                contentStyle: { backgroundColor: colors.bgRaised },
+              }}
+            />
             <Stack.Screen name="batch/[batchId]" />
             <Stack.Screen name="editor/[projectId]" />
             <Stack.Screen

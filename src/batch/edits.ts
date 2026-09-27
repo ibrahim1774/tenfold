@@ -54,6 +54,33 @@ export function effectiveZoom(preset: BatchPreset, edits: EditSelection): ZoomMo
   return preset.zoom.mode === 'off' ? 'subtle' : preset.zoom.mode;
 }
 
+export function sameEdits(a: EditSelection, b: EditSelection): boolean {
+  return EDITS.every((e) => a[e.key] === b[e.key]);
+}
+
+/**
+ * The batch's edits: the selection most clips share (the earliest clip wins a tie). One definition
+ * drives the "N clips use different edits" note and the clip sheet's "Same as batch".
+ */
+export function batchEdits(selections: EditSelection[]): EditSelection | null {
+  let best: EditSelection | null = null;
+  let bestCount = 0;
+  for (const s of selections) {
+    const n = selections.filter((o) => sameEdits(o, s)).length;
+    if (n > bestCount) {
+      best = s;
+      bestCount = n;
+    }
+  }
+  return best;
+}
+
+/** How many clips differ from the batch's edits. */
+export function clipsDiffering(selections: EditSelection[]): number {
+  const common = batchEdits(selections);
+  return common ? selections.filter((s) => !sameEdits(s, common)).length : 0;
+}
+
 /** Short summary for a video row, e.g. "Captions · Fillers · Pauses". */
 export function editsSummary(edits: EditSelection): string {
   const on = EDITS.filter((e) => edits[e.key]).map((e) => e.label);
