@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(10,9,14,0.55)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
   },
   text: { paddingHorizontal: spacing.sm + 2, paddingTop: spacing.sm + 2, paddingBottom: spacing.sm, gap: 2 },
 });

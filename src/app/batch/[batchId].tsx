@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
   cardText: { gap: 2 },
   poster: { width: '100%', aspectRatio: 9 / 13, borderRadius: radii.tile, borderCurve: 'continuous', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   posterCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  posterDim: { backgroundColor: 'rgba(10,9,14,0.45)' },
+  posterDim: { backgroundColor: 'rgba(0,0,0,0.45)' },
   posterBadge: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.overlay },
   doneBadge: {
     position: 'absolute',
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.gutter,
     paddingTop: 12,
     gap: 8,
-    backgroundColor: 'rgba(10,9,14,0.92)',
+    backgroundColor: 'rgba(0,0,0,0.92)',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },

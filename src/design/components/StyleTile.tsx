@@ -1,7 +1,7 @@
 import { StyleSheet, View, type TextStyle } from 'react-native';
 
 import type { CaptionAnimation } from '../../captions/presets';
-import { colors, fonts, radii } from '../tokens';
+import { colors, radii } from '../tokens';
 import { AppText } from './AppText';
 import { PressableScale } from './PressableScale';
 import { Thumb } from './Thumb';
@@ -106,10 +106,10 @@ const styles = StyleSheet.create({
   thumb: { height: 128, borderRadius: radii.tile - 3, justifyContent: 'flex-end' },
   captionWrap: { padding: 8, paddingBottom: 18, alignItems: 'center' },
   line: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', columnGap: 3, rowGap: 1 },
-  word: { fontFamily: fonts.bold, fontSize: 12, lineHeight: 16, color: '#FFFFFF', textAlign: 'center' },
+  word: { fontWeight: '700', fontSize: 12, lineHeight: 16, color: '#FFFFFF', textAlign: 'center' },
   big: { fontSize: 20, lineHeight: 24 },
   stroke: { textShadowColor: 'rgba(0,0,0,0.95)', textShadowRadius: 2, textShadowOffset: { width: 0, height: 1 } },
-  box: { backgroundColor: 'rgba(10,9,14,0.8)', borderRadius: 7, paddingHorizontal: 5, paddingVertical: 2 },
+  box: { backgroundColor: 'rgba(0,0,0,0.8)', borderRadius: 7, paddingHorizontal: 5, paddingVertical: 2 },
   classic: { backgroundColor: 'rgba(0,0,0,0.9)', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
   pill: { borderRadius: 5, paddingHorizontal: 3 },
   cursor: { color: '#FFFFFF', opacity: 0.8 },
@@ -120,8 +120,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
-    backgroundColor: 'rgba(10,9,14,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
-  lockText: { fontFamily: fonts.semiBold, fontSize: 9, lineHeight: 12, color: colors.accentText },
+  lockText: { fontWeight: '600', fontSize: 12, lineHeight: 16, color: colors.accentText },
   label: { textAlign: 'center' },
 });

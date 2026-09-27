@@ -1,9 +1,8 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { gradients, motion } from '../tokens';
+import { colors, motion } from '../tokens';
 
 /** Thin progress bar; slides to each new value instead of jumping. */
 export function ProgressBar({ progress, height = 6 }: { progress: number; height?: number }) {
@@ -18,7 +17,7 @@ export function ProgressBar({ progress, height = 6 }: { progress: number; height
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
       <Animated.View style={[{ height, borderRadius: height / 2, overflow: 'hidden' }, fill]}>
-        <LinearGradient colors={gradients.cta} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={StyleSheet.absoluteFill} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.accent }]} />
       </Animated.View>
     </View>
   );

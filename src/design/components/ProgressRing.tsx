@@ -35,8 +35,8 @@ export function ProgressRing({ progress, size = 120, stroke = 10, label, showLab
       <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
         <Defs>
           <LinearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
-            {gradients.cta.map((color, i) => (
-              <Stop key={color} offset={i / (gradients.cta.length - 1)} stopColor={color} />
+            {gradients.progress.map((color, i) => (
+              <Stop key={`${color}-${i}`} offset={i / (gradients.progress.length - 1)} stopColor={color} />
             ))}
           </LinearGradient>
         </Defs>

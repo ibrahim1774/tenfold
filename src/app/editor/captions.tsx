@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CAPTION_COLORS, CAPTION_FONTS, CAPTION_FORMATS, CAPTION_PRESETS, captionSettingsFromPreset, presetById } from '@/captions/presets';
 import { AppText, Chip, ChipGroup, GradientButton, IconButton, OptionLabel, PressableScale, StyleTile, Thumb, ToggleRow } from '@/design/components';
-import { colors, fonts, radii, spacing } from '@/design/tokens';
+import { colors, radii, spacing } from '@/design/tokens';
 import { Engine, type CaptionFont, type CaptionSettings, type CaptionStyleId } from '@/engine';
 import { useEntitlements } from '@/state/entitlements';
 import { editsOf } from '@/batch/edits';
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   miniFrame: { width: 110, aspectRatio: 9 / 16, borderRadius: radii.thumb },
   zone: { position: 'absolute', left: 0, right: 0, backgroundColor: 'rgba(255,90,110,0.22)' },
   handle: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  handleText: { fontFamily: fonts.bold, fontSize: 16 },
+  handleText: { fontWeight: '700', fontSize: 16 },
   posButtons: { flex: 1, gap: spacing.md },
   posRow: { flexDirection: 'row', gap: spacing.md },
   apply: { marginTop: spacing.sm },

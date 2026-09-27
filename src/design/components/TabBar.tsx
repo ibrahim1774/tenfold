@@ -1,14 +1,13 @@
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { router, type Tabs } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import type { ComponentProps } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { SFSymbol } from '../symbols';
 import { colors, sizes } from '../tokens';
-import { PressableScale } from './PressableScale';
+import { AppText } from './AppText';
 
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
@@ -19,8 +18,8 @@ const ICONS: Record<string, { icon: SFSymbol; active: SFSymbol; label: string }>
 };
 
 /**
- * Floating frosted pill (reference Home screen). The plus slot is an action, not a route:
- * it opens the new-batch flow, the app's primary job.
+ * A standard iOS tab bar: opaque, full width, hairline on top, icon over label. The middle slot is an
+ * action, not a route: it starts a new batch, the app's primary job.
  */
 export function TabBar({ state, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
@@ -31,11 +30,10 @@ export function TabBar({ state, navigation }: TabBarProps) {
     const route = state.routes[index];
     const focused = state.index === index;
     const meta = ICONS[routeName];
+    const tint = focused ? colors.textPrimary : colors.textMuted;
     return (
-      <PressableScale
+      <Pressable
         key={route.key}
-        scaleTo={0.88}
-        haptic={false}
         accessibilityRole="tab"
         accessibilityLabel={meta.label}
         accessibilityState={{ selected: focused }}
@@ -46,62 +44,54 @@ export function TabBar({ state, navigation }: TabBarProps) {
             navigation.navigate(route.name);
           }
         }}
-        style={[styles.slot, focused && styles.slotActive]}>
-        <SymbolView
-          name={focused ? meta.active : meta.icon}
-          size={22}
-          tintColor={focused ? colors.textInverse : colors.textSecondary}
-          weight="regular"
-        />
-      </PressableScale>
+        style={styles.slot}>
+        <SymbolView name={focused ? meta.active : meta.icon} size={24} tintColor={tint} weight="regular" />
+        <AppText variant="caption" color={tint} style={styles.label}>
+          {meta.label}
+        </AppText>
+      </Pressable>
     );
   };
 
   const names = routes.map((r) => r.name);
 
   return (
-    <View pointerEvents="box-none" style={[styles.wrap, { bottom: Math.max(insets.bottom - 6, 12) }]}>
-      <View style={styles.pill}>
-        <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
-        <View style={[StyleSheet.absoluteFill, styles.fill]} />
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]} accessibilityRole="tablist">
+      <View style={styles.row}>
         {names.includes('index') && item('index')}
         {names.includes('library') && item('library')}
-        <PressableScale
-          scaleTo={0.88}
-          accessibilityRole="button"
-          accessibilityLabel="New batch"
-          onPress={() => router.push('/import')}
-          style={styles.slot}>
-          <SymbolView name="plus" size={22} tintColor={colors.accentText} weight="regular" />
-        </PressableScale>
+        <Pressable accessibilityRole="button" accessibilityLabel="New batch" onPress={() => router.push('/import')} style={styles.slot}>
+          <View style={styles.plus}>
+            <SymbolView name="plus" size={20} tintColor={colors.textInverse} weight="semibold" />
+          </View>
+          <AppText variant="caption" color={colors.textMuted} style={styles.label}>
+            New
+          </AppText>
+        </Pressable>
         {names.includes('settings') && item('settings')}
       </View>
     </View>
   );
 }
 
-/** Bottom padding a tab screen needs so its last row clears the floating bar. */
+/** Bottom padding a tab screen needs so its last row clears the bar. */
 export function useTabBarSpace() {
   const insets = useSafeAreaInsets();
-  return sizes.tabBarHeight + Math.max(insets.bottom - 6, 12) + 24;
+  return sizes.tabBarHeight + Math.max(insets.bottom, 8) + 16;
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    padding: 8,
-    height: sizes.tabBarHeight,
-    borderRadius: 26,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-    boxShadow: '0 16px 40px rgba(0,0,0,0.55)',
+  bar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.bgRaised,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderStrong,
   },
-  fill: { backgroundColor: 'rgba(24,23,30,0.72)' },
-  slot: { width: 64, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  slotActive: { backgroundColor: '#FFFFFF' },
+  row: { flexDirection: 'row', height: sizes.tabBarHeight },
+  slot: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 4 },
+  label: { fontSize: 10, lineHeight: 12 },
+  plus: { width: 30, height: 24, borderRadius: 7, backgroundColor: colors.textPrimary, alignItems: 'center', justifyContent: 'center' },
 });

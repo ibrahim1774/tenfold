@@ -166,7 +166,7 @@ export function Timeline({
             scroll.current?.scrollTo({ x: t * PPS, animated: false });
             onScrubEnd(t);
           }}>
-          <SymbolView name="arrowtriangle.down.fill" size={12} tintColor="#FFFFFF" />
+          <SymbolView name="arrowtriangle.down.fill" size={12} tintColor={colors.accent} />
           <View style={styles.playLine} />
         </View>
       </View>
@@ -318,18 +318,18 @@ const styles = StyleSheet.create({
   clipSelected: { borderWidth: 2, borderColor: '#FFFFFF' },
   selectedTint: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.12)' },
   frame: { position: 'absolute', top: 0, width: FRAME_W, height: 44, borderRightWidth: 1, borderRightColor: 'rgba(0,0,0,0.35)' },
-  framePlaceholder: { backgroundColor: '#2A2733' },
+  framePlaceholder: { backgroundColor: colors.cardHigh },
   handle: {
     position: 'absolute',
     top: 10,
     width: 11,
     height: 36,
     borderRadius: 5,
-    backgroundColor: '#D9D7DE',
+    backgroundColor: '#E5E5EA',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  handleGrip: { width: 3, height: 16, borderRadius: 1.5, backgroundColor: '#3A3842' },
+  handleGrip: { width: 3, height: 16, borderRadius: 1.5, backgroundColor: '#3A3A3F' },
   captionTrack: { height: 34, marginTop: 4 },
   captionChip: {
     position: 'absolute',
@@ -345,8 +345,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   captionText: { flexShrink: 1 },
-  wave: { height: 48, marginTop: 4, borderRadius: 10, backgroundColor: 'rgba(28,27,35,0.6)', justifyContent: 'center' },
+  wave: { height: 48, marginTop: 4, justifyContent: 'center' },
   bar: { position: 'absolute', width: 2, borderRadius: 1, backgroundColor: colors.waveform },
   playhead: { position: 'absolute', top: 12, bottom: 0, width: 12, alignItems: 'center' },
-  playLine: { flex: 1, width: 2, marginTop: -2, backgroundColor: '#FFFFFF', borderRadius: 1 },
+  playLine: { flex: 1, width: 2, marginTop: -2, backgroundColor: colors.accent, borderRadius: 1 },
 });

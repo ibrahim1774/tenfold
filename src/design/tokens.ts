@@ -1,56 +1,66 @@
 // Design tokens: dark "cinematic" theme (docs/SPEC.md §5.1, reference docs/design-reference-v2.png).
 
+/**
+ * "Graphite": flat near-black surfaces, white type, one accent used sparingly. The footage is the
+ * only colour on screen. (The earlier purple-glow theme lives in git history; swapping this block
+ * back restores it.)
+ */
 export const colors = {
-  // Surfaces
-  bg: '#0A090E',
-  bgRaised: '#111016',
-  card: '#15141B',
-  cardHigh: '#1C1B23',
+  // Surfaces: black canvas, two steps of elevation.
+  bg: '#000000',
+  bgRaised: '#0C0C0E',
+  card: '#141416',
+  cardHigh: '#1E1E21',
   border: 'rgba(255,255,255,0.08)',
-  borderStrong: 'rgba(255,255,255,0.18)',
-  overlay: 'rgba(10,9,14,0.72)',
+  borderStrong: 'rgba(255,255,255,0.16)',
+  overlay: 'rgba(0,0,0,0.72)',
 
-  // Ambient glow behind the top of each screen
-  glowPlum: 'rgba(120,36,92,0.55)',
-  glowViolet: 'rgba(76,40,140,0.45)',
+  // Legacy names for the old ambient glow (now flat).
+  glowPlum: 'rgba(0,0,0,0)',
+  glowViolet: 'rgba(0,0,0,0)',
 
   // Text
   textPrimary: '#FFFFFF',
-  textSecondary: '#B3B0BD',
-  textMuted: '#77737F',
-  textInverse: '#0A090E',
+  textSecondary: '#9C9CA3',
+  textMuted: '#6B6B72',
+  textInverse: '#000000',
 
-  // Accents
-  violet: '#8B5CF6',
-  violetSoft: 'rgba(139,92,246,0.18)',
+  // The one accent: progress, selection, the playhead, links.
+  accent: '#FFB020',
+  accentSoft: 'rgba(255,176,32,0.16)',
   /** Text for in-place actions and small accents (links, "Pro"). */
-  accentText: '#C9B6FF',
-  orange: '#FF7A30',
-  danger: '#FF5A6E',
-  dangerSoft: 'rgba(255,90,110,0.16)',
-  success: '#4ADE80',
-  heart: '#FF3B55',
+  accentText: '#FFB020',
+  // Legacy names, mapped onto the accent.
+  violet: '#FFB020',
+  violetSoft: 'rgba(255,176,32,0.16)',
+  orange: '#FFB020',
+  danger: '#FF453A',
+  dangerSoft: 'rgba(255,69,58,0.16)',
+  success: '#30D158',
+  heart: '#FF453A',
 
   // Controls
-  chipFill: '#1C1B23',
-  chipText: '#E9E7F0',
+  chipFill: '#1E1E21',
+  chipText: '#FFFFFF',
   chipSelectedFill: '#FFFFFF',
-  chipSelectedText: '#0A090E',
-  ruler: '#8E8A98',
-  waveform: '#B9B5C4',
+  chipSelectedText: '#000000',
+  ruler: '#6B6B72',
+  waveform: '#8E8E95',
 } as const;
 
+/** Solid colours now; the names stay so progress bars and rings keep working. */
 export const gradients = {
-  cta: ['#7C4DFF', '#C94FC0', '#FF7A30'] as const,
-  glow: ['rgba(120,36,92,0.55)', 'rgba(40,20,60,0.25)', 'rgba(10,9,14,0)'] as const,
+  cta: ['#FFFFFF', '#FFFFFF'] as const,
+  progress: ['#FFB020', '#FFB020'] as const,
+  glow: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)'] as const,
 };
 
 export const radii = {
-  card: 24,
-  tile: 20,
-  chip: 22,
-  button: 20,
-  thumb: 16,
+  card: 14,
+  tile: 12,
+  chip: 18,
+  button: 12,
+  thumb: 10,
   round: 999,
 } as const;
 
@@ -64,11 +74,22 @@ export const spacing = {
   gutter: 20,
 } as const;
 
+/**
+ * Interface text is the iPhone's own font (SF Pro): `fontFamily` undefined + a weight. Poppins and the
+ * other bundled faces are for captions only (src/captions/presets.ts).
+ */
 export const fonts = {
-  regular: 'Poppins-Regular',
-  medium: 'Poppins-Medium',
-  semiBold: 'Poppins-SemiBold',
-  bold: 'Poppins-Bold',
+  regular: undefined,
+  medium: undefined,
+  semiBold: undefined,
+  bold: undefined,
+} as const;
+
+export const weights = {
+  regular: '400',
+  medium: '500',
+  semiBold: '600',
+  bold: '700',
 } as const;
 
 /**
@@ -76,24 +97,24 @@ export const fonts = {
  * 14 controls · 13 secondary · 12 small print. Legacy names map onto them.
  */
 export const type = {
-  display: { fontFamily: fonts.semiBold, fontSize: 30, lineHeight: 36, letterSpacing: -0.6 },
-  title: { fontFamily: fonts.semiBold, fontSize: 20, lineHeight: 26, letterSpacing: -0.3 },
-  body: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 21 },
-  bodyStrong: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 21 },
-  chip: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 19 },
-  label: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18 },
-  caption: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 16 },
+  display: { fontWeight: weights.bold, fontSize: 30, lineHeight: 36, letterSpacing: 0.2 },
+  title: { fontWeight: weights.semiBold, fontSize: 20, lineHeight: 25, letterSpacing: -0.2 },
+  body: { fontWeight: weights.regular, fontSize: 15, lineHeight: 20 },
+  bodyStrong: { fontWeight: weights.semiBold, fontSize: 15, lineHeight: 20 },
+  chip: { fontWeight: weights.medium, fontSize: 14, lineHeight: 18 },
+  label: { fontWeight: weights.regular, fontSize: 13, lineHeight: 18 },
+  caption: { fontWeight: weights.regular, fontSize: 12, lineHeight: 16 },
   // Legacy aliases (same sizes as above).
-  hero: { fontFamily: fonts.semiBold, fontSize: 30, lineHeight: 36, letterSpacing: -0.6 },
-  section: { fontFamily: fonts.semiBold, fontSize: 20, lineHeight: 26, letterSpacing: -0.3 },
-  cta: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 21 },
+  hero: { fontWeight: weights.bold, fontSize: 30, lineHeight: 36, letterSpacing: 0.2 },
+  section: { fontWeight: weights.semiBold, fontSize: 20, lineHeight: 25, letterSpacing: -0.2 },
+  cta: { fontWeight: weights.semiBold, fontSize: 15, lineHeight: 20 },
 } as const;
 
 export const sizes = {
-  chipHeight: 40,
-  ctaHeight: 56,
+  chipHeight: 36,
+  ctaHeight: 52,
   iconButton: 44,
-  tabBarHeight: 72,
+  tabBarHeight: 50,
 } as const;
 
 /**

@@ -1,7 +1,19 @@
 # Tenfold design rules
 
-What makes an app feel crafted instead of generated is mostly behaviour and restraint, not colour. The dark
-theme and tokens in `src/design/tokens.ts` stay. These rules decide how screens use them.
+What makes an app feel crafted instead of generated is behaviour, restraint, and a visual language that
+gets out of the footage's way. Tokens live in `src/design/tokens.ts`; these rules decide how screens use them.
+
+## 0. Look ("graphite")
+
+- **Surfaces:** flat black (`bg`), two elevation steps (`bgRaised`, `card`, `cardHigh`). No ambient glows,
+  no gradients, no blur, no drop shadows. The video thumbnails are the only colour on screen.
+- **Type:** the iPhone's own font (SF Pro) for all interface text. Bundled faces (Poppins, TikTok Sans…)
+  are for captions only.
+- **Accent:** one colour (`accent`, amber) for progress, selection, the playhead and links. Never for
+  large fills.
+- **Primary button:** solid white with black text. Secondary: `cardHigh` fill, no border.
+- **Corners:** 12–14 pt (`radii`). Icons: SF Symbols, regular weight, monochrome.
+- **Tab bar:** standard opaque bottom bar, icon over a 10 pt label.
 
 ## 1. Hierarchy
 

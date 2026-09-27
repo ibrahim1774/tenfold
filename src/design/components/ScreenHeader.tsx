@@ -17,7 +17,7 @@ export type ScreenHeaderProps = {
 export function ScreenHeader({ title, back = true, right, onBack }: ScreenHeaderProps) {
   return (
     <View style={styles.row}>
-      {back && <IconButton icon="chevron.left" label="Back" size={46} onPress={onBack ?? (() => router.back())} />}
+      {back && <IconButton icon="chevron.left" label="Back" size={44} tone="ghost" iconScale={0.45} onPress={onBack ?? (() => router.back())} />}
       <AppText variant="title" style={styles.title} numberOfLines={1}>
         {title}
       </AppText>
@@ -27,7 +27,7 @@ export function ScreenHeader({ title, back = true, right, onBack }: ScreenHeader
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, minHeight: 56 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 52 },
   title: { flex: 1 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 });

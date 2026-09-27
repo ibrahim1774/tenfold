@@ -1,9 +1,8 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { SFSymbol } from '../symbols';
-import { colors, gradients, radii, sizes } from '../tokens';
+import { colors, radii, sizes } from '../tokens';
 import { AppText } from './AppText';
 import { PressableScale } from './PressableScale';
 
@@ -18,7 +17,7 @@ export type GradientButtonProps = {
   shape?: 'rounded' | 'pill';
 };
 
-/** The one primary action on a screen (docs/DESIGN.md: at most one gradient button per screen). */
+/** The one primary action on a screen: solid white, black text (docs/DESIGN.md §1). */
 export function GradientButton({
   title,
   onPress,
@@ -38,17 +37,13 @@ export function GradientButton({
       accessibilityLabel={title}
       accessibilityState={{ disabled }}
       haptic="impact"
-      style={[styles.wrap, { height, borderRadius: radius, opacity: disabled ? 0.45 : 1 }, style]}>
-      <LinearGradient
-        colors={gradients.cta}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        style={[StyleSheet.absoluteFill, { borderRadius: radius }]}
-      />
+      style={[styles.wrap, { height, borderRadius: radius, opacity: disabled ? 0.4 : 1 }, style]}>
       <View style={styles.row}>
-        {icon ? <SymbolView name={icon} size={18} tintColor={colors.textPrimary} weight="regular" /> : null}
-        <AppText variant="bodyStrong">{title}</AppText>
-        {trailingArrow ? <SymbolView name="arrow.right" size={16} tintColor={colors.textPrimary} /> : null}
+        {icon ? <SymbolView name={icon} size={18} tintColor={colors.textInverse} weight="semibold" /> : null}
+        <AppText variant="bodyStrong" color={colors.textInverse}>
+          {title}
+        </AppText>
+        {trailingArrow ? <SymbolView name="arrow.right" size={16} tintColor={colors.textInverse} weight="semibold" /> : null}
       </View>
     </PressableScale>
   );
@@ -91,15 +86,13 @@ const styles = StyleSheet.create({
   wrap: {
     justifyContent: 'center',
     alignItems: 'center',
-    boxShadow: '0 8px 24px rgba(160,80,255,0.2)',
+    backgroundColor: colors.textPrimary,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
   outline: {
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: 'rgba(21,20,27,0.6)',
+    backgroundColor: colors.cardHigh,
   },
-  violet: { backgroundColor: '#231B38', borderColor: 'rgba(139,92,246,0.45)' },
+  violet: { backgroundColor: colors.accentSoft },
 });

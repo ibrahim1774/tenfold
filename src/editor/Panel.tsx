@@ -101,7 +101,7 @@ export function ToolBar({ tools, active, onPress }: { tools: { id: ToolId; icon:
             accessibilityState={t.id === 'captions' ? undefined : { selected: on }}
             style={[styles.tool, on && styles.toolOn]}>
             <SymbolView name={t.icon} size={22} weight="regular" tintColor={on ? colors.textPrimary : colors.textSecondary} />
-            <AppText variant="caption" color={on ? colors.textPrimary : colors.textSecondary}>
+            <AppText variant="caption" color={on ? colors.textPrimary : colors.textSecondary} numberOfLines={1} style={styles.toolLabel}>
               {t.label}
             </AppText>
           </PressableScale>
@@ -128,7 +128,8 @@ const styles = StyleSheet.create({
   rowValue: { flexShrink: 1, textAlign: 'right' },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.borderStrong },
   bone: { height: 12, borderRadius: 6, backgroundColor: colors.cardHigh },
-  tools: { flexDirection: 'row', gap: 4 },
-  tool: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 14, borderCurve: 'continuous' },
+  tools: { flexDirection: 'row', gap: 2 },
+  tool: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: radii.tile, borderCurve: 'continuous', paddingHorizontal: 2 },
   toolOn: { backgroundColor: colors.cardHigh },
+  toolLabel: { fontSize: 11, lineHeight: 13 },
 });

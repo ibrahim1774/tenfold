@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.gutter,
     paddingTop: 12,
     gap: 8,
-    backgroundColor: 'rgba(10,9,14,0.92)',
+    backgroundColor: 'rgba(0,0,0,0.92)',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },

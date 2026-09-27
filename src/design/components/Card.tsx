@@ -11,7 +11,7 @@ export type CardProps = {
   dashed?: boolean;
 };
 
-/** Dark rounded surface with a hairline border (reference: project cards, AI Suggestion, drop zone). */
+/** Flat raised surface with a hairline border. */
 export function Card({ children, style, padded = true, tone = 'default', dashed }: CardProps) {
   return (
     <View
@@ -37,6 +37,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   high: { backgroundColor: colors.cardHigh },
-  dashed: { borderStyle: 'dashed', borderColor: colors.borderStrong, backgroundColor: 'rgba(21,20,27,0.7)' },
-  padded: { padding: spacing.xl },
+  dashed: { borderStyle: 'dashed', borderColor: colors.borderStrong, backgroundColor: 'transparent' },
+  padded: { padding: spacing.lg },
 });

@@ -15,7 +15,7 @@ export type IconButtonProps = {
   iconScale?: number;
 };
 
-/** Outlined circle (back button in the reference) or a bare glyph (undo/redo/fullscreen). */
+/** A round filled glyph (back, close, more) or a bare glyph (undo/redo). */
 export function IconButton({
   icon,
   label,
@@ -47,6 +47,6 @@ export function IconButton({
 
 const styles = StyleSheet.create({
   base: { alignItems: 'center', justifyContent: 'center' },
-  outline: { borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: 'rgba(21,20,27,0.5)' },
-  solid: { backgroundColor: colors.cardHigh, borderWidth: 1, borderColor: colors.border },
+  outline: { backgroundColor: colors.cardHigh },
+  solid: { backgroundColor: colors.cardHigh },
 });

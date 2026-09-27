@@ -632,13 +632,14 @@ export default function EditorScreen() {
             <View style={[styles.gutter, styles.editBar]}>
               <EditAction icon="scissors" label="Split" onPress={splitAtPlayhead} />
               <EditAction icon="trash" label="Delete" onPress={deleteSelected} disabled={!selected} danger />
+              {/* Only messages the user caused show here; the strip explains itself by use. */}
               <AppText
                 variant="caption"
                 color={shownNotice ? colors.textPrimary : colors.textMuted}
                 style={styles.editHint}
-                numberOfLines={3}
+                numberOfLines={2}
                 accessibilityLiveRegion="polite">
-                {shownNotice ?? (selected ? 'Clip selected. Delete removes it, undo brings it back.' : 'Drag the strip to scrub. Tap a clip to select it.')}
+                {shownNotice ?? (selected ? 'Clip selected' : '')}
               </AppText>
             </View>
           )}
@@ -862,7 +863,7 @@ export default function EditorScreen() {
                           <AppText variant="chip" color={on ? colors.textInverse : colors.textPrimary}>
                             {m.label}
                           </AppText>
-                          <AppText variant="caption" color={on ? 'rgba(10,9,14,0.6)' : colors.textMuted}>
+                          <AppText variant="caption" color={on ? 'rgba(0,0,0,0.6)' : colors.textMuted}>
                             {m.hint}
                           </AppText>
                         </PressableScale>
@@ -951,7 +952,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(10,9,14,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   previewErrorBox: {
     position: 'absolute',
