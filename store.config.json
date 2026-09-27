@@ -1,0 +1,57 @@
+{
+  "configVersion": 0,
+  "copyright": "2026 Mohammed Ibrahim",
+  "apple": {
+    "categories": ["PHOTO_AND_VIDEO", "PRODUCTIVITY"],
+    "info": {
+      "en-US": {
+        "title": "Tenfold: Batch Video Editor",
+        "subtitle": "Cut pauses, add captions, x10",
+        "description": "Film ten takes. Post ten videos.\n\nTenfold edits talking-to-camera clips on your iPhone, ten at a time. Import a batch from Photos or record in the app, choose what Tenfold should do, and generate finished videos ready to post.\n\nWHAT IT DOES\n• Removes pauses, filler words (\"um\", \"uh\", \"like\") and repeated takes\n• Word-by-word captions in 12 styles, synced to your voice\n• Reframes for vertical: 9:16, 4:5, 1:1 or 16:9, with a subtle zoom at each cut\n• Batches of up to 10 clips at once, each with its own on/off edits\n\nA REAL EDITOR WHEN YOU WANT ONE\n• Tap any caption to fix a word, split, merge, hide or retime it\n• Caption styles with background, outline, shadow and your own colours\n• Titles and hooks with a TikTok-style text tool: nine styles, drag, pinch and rotate\n• Audio: split or silence the original sound, add music from Files, extract sound from another video, record a voiceover, automatic ducking under speech\n• Join several clips into one video, reorder, trim, split and delete\n• Undo, redo and revert to the original at any time\n\nON YOUR PHONE\nEverything runs on the iPhone with Apple's on-device speech recognition. No account, no upload, no waiting for a server. Your footage never leaves the phone.\n\nFREE AND PAID\nThe free plan includes batches of 10 and 3 exports a month. Starter, Pro and Studio subscriptions add more exports, bigger batches, every caption style, no watermark and 4K export. Every plan starts with a 3-day free trial. Subscriptions renew automatically until cancelled in Settings.\n\nTerms: https://ibrahim1774.github.io/tenfold/terms.html\nPrivacy: https://ibrahim1774.github.io/tenfold/privacy.html",
+        "keywords": [
+          "video editor",
+          "captions",
+          "subtitles",
+          "batch",
+          "talking head",
+          "silence remover",
+          "filler words",
+          "tiktok",
+          "reels",
+          "shorts",
+          "creator",
+          "auto edit"
+        ],
+        "promoText": "Ten takes in, ten finished videos out. Pauses cut, captions on, framed for vertical, all on your iPhone.",
+        "releaseNotes": "First release.",
+        "privacyPolicyUrl": "https://ibrahim1774.github.io/tenfold/privacy.html",
+        "supportUrl": "https://ibrahim1774.github.io/tenfold/",
+        "marketingUrl": "https://ibrahim1774.github.io/tenfold/"
+      }
+    },
+    "advisory": {
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "gambling": false,
+      "unrestrictedWebAccess": false
+    },
+    "review": {
+      "firstName": "Mohammed",
+      "lastName": "Ibrahim",
+      "email": "ibrahim3709@gmail.com",
+      "phone": "+1 000 000 0000",
+      "demoRequired": false,
+      "notes": "Tenfold has no accounts and no server. Everything runs on the device with Apple's on-device speech recognition (iOS 26).\n\nTo test: open the app, finish onboarding (the demo step can be skipped), tap Import clips and pick one or more videos with speech from Photos, then Generate. Open a finished video to reach the editor: Captions, Text, Audio and the + tile for adding clips. Export saves to Photos.\n\nSubscriptions: Starter, Pro and Studio (monthly and yearly), each with a 3-day free trial, sold through the App Store and presented with the Superwall SDK. The free plan works without any purchase.\n\nPermissions are requested only when used: camera and microphone for in-app recording, add-to-Photos for export, speech recognition for captions."
+    }
+  }
+}
