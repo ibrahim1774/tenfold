@@ -19,7 +19,8 @@
           "tiktok",
           "snssdk1233",
           "instagram"
-        ]
+        ],
+        "EXDevMenuShowFloatingActionButton": false
       }
     },
     "plugins": [
