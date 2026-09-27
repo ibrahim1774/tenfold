@@ -587,20 +587,20 @@ const tilt = (ry, rx, rz, s) => `rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${r
     ${screenHeader('Product takes', `<div class="ib o" style="width:46px;height:46px">${ic('ellipsis', 20)}</div>`)}
     <div class="abs row" style="top:130px;left:20px;right:20px;gap:20px">
       ${progressRing(1, 84, 6, '<span class="t14 tab">100%</span>')}
-      <div class="col" style="flex:1;gap:2px"><div class="t20 tab">6 of 6 ready</div><div class="t13 c2">Tap a video to review it</div></div>
+      <div class="col" style="flex:1;gap:2px"><div class="t20 tab">10 of 10 ready</div><div class="t13 c2">Tap a video to review it</div></div>
     </div>
     <div class="abs" style="top:242px;left:20px;right:20px;display:flex;flex-wrap:wrap;column-gap:12px;row-gap:20px">
       ${cards.map(tile).join('')}
     </div>
     <div class="abs col" style="left:0;right:0;bottom:0;padding:12px 20px ${BOTTOM + 8}px;gap:8px;background:rgba(0,0,0,.96);border-top:.5px solid ${C.border}">
       <div class="t12 c2 tab" style="text-align:center">294 exports left this month</div>
-      <div class="btn" style="height:52px;border-radius:26px">${ic('download', 18, '#000', 2)}<span>Export 6 videos</span></div>
+      <div class="btn" style="height:52px;border-radius:26px">${ic('download', 18, '#000', 2)}<span>Export 10 videos</span></div>
     </div>`;
   page({
     n: '01',
     slug: 'batch',
-    lines: ['Import ten takes.', 'It edits itself.'],
-    sub: 'Pauses, fillers and retakes, cut',
+    lines: ['Edit 10 videos', 'at the same time'],
+    sub: 'Import your takes and it edits itself',
     phones: [{ screen, cx: 680, cy: 1610, t: tilt(-15, 7, 2.5, 0.94) }],
   });
 }
@@ -631,8 +631,8 @@ const tilt = (ry, rx, rz, s) => `rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${r
   page({
     n: '02',
     slug: 'demo',
-    lines: ['Post-ready', 'in minutes.'],
-    sub: 'From raw clips to finished videos',
+    lines: ['Cuts the silences', 'and the ums'],
+    sub: 'No more trimming by hand',
     phones: [{ screen, cx: 710, cy: 1605, t: tilt(-18, 6, 3, 0.94) }],
   });
 }
@@ -646,8 +646,8 @@ const tilt = (ry, rx, rz, s) => `rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${r
   page({
     n: '03',
     slug: 'captions',
-    lines: ['Captions on', 'every word.'],
-    sub: '12 styles. Restyle any of them.',
+    lines: ['Captions on', 'every word'],
+    sub: 'Pick a style and it’s done',
     phones: [{ screen, cx: 660, cy: 1615, t: tilt(14, 6, -2.5, 0.94) }],
   });
 }
@@ -673,8 +673,8 @@ const tilt = (ry, rx, rz, s) => `rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${r
   page({
     n: '04',
     slug: 'timeline',
-    lines: ['A real editor,', 'when you want it.'],
-    sub: 'Trim, split, reorder on a full timeline',
+    lines: ['A real editor', 'when you want it'],
+    sub: 'Trim, split and move clips around',
     phones: [{ screen, cx: 700, cy: 1610, t: tilt(-14, 8, 2, 0.94) }],
   });
 }
@@ -735,8 +735,8 @@ const tilt = (ry, rx, rz, s) => `rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${r
   page({
     n: '05',
     slug: 'export',
-    lines: ['Ten videos,', 'one tap.'],
-    sub: 'Export the whole batch to Photos',
+    lines: ['10 videos', 'one tap'],
+    sub: 'Save them all to Photos at once',
     phones: [{ screen: home, cx: 690, cy: 1610, t: tilt(-14, 6, 2.5, 0.94) }],
   });
 }
