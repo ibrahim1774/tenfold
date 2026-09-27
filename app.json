@@ -58,7 +58,8 @@
         }
       ],
       "expo-sqlite",
-      "expo-sharing"
+      "expo-sharing",
+      "./plugins/withQuotedBundleScript.js"
     ],
     "experiments": {
       "typedRoutes": true,
