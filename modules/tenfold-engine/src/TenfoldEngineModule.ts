@@ -14,6 +14,19 @@ declare class TenfoldEngineModule extends NativeModule<TenfoldEngineModuleEvents
   pickVideos(maxCount: number): Promise<string>;
   /** Imports a video file (file:// or dev-server http URL) into a new project; ImportedAsset JSON. Absent in older builds. */
   importFile?(uri: string, title: string): Promise<string>;
+  // Audio lanes (absent in older builds). AddedAudio JSON: { file?, title?, durationSec?, error? }.
+  /** Files picker for a sound, copied into <project>/audio/. error "cancelled" when closed. */
+  pickAudioFile?(projectId: string): Promise<string>;
+  /** Photos picker for one video; its sound saved as .m4a. error "cancelled" or "noAudio". */
+  extractAudio?(projectId: string): Promise<string>;
+  /** Starts a voiceover recording: { file } or { error: "microphone" }. */
+  startVoiceover?(projectId: string): Promise<string>;
+  /** Stops it: { file, durationSec }. */
+  stopVoiceover?(): Promise<string>;
+  /** Waveform bars 0..1 (JSON number[]) for an added sound. */
+  audioWaveform?(projectId: string, file: string, buckets: number): Promise<string>;
+  /** Deletes an added sound; false when the path isn't one of the project's sounds. */
+  deleteAudioFile?(projectId: string, file: string): Promise<boolean>;
   speechStatus(language: string): Promise<string>;
   prepareSpeech(language: string): Promise<string>;
   analyze(projectId: string, optionsJSON: string): Promise<string>;

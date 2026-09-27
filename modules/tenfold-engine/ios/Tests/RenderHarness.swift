@@ -398,6 +398,200 @@ func textOverlaySuite(src: URL, media: MediaInfo, outDir: URL, check: (Bool, Str
   for u in [base, gridURL, cornerURL, rotURL, cutURL] { try? FileManager.default.removeItem(at: u) }
 }
 
+
+// MARK: - Audio lanes
+
+/// A mono sine WAV (amplitude `amp`, `hz`) of `seconds`.
+func makeTone(_ url: URL, seconds: Double, hz: Double = 440, amp: Float = 0.2) throws {
+  try? FileManager.default.removeItem(at: url)
+  try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+  let fmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 44100, channels: 1, interleaved: false)!
+  let settings: [String: Any] = [
+    AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 44100, AVNumberOfChannelsKey: 1, AVLinearPCMBitDepthKey: 16,
+    AVLinearPCMIsFloatKey: false, AVLinearPCMIsBigEndianKey: false,
+  ]
+  let file = try AVAudioFile(forWriting: url, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false)
+  let n = AVAudioFrameCount(seconds * 44100)
+  let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: n)!
+  buf.frameLength = n
+  let ch = buf.floatChannelData![0]
+  for i in 0..<Int(n) { ch[i] = amp * Float(sin(2 * Double.pi * hz * Double(i) / 44100)) }
+  try file.write(from: buf)
+}
+
+/// Every audio sample of a file, mixed to mono 44.1 kHz.
+func readMono(_ url: URL) async throws -> [Float] {
+  let asset = AVURLAsset(url: url)
+  let tracks = try await asset.loadTracks(withMediaType: .audio)
+  guard !tracks.isEmpty else { return [] }
+  let reader = try AVAssetReader(asset: asset)
+  let out = AVAssetReaderAudioMixOutput(audioTracks: tracks, audioSettings: [
+    AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 44100, AVNumberOfChannelsKey: 1,
+    AVLinearPCMBitDepthKey: 32, AVLinearPCMIsFloatKey: true, AVLinearPCMIsNonInterleaved: false, AVLinearPCMIsBigEndianKey: false,
+  ])
+  reader.add(out)
+  reader.startReading()
+  var samples: [Float] = []
+  while let b = out.copyNextSampleBuffer() {
+    guard let block = CMSampleBufferGetDataBuffer(b) else { continue }
+    let len = CMBlockBufferGetDataLength(block)
+    var chunk = [Float](repeating: 0, count: len / 4)
+    chunk.withUnsafeMutableBytes { _ = CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: len, destination: $0.baseAddress!) }
+    samples += chunk
+  }
+  return samples
+}
+
+/// RMS of the exported sound between two output times.
+func rms(_ s: [Float], _ a: Double, _ b: Double) -> Double {
+  let i0 = max(0, Int(a * 44100)), i1 = min(s.count, Int(b * 44100))
+  guard i1 > i0 else { return 0 }
+  var sum = 0.0
+  for i in i0..<i1 { sum += Double(s[i]) * Double(s[i]) }
+  return (sum / Double(i1 - i0)).squareRoot()
+}
+
+func audioSuite(src: URL, media: MediaInfo, outDir: URL, check: (Bool, String) -> Void) async throws {
+  let folder = src.deletingLastPathComponent()
+  try makeTone(folder.appendingPathComponent("audio/tone.wav"), seconds: 8)
+  try makeTone(folder.appendingPathComponent("audio/short.wav"), seconds: 1.5)
+  let toneRMS = 0.2 / 2.0.squareRoot()
+  let analysis = Analysis(media: media, transcript: nil, envelopeDb: [], noiseFloorDb: -60, speechThresholdDb: -38, speechCoverage: 0, noSpeech: true, cuts: [], faces: [], warnings: [])
+
+  func render(_ name: String, clips: [AudioClip], cuts: [Cut] = [], mute: Bool = true, speech: [TimeRange]? = nil) async throws -> ([Float], Double, EditPlan) {
+    var doc = EditDocument(cuts: cuts)
+    doc.zoom = ZoomSettings(mode: .off)
+    doc.captions.enabled = false
+    doc.audio.mode = mute ? .mute : .original
+    doc.audioClips = clips
+    var plan = EditPlanner.plan(doc: doc, analysis: analysis)
+    if let speech { plan.speech = speech }
+    let built = try await CompositionBuilder.build(source: src, media: media, plan: plan, doc: doc, faces: [], quality: .hd)
+    let out = outDir.appendingPathComponent("harness-audio-\(name).mp4")
+    try await Exporter.export(built: built, plan: plan, captions: doc.captions, options: ExportOptions(quality: .hd, watermark: false, saveToPhotos: false), to: out) { _ in }
+    let asset = AVURLAsset(url: out)
+    let d = try await asset.load(.duration).seconds
+    let samples = try await readMono(out)
+    try? FileManager.default.removeItem(at: out)
+    return (samples, d, plan)
+  }
+  func f(_ v: Double) -> String { String(format: "%.3f", v) }
+
+  print("• audio: legacy document keeps the original sound; mute silences it")
+  let (legacy, _, _) = try await render("legacy", clips: [], mute: false)
+  _ = legacy
+  var plain = EditDocument()
+  plain.zoom = ZoomSettings(mode: .off)
+  plain.captions.enabled = false
+  let plainPlan = EditPlanner.plan(doc: plain, analysis: analysis)
+  let plainBuilt = try await CompositionBuilder.build(source: src, media: media, plan: plainPlan, doc: plain, faces: [], quality: .hd)
+  check(plainBuilt.composition.tracks(withMediaType: .audio).count == 1 && plainBuilt.audioMix != nil, "no audioClips: one original track with a mix")
+  plain.audio.mode = .mute
+  let mutedBuilt = try await CompositionBuilder.build(source: src, media: media, plan: plainPlan, doc: plain, faces: [], quality: .hd)
+  check(mutedBuilt.composition.tracks(withMediaType: .audio).isEmpty, "mute: no audio track")
+
+  print("• audio (a): original split, middle deleted → silence there")
+  // The source tone is silent at 2–3 s by itself, so the deleted stretch is 3.6–4.8.
+  let (a, aDur, _) = try await render("split", clips: [
+    AudioClip(id: "o1", source: "original", start: 0, end: 3.6),
+    AudioClip(id: "o2", source: "original", start: 4.8, end: 6),
+  ], mute: false)
+  let before = rms(a, 0.3, 1.8), gone = rms(a, 3.75, 4.65), after = rms(a, 5.0, 5.8)
+  print("  rms before \(f(before)), deleted \(f(gone)), after \(f(after))")
+  check(before > 0.15 && after > 0.15, "original sound plays around the deleted stretch")
+  check(gone < 0.01, "deleted stretch is silent (\(f(gone)))")
+  check(abs(aDur - 6) < 0.1, "length unchanged by audio (\(f(aDur)) s)")
+
+  print("• audio (a2): a plain split plays through; the second half at 50%")
+  let (a2, _, _) = try await render("plainsplit", clips: [
+    AudioClip(id: "o1", source: "original", start: 0, end: 3.5),
+    AudioClip(id: "o2", source: "original", start: 3.5, end: 6, volume: 0.5),
+  ], mute: false)
+  let full = rms(a2, 0.3, 1.8), late = rms(a2, 3.1, 3.45), half = rms(a2, 4.0, 5.8)
+  var seam = 1.0
+  var st = 3.4
+  while st < 3.6 {
+    seam = min(seam, rms(a2, st, st + 0.01))
+    st += 0.005
+  }
+  print("  before \(f(full)), after \(f(half)), lowest 10 ms window at the split \(f(seam))")
+  check(abs(full - 0.283) < 0.02 && abs(late - 0.283) < 0.02 && abs(half / full - 0.5) < 0.03, "100% right up to the split, then 50% (\(f(late)) just before it)")
+  check(seam > half * 0.8, "no dip at the split (\(f(seam)))")
+
+  print("• audio: a video's sound as a file (From a video in Photos), its length and waveform")
+  let extracted = folder.appendingPathComponent("audio/extracted.m4a")
+  try await AudioFiles.extractTrack(from: src, to: extracted)
+  let exDur = await AudioFiles.duration(extracted)
+  let bars = try await AudioFiles.waveform(extracted, buckets: 60)
+  print("  \(f(exDur)) s; bars at 1 s \(f(bars[10])), in the 2–3 s gap \(f(bars[25]))")
+  check(abs(exDur - 6) < 0.15, "extracted about 6 s")
+  check(bars.count == 60 && bars[10] > 0.5 && bars[25] < 0.1, "waveform shows the tone and the silent gap")
+  let projectId = folder.lastPathComponent
+  check(AudioFiles.url(projectId, "audio/extracted.m4a") != nil && AudioFiles.url(projectId, "../meta.json") == nil && AudioFiles.url(projectId, "source.mov") == nil, "only files in the audio folder are addressable")
+  check(AudioFiles.remove(projectId, "audio/extracted.m4a") && !FileManager.default.fileExists(atPath: extracted.path), "remove deletes it")
+
+  print("• audio (b): an added sound over a cut plays continuously in output time")
+  let cut = Cut(id: "c", start: 1.0, end: 2.5, reason: .manual, accepted: true, confidence: 1)
+  let (b, bDur, bPlan) = try await render("overcut", clips: [
+    AudioClip(id: "f", source: "file", file: "audio/tone.wav", start: 0.5, end: 3.0),
+  ], cuts: [cut])
+  check(abs(bPlan.compDuration - 4.5) < 0.05 && abs(bDur - 4.5) < 0.1, "cut shortens the video to 4.5 s (\(f(bDur)))")
+  var worst = 1.0
+  var t = 0.6
+  while t < 2.85 {
+    worst = min(worst, rms(b, t, t + 0.1))
+    t += 0.1
+  }
+  print("  tone rms \(f(toneRMS)); lowest 100 ms window 0.6–2.9 s: \(f(worst)); before \(f(rms(b, 0, 0.4))), after \(f(rms(b, 3.15, 4.4)))")
+  check(worst > toneRMS * 0.85, "no gap at the cut join (output 1.0 s)")
+  check(rms(b, 0, 0.4) < 0.01 && rms(b, 3.15, 4.4) < 0.01, "silent outside the clip")
+
+  print("• audio (c): fades in and out")
+  let (c, _, _) = try await render("fades", clips: [
+    AudioClip(id: "f", source: "file", file: "audio/tone.wav", start: 0, end: 4, fadeIn: 1.5, fadeOut: 1.5),
+  ])
+  let rise = [0.0, 0.5, 1.0].map { rms(c, $0, $0 + 0.25) }
+  let mid = rms(c, 1.7, 2.3)
+  let fall = [2.75, 3.25, 3.7].map { rms(c, $0, $0 + 0.25) }
+  print("  rise \(rise.map(f)), middle \(f(mid)), fall \(fall.map(f))")
+  check(rise[0] < rise[1] && rise[1] < rise[2] && rise[2] < mid, "rising over the fade-in")
+  check(fall[0] > fall[1] && fall[1] > fall[2] && abs(mid - toneRMS) < 0.02, "full level in the middle, falling over the fade-out")
+
+  print("• audio (d): ducking lowers an added sound while someone speaks")
+  let (d, _, _) = try await render("duck", clips: [
+    // The original is turned down to 2% so the RMS measured is (almost all) the added tone.
+    AudioClip(id: "o", source: "original", start: 0, end: 6, volume: 0.02),
+    AudioClip(id: "f", source: "file", file: "audio/tone.wav", start: 0, end: 6, ducking: true),
+  ], mute: false, speech: [TimeRange(start: 2.0, end: 3.5)])
+  let open = rms(d, 0.5, 1.8), ducked = rms(d, 2.3, 3.3), back = rms(d, 4.0, 5.5)
+  print("  before \(f(open)), speech \(f(ducked)), after \(f(back))")
+  check(abs(ducked / open - 0.2) < 0.05, "ducked to 20% (\(f(ducked / open)))")
+  check(abs(back - open) < 0.01, "back to full after")
+  let (dm, _, _) = try await render("duck-muted", clips: [
+    AudioClip(id: "f", source: "file", file: "audio/tone.wav", start: 0, end: 6, ducking: true),
+  ], speech: [TimeRange(start: 2.0, end: 3.5)])
+  check(abs(rms(dm, 2.3, 3.3) - toneRMS) < 0.01, "no ducking when the original is muted (nobody is heard)")
+
+  print("• audio (e): loop fills a longer window; volume 200% doubles")
+  let (e, eDur, _) = try await render("loop", clips: [
+    AudioClip(id: "f", source: "file", file: "audio/short.wav", start: 0, end: 20, loop: true),
+  ])
+  let windows = stride(from: 0.1, to: 5.8, by: 0.3).map { rms(e, $0, $0 + 0.2) }
+  print("  lowest window \(f(windows.min() ?? 0)) over 0.1–5.9 s; length \(f(eDur))")
+  check(windows.allSatisfy { $0 > toneRMS * 0.85 }, "sound all the way through")
+  check(abs(eDur - 6) < 0.1, "a clip past the end doesn't lengthen the video")
+  let (once, _, _) = try await render("noloop", clips: [
+    AudioClip(id: "f", source: "file", file: "audio/short.wav", start: 0, end: 6),
+  ])
+  check(rms(once, 0.2, 1.3) > toneRMS * 0.85 && rms(once, 1.7, 5.5) < 0.01, "without loop: plays once, then silence")
+  let (loud, _, _) = try await render("loud", clips: [
+    AudioClip(id: "f", source: "file", file: "audio/tone.wav", start: 0, end: 3, volume: 2),
+  ])
+  let ratio = rms(loud, 0.5, 2.5) / toneRMS
+  print("  200% volume: \(f(ratio))× the tone")
+  check(abs(ratio - 2) < 0.1, "volume above 100% amplifies")
+}
+
 @main
 struct RenderHarness {
   static func main() async {
@@ -422,6 +616,22 @@ struct RenderHarness {
     func check(_ c: Bool, _ m: String) {
       print(c ? "  ok   \(m)" : "  FAIL \(m)")
       if !c { failed = true }
+    }
+    if CommandLine.arguments.contains("--audio") {
+      // Only the audio lanes (quick; also handy when disk space is short).
+      do {
+        let id = "harness-audio-\(Int(Date().timeIntervalSince1970))"
+        let src = ProjectStore.dir(id).appendingPathComponent("source.mov")
+        try await makeClip(src)
+        let media = try await AnalysisEngine.probe(src)
+        try await audioSuite(src: src, media: media, outDir: outDir, check: check)
+        ProjectStore.delete(id)
+      } catch {
+        print("  FAIL threw \(error)")
+        failed = true
+      }
+      print(failed ? "\nAUDIO SUITE FAILED" : "\naudio suite passed")
+      exit(failed ? 1 : 0)
     }
     do {
       let id = "harness-\(Int(Date().timeIntervalSince1970))"
@@ -586,6 +796,7 @@ struct RenderHarness {
       check(laid.count == 1 && laid[0].frame.minX >= 0 && laid[0].frame.maxX <= 1080, "long word fits \(laid.first?.frame ?? .zero)")
 
       try await textOverlaySuite(src: src, media: media, outDir: outDir, check: check)
+      try await audioSuite(src: src, media: media, outDir: outDir, check: check)
       ProjectStore.delete(id)
     } catch {
       print("  FAIL threw \(error)")

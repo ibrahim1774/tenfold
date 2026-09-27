@@ -7,6 +7,7 @@ import type {
   EditPlan,
   ExportOptions,
   ExportResult,
+  AddedAudio,
   ImportedAsset,
   SpeechStatus,
   Thumbnail,
@@ -77,6 +78,41 @@ export const Engine = {
     const m = live();
     if (typeof m?.pickColor !== 'function') return null;
     return (await m.pickColor(initialHex)) ?? null;
+  },
+  /** True when this build can edit audio lanes (older builds ignore audioClips in preview and export). */
+  canEditAudio: () => typeof live()?.audioWaveform === 'function',
+  /** Files picker for a sound. `error: 'cancelled'` when closed; `unavailable` in older builds. */
+  pickAudioFile: async (projectId: string): Promise<AddedAudio> => {
+    const m = live();
+    if (typeof m?.pickAudioFile !== 'function') return { error: 'unavailable' };
+    return parse<AddedAudio>(await m.pickAudioFile(projectId));
+  },
+  /** Photos picker for one video; its sound becomes a file in the project. */
+  extractAudio: async (projectId: string): Promise<AddedAudio> => {
+    const m = live();
+    if (typeof m?.extractAudio !== 'function') return { error: 'unavailable' };
+    return parse<AddedAudio>(await m.extractAudio(projectId));
+  },
+  startVoiceover: async (projectId: string): Promise<AddedAudio> => {
+    const m = live();
+    if (typeof m?.startVoiceover !== 'function') return { error: 'unavailable' };
+    return parse<AddedAudio>(await m.startVoiceover(projectId));
+  },
+  stopVoiceover: async (): Promise<AddedAudio> => {
+    const m = live();
+    if (typeof m?.stopVoiceover !== 'function') return { error: 'unavailable' };
+    return parse<AddedAudio>(await m.stopVoiceover());
+  },
+  /** Waveform bars 0..1 for an added sound ([] in older builds). */
+  audioWaveform: async (projectId: string, file: string, buckets: number): Promise<number[]> => {
+    const m = live();
+    if (typeof m?.audioWaveform !== 'function') return [];
+    return parse<number[]>(await m.audioWaveform(projectId, file, buckets));
+  },
+  deleteAudioFile: async (projectId: string, file: string): Promise<boolean> => {
+    const m = live();
+    if (typeof m?.deleteAudioFile !== 'function') return false;
+    return m.deleteAudioFile(projectId, file);
   },
 };
 

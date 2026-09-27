@@ -23,6 +23,27 @@ public enum Envelope {
     return out
   }
 
+  /// Waveform bars for a whole file: `buckets` levels 0...1 on the timeline's scale (−60 dBFS → 0,
+  /// −10 dBFS → 1; src/editor/Timeline.tsx draws the original sound from `envelopeDb` the same way).
+  public static func levels(samples: [Float], buckets: Int) -> [Double] {
+    let n = max(1, buckets)
+    guard !samples.isEmpty else { return [Double](repeating: 0, count: n) }
+    var out: [Double] = []
+    out.reserveCapacity(n)
+    for k in 0..<n {
+      let a = samples.count * k / n
+      let b = max(a + 1, min(samples.count, samples.count * (k + 1) / n))
+      var sum: Float = 0
+      for j in a..<b { sum += samples[j] * samples[j] }
+      let rms = Double((sum / Float(b - a)).squareRoot())
+      out.append(level(db: rms > 0 ? 20 * log10(rms) : Double(floorDb)))
+    }
+    return out
+  }
+
+  /// dBFS → 0...1 bar height (the timeline's scale).
+  public static func level(db: Double) -> Double { max(0, min(1, (db + 60) / 50)) }
+
   public static func frameIndex(_ t: Double) -> Int { Int((t / frameSec).rounded(.down)) }
 
   /// Percentile (0...1) of the envelope values.

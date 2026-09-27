@@ -110,7 +110,9 @@ class TenfoldPreviewView: ExpoView {
   }
 
   /// The default session (soloAmbient) is silenced by the Ring/Silent switch; an editor preview should always be heard.
+  /// While a voiceover records, the recorder owns the session (`.playAndRecord`, which also plays out loud).
   private static func activatePlaybackAudio() {
+    if AudioSessionGate.shared.recording { return }
     let session = AVAudioSession.sharedInstance()
     if session.category != .playback {
       try? session.setCategory(.playback, mode: .moviePlayback)

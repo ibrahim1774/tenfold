@@ -23,6 +23,26 @@ import { editsOf } from '@/batch/edits';
 import { ASPECTS, aspectOf, aspectRatioValue } from '@/editor/aspect';
 import { fillUserScale, type Placement } from '@/editor/frame';
 import { FrameCanvas } from '@/editor/FrameCanvas';
+import { ActionRows, LevelSlider, Stepper } from '@/editor/AudioControls';
+import {
+  addFileClip,
+  canLoopToFit,
+  deleteAudioClip,
+  FADE_STEP,
+  filesOf,
+  keepAddedSounds,
+  MAX_FADE,
+  moveAudioClip,
+  originalClip,
+  setClipDucking,
+  setClipFades,
+  setClipLoop,
+  setClipVolume,
+  setOriginalMuted,
+  splitAudioClip,
+  syncAudioToCuts,
+  trimAudioClip,
+} from '@/editor/audioClips';
 import { ActionBar, Panel, ToolBar, type ToolId } from '@/editor/Panel';
 import { clearPreviewRequest, usePreviewBus } from '@/editor/previewBus';
 import { regionsOf, Timeline, toSource, type Region, type TimelineSelection } from '@/editor/Timeline';
@@ -44,7 +64,9 @@ import {
 import {
   Engine,
   TenfoldPreviewView,
+  type AddedAudio,
   type Analysis,
+  type AudioClip,
   type CaptionCard,
   type Cut,
   type EditDocument,
@@ -100,6 +122,10 @@ const FILLERS: { v: FillerLevel; l: string }[] = [
  */
 const NO_CARDS: CaptionCard[] = [];
 const NO_TEXTS: TextOverlay[] = [];
+const NO_WAVES: Record<string, number[]> = {};
+
+/** "0.5 s" for fade lengths. */
+const fadeLabel = (v: number) => `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(2).replace(/0$/, '')} s`;
 
 function withCaptionIds(p: EditPlan): EditPlan {
   const fill = (c: CaptionCard): CaptionCard => (c.id ? c : { ...c, id: `w${c.words[0]?.index ?? 0}` });
@@ -136,8 +162,20 @@ export default function EditorScreen() {
   // One selection at a time. A clip selection is tied to the document it was made on, so any edit (or
   // undo) clears it; a caption is selected by its stable id and stays selected through its own edits.
   const [selection, setSelection] = useState<
-    { kind: 'region'; region: Region; key: string } | { kind: 'caption'; id: string } | { kind: 'text'; id: string } | null
+    | { kind: 'region'; region: Region; key: string }
+    | { kind: 'caption'; id: string }
+    | { kind: 'text'; id: string }
+    | { kind: 'audio'; id: string }
+    | null
   >(null);
+  // Inline control open under a selected sound (Volume or Fade in its action bar).
+  const [audioControl, setAudioControl] = useState<'volume' | 'fade' | null>(null);
+  // Which "Add sound" row is waiting on a picker.
+  const [adding, setAdding] = useState<'files' | 'photos' | null>(null);
+  // This build's engine plays audio clips (older builds would ignore them in preview and export).
+  const [audioEditable] = useState(() => Engine.canEditAudio());
+  const [waves, setWaves] = useState<Record<string, number[]>>(NO_WAVES);
+  const requestedWaves = useRef(new Set<string>());
   // Caption group whose text is being retyped in place.
   const [editingCaption, setEditingCaption] = useState<string | null>(null);
   // Shape reported by the native preview, remembered with the aspect setting that produced it.
@@ -190,10 +228,12 @@ export default function EditorScreen() {
   }, [doc]);
 
   // Editing pauses playback (like CapCut), so the frame under the playhead doesn't jump mid-play.
+  // A change of cuts changes the output length: the sound follows in the same undo step.
   const commit = useCallback(
     (next: EditDocument) => {
       setPlaying(false);
-      commitDoc(projectId, next);
+      const { docs, projects } = useLibrary.getState();
+      commitDoc(projectId, syncAudioToCuts(docs[projectId], next, projects[projectId]?.media?.durationSec ?? 0));
     },
     [projectId],
   );
@@ -308,17 +348,45 @@ export default function EditorScreen() {
   const texts = doc?.textOverlays ?? NO_TEXTS;
   const selectedText = selection?.kind === 'text' ? (texts.find((o) => o.id === selection.id) ?? null) : null;
   const selectedTextId = selectedText?.id ?? null;
+  // The sound as clips (a document without audioClips plays one original clip; see src/editor/audioClips.ts).
+  const compTotal = plan?.compDuration ?? 0;
+  const storedAudio = doc?.audioClips;
+  const audioClips = useMemo(
+    () => (audioEditable && compTotal > 0 ? (storedAudio ?? [originalClip(compTotal)]) : null),
+    [audioEditable, storedAudio, compTotal],
+  );
+  const selectedAudio = selection?.kind === 'audio' ? (audioClips?.find((c) => c.id === selection.id) ?? null) : null;
+  const selectedAudioId = selectedAudio?.id ?? null;
+  const nothingSelected = !selectedCard && !selectedText && !selectedAudio;
+
+  // Waveforms of added sounds, fetched once per file.
+  const soundFiles = useMemo(() => filesOf(storedAudio ?? []).filter((c) => !!c.file), [storedAudio]);
+  useEffect(() => {
+    for (const c of soundFiles) {
+      const file = c.file!;
+      if (requestedWaves.current.has(file)) continue;
+      requestedWaves.current.add(file);
+      const buckets = Math.round(Math.min(6000, Math.max(50, (c.fileDuration ?? 60) * 20)));
+      Engine.audioWaveform(projectId, file, buckets)
+        .then((levels) => setWaves((w) => ({ ...w, [file]: levels })))
+        .catch(() => {});
+    }
+  }, [soundFiles, projectId]);
+
   const timelineSelection: TimelineSelection = selected
     ? { kind: 'region', region: selected }
     : selectedCardId
       ? { kind: 'caption', id: selectedCardId }
       : selectedTextId
         ? { kind: 'text', id: selectedTextId }
-        : null;
+        : selectedAudioId
+          ? { kind: 'audio', id: selectedAudioId }
+          : null;
   const onSelect = useCallback(
     (s: TimelineSelection) => {
       setEditingCaption(null);
       setNotice(null);
+      setAudioControl(null);
       if (!s) setSelection(null);
       else if (s.kind === 'region') setSelection({ kind: 'region', region: s.region, key: docJSON });
       else {
@@ -372,6 +440,100 @@ export default function EditorScreen() {
     [projectId, plan, commit],
   );
 
+  const onRetimeAudio = useCallback(
+    (id: string, edge: { start?: number; end?: number }) => {
+      const latest = useLibrary.getState().docs[projectId];
+      if (!latest || !plan) return false;
+      const next = trimAudioClip(latest, id, edge, plan.compDuration);
+      if (!next) return false;
+      commit(next);
+      return true;
+    },
+    [projectId, plan, commit],
+  );
+
+  const onMoveAudio = useCallback(
+    (id: string, start: number) => {
+      const latest = useLibrary.getState().docs[projectId];
+      if (!latest || !plan) return false;
+      const next = moveAudioClip(latest, id, start, plan.compDuration);
+      if (!next) return false;
+      commit(next);
+      return true;
+    },
+    [projectId, plan, commit],
+  );
+
+  // Sound actions. Each reads the saved document, so it is one undo step.
+  const editAudio = (make: (latest: EditDocument, total: number) => EditDocument | null) => {
+    const latest = useLibrary.getState().docs[projectId];
+    if (!latest || !plan) return;
+    const next = make(latest, plan.compDuration);
+    if (next) commit(next);
+  };
+  const splitAudioAtPlayhead = () => {
+    const latest = useLibrary.getState().docs[projectId];
+    if (!latest || !plan || !selectedAudio) return;
+    const r = splitAudioClip(latest, selectedAudio.id, time, plan.compDuration, () => newId('s'));
+    if ('error' in r) setNotice({ text: r.error, key: docJSON });
+    else commit(r.doc);
+  };
+  const deleteAudio = (id: string) => {
+    editAudio((d, t) => deleteAudioClip(d, id, t));
+    setSelection(null);
+    setAudioControl(null);
+  };
+
+  // Adds a sound from Files or from a video in Photos at the playhead. Music ducks under speech.
+  const addSound = async (from: 'files' | 'photos') => {
+    setPlaying(false);
+    setNotice(null);
+    setAdding(from);
+    let added: AddedAudio;
+    try {
+      added = from === 'files' ? await Engine.pickAudioFile(projectId) : await Engine.extractAudio(projectId);
+    } catch (e) {
+      added = { error: errorText(e) };
+    } finally {
+      setAdding(null);
+    }
+    if (added.error === 'cancelled') return;
+    const latest = useLibrary.getState().docs[projectId];
+    const total = planRef.current?.compDuration ?? 0;
+    if (added.error || !latest || !total) {
+      const text =
+        added.error === 'noAudio'
+          ? 'That video has no sound. Pick another one.'
+          : added.error === 'unavailable'
+            ? 'This build of Tenfold can’t add sounds. Install the latest build.'
+            : `Couldn’t add the sound: ${added.error ?? 'the video isn’t ready.'}`;
+      // A file copied in that no clip will use.
+      if (added.file) Engine.deleteAudioFile(projectId, added.file).catch(() => {});
+      setNotice({ text, key: JSON.stringify(latest) });
+      return;
+    }
+    const id = newId('s');
+    const r = addFileClip(latest, added, timeRef.current, total, { id, ducking: true });
+    if ('error' in r) {
+      if (added.file) Engine.deleteAudioFile(projectId, added.file).catch(() => {});
+      setNotice({ text: r.error, key: JSON.stringify(latest) });
+      return;
+    }
+    commit(r.doc);
+    setTool(null);
+    setSelection({ kind: 'audio', id });
+  };
+
+  const openVoiceover = () => {
+    setPlaying(false);
+    const total = plan?.compDuration ?? 0;
+    if (time > total - 0.3) {
+      setNotice({ text: 'Move the playhead back from the end to record over the video.', key: docJSON });
+      return;
+    }
+    router.push({ pathname: '/editor/voiceover', params: { projectId, at: String(time), total: String(total) } });
+  };
+
   // Caption actions (contextual tool bar). Each reads the saved document, so it is one undo step.
   const applyCaptionEdit = (result: EditResult) => {
     if ('error' in result) setNotice({ text: result.error, key: docJSON });
@@ -406,12 +568,27 @@ export default function EditorScreen() {
   useEffect(() => {
     planRef.current = plan;
   }, [plan]);
+  // The playhead when a picker returns (it may have been open a while).
+  const timeRef = useRef(time);
+  useEffect(() => {
+    timeRef.current = time;
+  }, [time]);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const unsubscribe = usePreviewBus.subscribe((s) => {
       const request = s.request;
       if (!request) return;
       clearPreviewRequest();
+      if (request.kind === 'play') {
+        // The voiceover sheet: play from where recording starts, pause when it stops.
+        if (timer) clearTimeout(timer);
+        if (request.at !== undefined) {
+          setTime(request.at);
+          preview.current?.seek(request.at).catch(() => {});
+        }
+        setPlaying(request.playing);
+        return;
+      }
       const t = planRef.current?.cards[0]?.start ?? 0;
       setTime(t);
       preview.current?.seek(t).catch(() => {});
@@ -570,8 +747,12 @@ export default function EditorScreen() {
   // Text the user placed is theirs, not part of Tenfold's edit: it stays.
   const reapplyEdit = () => {
     if (!doc || !analysis || !batch || !project) return;
-    const fresh: EditDocument = { ...docFromAnalysis(analysis, batch, editsOf(project, batch)), wordOverrides: doc.wordOverrides };
-    commit(doc.textOverlays ? { ...fresh, textOverlays: doc.textOverlays } : fresh);
+    const base: EditDocument = { ...docFromAnalysis(analysis, batch, editsOf(project, batch)), wordOverrides: doc.wordOverrides };
+    // Added sounds are the user's too; the original sound comes back whole.
+    const fresh = keepAddedSounds(base, doc, project.media?.durationSec ?? analysis.media.durationSec);
+    // Straight to history: the sound was just fitted to the new cuts.
+    setPlaying(false);
+    commitDoc(projectId, doc.textOverlays ? { ...fresh, textOverlays: doc.textOverlays } : fresh);
   };
 
   const openMenu = () => {
@@ -785,7 +966,7 @@ export default function EditorScreen() {
               projectId={projectId}
               document={previewJSON}
               playing={playing}
-              muted={muted}
+              // Mute is part of the document: the engine leaves the original sound out, added sounds still play.
               style={StyleSheet.absoluteFill}
               // Only playback drives the clock; scrubs and taps set the time themselves.
               onTime={(e) => {
@@ -877,8 +1058,32 @@ export default function EditorScreen() {
           showsVerticalScrollIndicator={false}
           automaticallyAdjustKeyboardInsets>
           <View ref={tourTarget('editor.tools')} style={[styles.gutter, styles.toolRow]}>
-            {/* A selected caption or text swaps the project tools for what can be done to it. */}
-            {selectedText ? (
+            {/* A selected caption, text or sound swaps the project tools for what can be done to it. */}
+            {selectedAudio ? (
+              <ActionBar
+                label="Sound actions"
+                actions={
+                  selectedAudio.source === 'original'
+                    ? [
+                        { id: 'split', icon: 'scissors', label: 'Split', onPress: splitAudioAtPlayhead },
+                        { id: 'delete', icon: 'trash', label: 'Delete', onPress: () => deleteAudio(selectedAudio.id), danger: true },
+                        { id: 'volume', icon: 'speaker.wave.2', label: 'Volume', onPress: () => setAudioControl(audioControl === 'volume' ? null : 'volume'), on: audioControl === 'volume' },
+                        { id: 'fade', icon: 'waveform.path', label: 'Fade', onPress: () => setAudioControl(audioControl === 'fade' ? null : 'fade'), on: audioControl === 'fade' },
+                        { id: 'mute', icon: muted ? 'speaker.slash.fill' : 'speaker.slash', label: 'Mute all', onPress: () => commit(setOriginalMuted(doc, !muted)), on: muted },
+                        { id: 'done', icon: 'checkmark', label: 'Done', onPress: () => onSelect(null) },
+                      ]
+                    : [
+                        { id: 'split', icon: 'scissors', label: 'Split', onPress: splitAudioAtPlayhead },
+                        { id: 'delete', icon: 'trash', label: 'Delete', onPress: () => deleteAudio(selectedAudio.id), danger: true },
+                        { id: 'volume', icon: 'speaker.wave.2', label: 'Volume', onPress: () => setAudioControl(audioControl === 'volume' ? null : 'volume'), on: audioControl === 'volume' },
+                        { id: 'fade', icon: 'waveform.path', label: 'Fade', onPress: () => setAudioControl(audioControl === 'fade' ? null : 'fade'), on: audioControl === 'fade' },
+                        { id: 'loop', icon: 'repeat', label: 'Loop', onPress: () => editAudio((d, t) => setClipLoop(d, selectedAudio.id, !selectedAudio.loop, t)), on: !!selectedAudio.loop },
+                        { id: 'duck', icon: 'person.wave.2', label: 'Ducking', onPress: () => editAudio((d, t) => setClipDucking(d, selectedAudio.id, !selectedAudio.ducking, t)), on: !!selectedAudio.ducking },
+                        { id: 'done', icon: 'checkmark', label: 'Done', onPress: () => onSelect(null) },
+                      ]
+                }
+              />
+            ) : selectedText ? (
               <ActionBar
                 label="Text actions"
                 actions={[
@@ -927,6 +1132,8 @@ export default function EditorScreen() {
               restorable={restorable}
               time={time}
               muted={muted}
+              audioClips={audioClips}
+              audioWaves={waves}
               onScrubStart={onScrubStart}
               onScrub={onScrub}
               onScrubEnd={onScrubEnd}
@@ -934,12 +1141,14 @@ export default function EditorScreen() {
               onTrimRegion={onTrimRegion}
               onRetimeCaption={onRetimeCaption}
               onRetimeText={onRetimeText}
+              onRetimeAudio={onRetimeAudio}
+              onMoveAudio={onMoveAudio}
             />
           )}
 
           {plan && (
             <View ref={tourTarget('editor.editbar')} style={[styles.gutter, styles.editBar]}>
-              {!selectedCard && !selectedText && (
+              {nothingSelected && (
                 <>
                   <EditAction icon="scissors" label="Split" onPress={splitAtPlayhead} />
                   <EditAction icon="trash" label="Delete" onPress={deleteSelected} disabled={!selected} danger />
@@ -959,7 +1168,11 @@ export default function EditorScreen() {
                       ? 'Caption selected. Drag its ends to change when it shows.'
                       : selectedText
                         ? 'Text selected. Drag its ends to change when it shows.'
-                        : '')}
+                        : selectedAudio
+                          ? selectedAudio.source === 'file'
+                            ? 'Sound selected. Drag its ends to trim, the middle to move it.'
+                            : 'Original sound selected. Drag its ends to trim.'
+                          : '')}
               </AppText>
             </View>
           )}
@@ -1013,7 +1226,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {!selectedCard && !selectedText && tool === null && (
+            {nothingSelected && tool === null && (
               <Panel title="This edit" animate={false}>
                 <AppText variant="bodyStrong" tabular>
                   {summary}
@@ -1051,7 +1264,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {!selectedCard && !selectedText && tool === 'words' && (
+            {nothingSelected && tool === 'words' && (
               <Panel title="Words" detail="Tap a word to cut or restore it. Hold it to fix the spelling.">
                 {words.length === 0 ? (
                   <AppText variant="label" color={colors.textSecondary}>
@@ -1117,7 +1330,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {!selectedCard && !selectedText && tool === 'cuts' && (
+            {nothingSelected && tool === 'cuts' && (
               <Panel title="Cuts" detail="Pauses, filler words and retakes taken out of this video.">
                 <View style={styles.statRow}>
                   <Stat value={String(acceptedPauses)} label="Pauses" />
@@ -1168,7 +1381,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {!selectedCard && !selectedText && tool === 'zoom' && (
+            {nothingSelected && tool === 'zoom' && (
               <Panel title="Zoom" detail="Punches in at each cut to hide the jump. Dynamic also zooms on new sentences.">
                 <ChipGroup>
                   {ZOOMS.map((z) => (
@@ -1193,7 +1406,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {!selectedCard && !selectedText && tool === 'crop' && (
+            {nothingSelected && tool === 'crop' && (
               <Panel
                 title="Frame"
                 detail={
@@ -1268,9 +1481,76 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {!selectedCard && !selectedText && tool === 'audio' && (
-              <Panel title="Audio" detail="The sound recorded with the clip.">
-                <ToggleRow title="Mute original audio" value={muted} onChange={(v) => commit({ ...doc, audio: { mode: v ? 'mute' : 'original' } })} />
+            {selectedAudio && (
+              <Panel title={selectedAudio.source === 'original' ? 'Original sound' : (selectedAudio.title ?? 'Sound')} detail={soundDetail(selectedAudio, muted)}>
+                {audioControl === 'volume' && (
+                  <LevelSlider
+                    key={`${selectedAudio.id}-${selectedAudio.volume}`}
+                    label="Volume"
+                    value={selectedAudio.volume}
+                    onCommit={(v) => editAudio((d, t) => setClipVolume(d, selectedAudio.id, v, t))}
+                  />
+                )}
+                {audioControl === 'fade' && (
+                  <View style={styles.group}>
+                    <Stepper
+                      label="Fade in"
+                      value={selectedAudio.fadeIn}
+                      min={0}
+                      max={Math.min(MAX_FADE, selectedAudio.end - selectedAudio.start - selectedAudio.fadeOut)}
+                      step={FADE_STEP}
+                      format={fadeLabel}
+                      onChange={(v) => editAudio((d, t) => setClipFades(d, selectedAudio.id, { fadeIn: v }, t))}
+                    />
+                    <Stepper
+                      label="Fade out"
+                      value={selectedAudio.fadeOut}
+                      min={0}
+                      max={Math.min(MAX_FADE, selectedAudio.end - selectedAudio.start - selectedAudio.fadeIn)}
+                      step={FADE_STEP}
+                      format={fadeLabel}
+                      onChange={(v) => editAudio((d, t) => setClipFades(d, selectedAudio.id, { fadeOut: v }, t))}
+                    />
+                  </View>
+                )}
+                {canLoopToFit(selectedAudio, total) && (
+                  <OutlineButton
+                    title="Loop to fit"
+                    icon="repeat"
+                    height={44}
+                    onPress={() => editAudio((d, t) => setClipLoop(d, selectedAudio.id, true, t))}
+                  />
+                )}
+              </Panel>
+            )}
+
+            {nothingSelected && tool === 'audio' && (
+              <Panel
+                title="Audio"
+                detail={audioEditable ? 'Adds at the playhead. Music dips while someone speaks.' : 'The sound recorded with the clip.'}>
+                {audioEditable && (
+                  <View style={styles.group}>
+                    <OptionLabel>Add sound</OptionLabel>
+                    <ActionRows
+                      rows={[
+                        { id: 'files', icon: 'folder', title: 'From Files', onPress: () => addSound('files'), busy: adding === 'files', disabled: !!adding },
+                        { id: 'photos', icon: 'photo.on.rectangle', title: 'From a video in Photos', onPress: () => addSound('photos'), busy: adding === 'photos', disabled: !!adding },
+                        { id: 'voice', icon: 'mic', title: 'Record voiceover', onPress: openVoiceover, disabled: !!adding },
+                      ]}
+                    />
+                  </View>
+                )}
+                <ToggleRow
+                  title="Mute original audio"
+                  subtitle={audioEditable ? 'Added sounds keep playing.' : undefined}
+                  value={muted}
+                  onChange={(v) => commit(setOriginalMuted(doc, v))}
+                />
+                {!audioEditable && (
+                  <AppText variant="caption" color={colors.textMuted}>
+                    Adding music and voiceovers needs the latest build of Tenfold.
+                  </AppText>
+                )}
               </Panel>
             )}
           </View>
@@ -1278,6 +1558,19 @@ export default function EditorScreen() {
       </View>
     </View>
   );
+}
+
+/** "1.2–4.0 s · 80% · fades 0.5 s / 1 s" for a selected sound. */
+function soundDetail(c: AudioClip, muted: boolean) {
+  const parts = [`${c.start.toFixed(1)}–${c.end.toFixed(1)} s`, `${Math.round(c.volume * 100)}%`];
+  if (c.fadeIn || c.fadeOut) parts.push(`fades ${fadeLabel(c.fadeIn)} / ${fadeLabel(c.fadeOut)}`);
+  if (c.source === 'file') {
+    if (c.loop) parts.push('loops');
+    if (c.ducking) parts.push('dips under speech');
+  } else if (muted) {
+    parts.push('muted');
+  }
+  return parts.join(' · ');
 }
 
 /** "Whole clip" or "1.2–4.0 s" (output time). */

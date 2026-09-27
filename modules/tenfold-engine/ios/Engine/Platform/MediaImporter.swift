@@ -71,6 +71,53 @@ public final class MediaImporter: NSObject, PHPickerViewControllerDelegate {
     return await finish(id: id, dest: dest, title: title)
   }
 
+  /// Picks one video in Photos and saves its sound as `<project>/audio/<uuid>.m4a`.
+  /// `error` is "cancelled" when the picker was closed, "noAudio" when the video has no sound.
+  public static func extractAudio(projectId: String, presenter: UIViewController) async -> AddedAudio {
+    guard (try? ProjectStore.meta(projectId)) != nil else { return AddedAudio(error: "Couldn't find this video's folder.") }
+    guard let result = await pick(max: 1, from: presenter).first else { return AddedAudio(error: "cancelled") }
+    return await soundOf(result, projectId: projectId)
+  }
+
+  nonisolated private static func soundOf(_ result: PHPickerResult, projectId: String) async -> AddedAudio {
+    let provider = result.itemProvider
+    let name = provider.suggestedName ?? "video"
+    let type = provider.registeredTypeIdentifiers.first { UTType($0)?.conforms(to: .movie) == true } ?? UTType.movie.identifier
+    let ext = UTType(type)?.preferredFilenameExtension ?? "mov"
+    let folder = ProjectStore.subdir(projectId, AudioFiles.folderName)
+    let temp = folder.appendingPathComponent("picked-\(UUID().uuidString.lowercased()).\(ext)")
+    defer { try? FileManager.default.removeItem(at: temp) }
+    let copied: Error? = await withCheckedContinuation { c in
+      _ = provider.loadFileRepresentation(forTypeIdentifier: type) { url, error in
+        guard let url else {
+          c.resume(returning: error ?? EngineError.message("Couldn't load this video."))
+          return
+        }
+        do {
+          try? FileManager.default.removeItem(at: temp)
+          try FileManager.default.copyItem(at: url, to: temp)
+          c.resume(returning: nil)
+        } catch {
+          c.resume(returning: error)
+        }
+      }
+    }
+    if let copied { return AddedAudio(error: copied.localizedDescription) }
+    let (file, dest) = AudioFiles.newFile(projectId, ext: "m4a")
+    do {
+      try await AudioFiles.extractTrack(from: temp, to: dest)
+    } catch {
+      try? FileManager.default.removeItem(at: dest)
+      return AddedAudio(error: error.localizedDescription == "noAudio" ? "noAudio" : "Couldn't read the sound from this video.")
+    }
+    let duration = await AudioFiles.duration(dest)
+    guard duration > 0.05 else {
+      try? FileManager.default.removeItem(at: dest)
+      return AddedAudio(error: "noAudio")
+    }
+    return AddedAudio(file: file, title: "Sound from \(name)", durationSec: duration)
+  }
+
   /// Imports a video file (a camera recording, the bundled sample clip) into a new project folder.
   /// `uri` is a file:// URL, or an http(s) URL in dev builds where Metro serves bundled assets.
   nonisolated public static func importFile(uri: String, title: String) async -> ImportedAsset {

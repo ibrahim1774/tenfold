@@ -45,24 +45,24 @@ public enum CompositionBuilder {
     guard let video = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
       throw EngineError.message("Couldn't create the video track.")
     }
-    let wantAudio = srcAudio != nil && doc.audio.mode != .mute
-    let audio = wantAudio ? composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) : nil
-
+    // Where each kept segment landed: its source range and composition start, so the original sound's
+    // pieces are placed on exactly the same CMTimes as the picture.
+    var slots: [CMTimeRange?] = Array(repeating: nil, count: plan.segments.count)
     var cursor = CMTime.zero
-    var boundaries: [CMTime] = []
-    for seg in plan.segments {
+    for (i, seg) in plan.segments.enumerated() {
       let start = time(seg.start)
       var end = time(seg.end)
       if CMTimeCompare(end, assetDuration) > 0 { end = assetDuration }
       guard CMTimeCompare(end, start) > 0 else { continue }
       let range = CMTimeRange(start: start, end: end)
       try video.insertTimeRange(range, of: srcVideo, at: cursor)
-      if let audio, let srcAudio { try audio.insertTimeRange(range, of: srcAudio, at: cursor) }
+      slots[i] = CMTimeRange(start: cursor, duration: range.duration)
       cursor = CMTimeAdd(cursor, range.duration)
-      boundaries.append(cursor)
     }
     let total = composition.duration
     guard CMTimeCompare(total, .zero) > 0 else { throw EngineError.message("Nothing left after cuts.") }
+    let mix = try await buildAudio(
+      composition: composition, source: source, srcAudio: srcAudio, plan: plan, doc: doc, placed: slots, total: total)
 
     // Orientation: preferredTransform maps natural → display (may include a translation).
     let displayRect = CGRect(origin: .zero, size: natural).applying(preferred)
@@ -161,22 +161,106 @@ public enum CompositionBuilder {
       vc.colorYCbCrMatrix = AVVideoYCbCrMatrix_ITU_R_709_2
     }
 
-    var mix: AVMutableAudioMix?
-    if let audio {
-      let params = AVMutableAudioMixInputParameters(track: audio)
-      params.setVolume(1, at: .zero)
-      let fade = time(0.01)
-      for b in boundaries.dropLast() {
-        let before = CMTimeSubtract(b, fade)
-        guard CMTimeCompare(before, .zero) > 0 else { continue }
-        params.setVolumeRamp(fromStartVolume: 1, toEndVolume: 0, timeRange: CMTimeRange(start: before, duration: fade))
-        params.setVolumeRamp(fromStartVolume: 0, toEndVolume: 1, timeRange: CMTimeRange(start: b, duration: fade))
-      }
-      let m = AVMutableAudioMix()
-      m.inputParameters = [params]
-      mix = m
-    }
     return BuiltComposition(composition: composition, videoComposition: vc, audioMix: mix, renderSize: render)
+  }
+
+  /// Audio tracks for the document's audio clips (AudioPlanner) and the mix that sets their volume curves.
+  /// One track holds every original clip (they never overlap); each added sound gets a track of its own.
+  /// Nothing is ever placed past `total`, so the video alone decides the output's length.
+  static func buildAudio(
+    composition: AVMutableComposition, source: URL, srcAudio: AVAssetTrack?, plan: EditPlan, doc: EditDocument,
+    placed: [CMTimeRange?], total: CMTime
+  ) async throws -> AVMutableAudioMix? {
+    let clips = AudioPlanner.clips(doc: doc, compDuration: min(plan.compDuration, total.seconds))
+    let originals = srcAudio == nil ? [] : clips.filter(\.isOriginal)
+    var inputs: [AVMutableAudioMixInputParameters] = []
+
+    if let srcAudio, !originals.isEmpty,
+      let track = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
+    {
+      var trackEnd = CMTime.zero
+      var curve: [GainPoint] = []
+      // Cut boundaries inside the original sound get a 10 ms dip so the join doesn't click.
+      let joins = placed.compactMap { $0?.start.seconds }.filter { $0 > 0 }
+      for clip in originals {
+        var any = false
+        for piece in AudioPlanner.originalPieces(clip: clip, segments: plan.segments) {
+          guard let slot = placed[piece.segment] else { continue }
+          let at = CMTimeAdd(slot.start, time(piece.from))
+          var end = CMTimeMinimum(CMTimeAdd(slot.start, time(piece.to)), slot.end)
+          end = CMTimeMinimum(end, total)
+          guard CMTimeCompare(end, at) > 0, CMTimeCompare(at, trackEnd) >= 0 else { continue }
+          if CMTimeCompare(at, trackEnd) > 0 { track.insertEmptyTimeRange(CMTimeRange(start: trackEnd, end: at)) }
+          let sourceStart = CMTimeAdd(time(plan.segments[piece.segment].start), time(piece.from))
+          try track.insertTimeRange(CMTimeRange(start: sourceStart, duration: CMTimeSubtract(end, at)), of: srcAudio, at: at)
+          trackEnd = end
+          any = true
+        }
+        // A split continues the sound: no fade where one original clip ends and the next begins.
+        let continuesIn = originals.contains { abs($0.end - clip.start) < 1e-6 }
+        let continuesOut = originals.contains { abs($0.start - clip.end) < 1e-6 }
+        if any { curve += AudioPlanner.gainCurve(clip: clip, dips: joins, guardStart: !continuesIn, guardEnd: !continuesOut) }
+      }
+      inputs.append(parameters(track: track, curve: curve))
+    }
+
+    let heard = AudioPlanner.audibleSpeech(plan.speech, originals: originals)
+    let folder = source.deletingLastPathComponent()
+    for clip in clips where clip.isFile {
+      // A missing or unreadable file is skipped, so the preview never breaks over one sound.
+      guard let file = clip.file, AudioPlanner.isSafeFile(file) else { continue }
+      let url = folder.appendingPathComponent(file)
+      guard FileManager.default.fileExists(atPath: url.path) else { continue }
+      let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
+      guard let srcTrack = try? await asset.loadTracks(withMediaType: .audio).first,
+        let fileDuration = try? await asset.load(.duration), fileDuration.seconds > 0
+      else { continue }
+      let pieces = AudioPlanner.filePieces(
+        offset: clip.offset, fileDuration: fileDuration.seconds, start: clip.start, end: clip.end, loop: clip.loop ?? false)
+      guard !pieces.isEmpty,
+        let track = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
+      else { continue }
+      var trackEnd = CMTime.zero
+      var lastEnd = clip.start
+      for p in pieces {
+        let at = time(p.at)
+        var end = CMTimeMinimum(time(p.at + p.length), total)
+        let fileStart = time(p.fileStart)
+        end = CMTimeMinimum(end, CMTimeAdd(at, CMTimeSubtract(fileDuration, fileStart)))
+        guard CMTimeCompare(end, at) > 0, CMTimeCompare(at, trackEnd) >= 0 else { continue }
+        if CMTimeCompare(at, trackEnd) > 0 { track.insertEmptyTimeRange(CMTimeRange(start: trackEnd, end: at)) }
+        try track.insertTimeRange(CMTimeRange(start: fileStart, duration: CMTimeSubtract(end, at)), of: srcTrack, at: at)
+        trackEnd = end
+        lastEnd = end.seconds
+      }
+      // The curve ends where the sound does (a short file that doesn't loop fades out at its own end).
+      var heardClip = clip
+      heardClip.end = min(clip.end, lastEnd)
+      let ducking = (clip.ducking ?? false) ? heard : []
+      inputs.append(parameters(track: track, curve: AudioPlanner.gainCurve(clip: heardClip, ducking: ducking, guardStart: true, guardEnd: true)))
+    }
+
+    guard !inputs.isEmpty else { return nil }
+    let m = AVMutableAudioMix()
+    m.inputParameters = inputs
+    return m
+  }
+
+  static func parameters(track: AVMutableCompositionTrack, curve: [GainPoint]) -> AVMutableAudioMixInputParameters {
+    let params = AVMutableAudioMixInputParameters(track: track)
+    let ramps = AudioPlanner.ramps(curve)
+    let first: Double = ramps.first?.from ?? 1
+    let startsLater: Bool = ramps.first.map { $0.t > 0 } ?? true
+    if startsLater { params.setVolume(Float(first), at: .zero) }
+    for r in ramps {
+      if let until = r.until {
+        params.setVolumeRamp(
+          fromStartVolume: Float(r.from), toEndVolume: Float(r.to), timeRange: CMTimeRange(start: time(r.t), end: time(until)))
+      } else {
+        params.setVolume(Float(r.from), at: time(r.t))
+      }
+    }
+    return params
   }
 
   static func sourceTime(_ segs: [CompSegment], _ comp: Double) -> Double {

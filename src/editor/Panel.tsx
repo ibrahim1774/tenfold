@@ -114,7 +114,8 @@ export function ToolBar({ tools, active, onPress }: { tools: { id: ToolId; icon:
   );
 }
 
-export type BarAction = { id: string; icon: SFSymbol; label: string; onPress: () => void; disabled?: boolean; danger?: boolean };
+/** `on` marks a switch that is on (Loop, Ducking, Mute) with the same raised fill as an open tool. */
+export type BarAction = { id: string; icon: SFSymbol; label: string; onPress: () => void; disabled?: boolean; danger?: boolean; on?: boolean };
 
 /**
  * The tool row's contextual form: what can be done to the selected thing (a caption), laid out like the
@@ -132,10 +133,10 @@ export function ActionBar({ actions, label }: { actions: BarAction[]; label: str
             scaleTo={0.94}
             disabled={a.disabled}
             onPress={a.onPress}
-            accessibilityRole="button"
+            accessibilityRole={a.on === undefined ? 'button' : 'switch'}
             accessibilityLabel={a.label}
-            accessibilityState={{ disabled: a.disabled }}
-            style={[styles.tool, a.disabled && styles.toolOff]}>
+            accessibilityState={a.on === undefined ? { disabled: a.disabled } : { disabled: a.disabled, checked: a.on }}
+            style={[styles.tool, a.on && styles.toolOn, a.disabled && styles.toolOff]}>
             <SymbolView name={a.icon} size={22} weight="regular" tintColor={tint} />
             <AppText variant="caption" color={tint} numberOfLines={1} style={styles.toolLabel}>
               {a.label}

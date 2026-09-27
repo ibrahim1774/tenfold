@@ -96,6 +96,17 @@ export default function RootLayout() {
                 contentStyle: { backgroundColor: colors.bgRaised },
               }}
             />
+            {/* Voiceover recorder: a short sheet, so the preview playing above it stays in view. */}
+            <Stack.Screen
+              name="editor/voiceover"
+              options={{
+                presentation: 'formSheet',
+                sheetAllowedDetents: [0.45],
+                sheetGrabberVisible: true,
+                sheetCornerRadius: 28,
+                contentStyle: { backgroundColor: colors.bgRaised },
+              }}
+            />
             {/* TikTok-style text tool: full screen over a still of the video. */}
             <Stack.Screen
               name="editor/text"

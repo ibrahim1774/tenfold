@@ -428,6 +428,119 @@ struct CoreTests {
       check(round == partial, "round-trips")
     }
 
+    test("audio: original clips map through the cut plan (output → source)") {
+      // Source 2–3 s cut: output 0–2 = source 0–2, output 2–5 = source 3–6.
+      let mapper = TimeMapper(keep: [TimeRange(start: 0, end: 2), TimeRange(start: 3, end: 6)])
+      let clip = AudioClip(id: "o", source: "original", start: 1.5, end: 3)
+      let ranges = AudioPlanner.sourceRanges(clip: clip, segments: mapper.segments)
+      check(ranges.count == 2, "spans the cut: two source pieces (\(ranges.count))")
+      check(near(ranges[0].start, 1.5, 1e-9) && near(ranges[0].end, 2, 1e-9), "output 1.5–2 = source 1.5–2 (\(ranges[0]))")
+      check(near(ranges[1].start, 3, 1e-9) && near(ranges[1].end, 4, 1e-9), "output 2–3 = source 3–4 (\(ranges[1]))")
+      let pieces = AudioPlanner.originalPieces(clip: clip, segments: mapper.segments)
+      check(pieces.map(\.segment) == [0, 1] && near(pieces[1].from, 0, 1e-9) && near(pieces[1].to, 1, 1e-9), "pieces are offsets into each segment")
+      let late = AudioPlanner.sourceRanges(clip: AudioClip(id: "l", source: "original", start: 4, end: 9), segments: mapper.segments)
+      check(late.count == 1 && near(late[0].start, 5, 1e-9) && near(late[0].end, 6, 1e-9), "past the end: only what exists")
+    }
+
+    test("audio: clips are trimmed to the video; mute drops the original; old documents get one original") {
+      var doc = EditDocument()
+      let legacy = AudioPlanner.clips(doc: doc, compDuration: 8)
+      check(legacy.count == 1 && legacy[0].isOriginal && legacy[0].start == 0 && legacy[0].end == 8, "no audioClips = one original over the video")
+      doc.audio.mode = .mute
+      check(AudioPlanner.clips(doc: doc, compDuration: 8).isEmpty, "mute: nothing")
+      doc.audioClips = [
+        AudioClip(id: "o1", source: "original", start: 0, end: 3),
+        AudioClip(id: "o2", source: "original", start: 2.5, end: 12),
+        AudioClip(id: "f", source: "file", file: "audio/a.m4a", start: 6, end: 20, offset: -1, volume: 5),
+        AudioClip(id: "x", source: "sampler", start: 0, end: 3),
+      ]
+      let muted = AudioPlanner.clips(doc: doc, compDuration: 8)
+      check(muted.map(\.id) == ["f"], "mute keeps added sounds, drops originals and unknown sources (\(muted.map(\.id)))")
+      check(muted[0].end == 8 && muted[0].offset == 0 && muted[0].volume == 2, "file trimmed to 8 s, offset ≥ 0, volume ≤ 200%")
+      doc.audio.mode = .original
+      let all = AudioPlanner.clips(doc: doc, compDuration: 8)
+      check(all.map(\.id) == ["o1", "o2", "f"], "originals first, then files")
+      check(all[1].start == 3 && all[1].end == 8, "overlapping originals: the later starts where the earlier ends (\(all[1].start)–\(all[1].end))")
+    }
+
+    test("audio: file inserts (trim head, short files, loops)") {
+      let once = AudioPlanner.filePieces(offset: 2, fileDuration: 10, start: 1, end: 4, loop: false)
+      check(once == [FilePiece(fileStart: 2, length: 3, at: 1)], "trimmed head plays from 2 s (\(once))")
+      let short = AudioPlanner.filePieces(offset: 0, fileDuration: 3, start: 1, end: 9, loop: false)
+      check(short.count == 1 && near(short[0].length, 3, 1e-9), "shorter than the window, no loop: what exists")
+      let looped = AudioPlanner.filePieces(offset: 1, fileDuration: 3, start: 0, end: 10, loop: true)
+      // 2 s (1→3), then 3 + 3 + 2 s.
+      check(looped.count == 4, "loop: 4 inserts fill 10 s (\(looped.count))")
+      check(near(looped.map(\.length).reduce(0, +), 10, 1e-9) && near(looped.last!.at, 8, 1e-9) && near(looped.last!.length, 2, 1e-9), "loop fills exactly to the end")
+      check(looped.dropFirst().allSatisfy { $0.fileStart == 0 }, "repeats start from the top")
+      check(AudioPlanner.filePieces(offset: 12, fileDuration: 10, start: 0, end: 5, loop: false).isEmpty, "offset past the end: nothing")
+      let wrapped = AudioPlanner.filePieces(offset: 7, fileDuration: 3, start: 0, end: 4, loop: true)
+      check(wrapped.first == FilePiece(fileStart: 1, length: 2, at: 0), "looping offset wraps into the file (\(wrapped))")
+      check(AudioPlanner.filePieces(offset: 0, fileDuration: 0.01, start: 0, end: 5, loop: true).isEmpty, "a near-empty file never loops forever")
+      check(AudioPlanner.filePieces(offset: 0, fileDuration: 0.1, start: 0, end: 1000, loop: true).count == AudioPlanner.maxLoopPieces, "loop count capped")
+    }
+
+    test("audio: ducking intervals (pad, merge, cap, only where the original is heard)") {
+      let mapper = TimeMapper(keep: [TimeRange(start: 0, end: 2), TimeRange(start: 3, end: 10)])
+      let words = [w("a", 0.5, 0.8), w("b", 0.9, 1.2), w("gone", 2.2, 2.6), w("c", 4.0, 4.3), w("d", 6.0, 6.5)]
+      let sp = AudioPlanner.speech(words: words, mapper: mapper)
+      // a+b merge (gap 0.1 + padding) → 0.35–1.35; "gone" is cut; c → output 3.0–3.3 → 2.85–3.45; d → 5.0–5.5 → 4.85–5.65.
+      check(sp.count == 3, "three intervals (\(sp))")
+      check(near(sp[0].start, 0.35, 1e-9) && near(sp[0].end, 1.35, 1e-9), "padded by 0.15 s and merged")
+      check(near(sp[1].start, 2.85, 1e-9) && near(sp[2].end, 5.65, 1e-9), "mapped to output time across the cut")
+      let close = AudioPlanner.merge([TimeRange(start: 0, end: 1), TimeRange(start: 1.25, end: 2), TimeRange(start: 2.4, end: 3)], gap: 0.3)
+      check(close.count == 2 && close[0].end == 2, "gaps under 0.3 s merge (\(close))")
+      let many = (0..<400).map { TimeRange(start: Double($0), end: Double($0) + 0.5) }
+      check(AudioPlanner.capped(many).count <= AudioPlanner.maxSpeechIntervals, "capped to \(AudioPlanner.maxSpeechIntervals)")
+      let heard = AudioPlanner.audibleSpeech(sp, originals: [AudioClip(id: "o", source: "original", start: 0, end: 1)])
+      check(heard.count == 1 && near(heard[0].end, 1, 1e-9), "speech in a deleted stretch doesn't duck (\(heard))")
+      check(AudioPlanner.audibleSpeech(sp, originals: [AudioClip(id: "o", source: "original", start: 0, end: 9, volume: 0)]).isEmpty, "an original at 0% isn't heard: no ducking")
+    }
+
+    test("audio: volume curve (fades, ducking, click guards) as non-overlapping ramps") {
+      let clip = AudioClip(id: "f", source: "file", start: 0, end: 10, volume: 0.8, fadeIn: 1, fadeOut: 2)
+      let curve = AudioPlanner.gainCurve(clip: clip, ducking: [TimeRange(start: 4, end: 5)])
+      func at(_ t: Double) -> Double? { curve.first { abs($0.t - t) < 1e-6 }?.gain }
+      check(at(0) == 0 && near(at(1) ?? -1, 0.8, 1e-9), "fades in to the volume over 1 s")
+      check(near(at(4) ?? -1, 0.8, 1e-9) && near(at(4.12) ?? -1, 0.16, 1e-9) && near(at(5) ?? -1, 0.16, 1e-9) && near(at(5.12) ?? -1, 0.8, 1e-9), "ducks to 20% in 0.12 s and back")
+      check(near(at(8) ?? -1, 0.8, 1e-9) && at(10) == 0, "fades out over the last 2 s")
+      check(zip(curve, curve.dropFirst()).allSatisfy { $1.t > $0.t }, "strictly increasing times")
+      let r = AudioPlanner.ramps(curve)
+      check(zip(r, r.dropFirst()).allSatisfy { a, b in (a.until ?? a.t) <= b.t + 1e-9 }, "ramps never overlap")
+      let squeezed = AudioPlanner.gainCurve(clip: AudioClip(id: "s", source: "file", start: 0, end: 1, fadeIn: 3, fadeOut: 1))
+      check(squeezed.count >= 3 && squeezed.allSatisfy { $0.gain <= 1 } && near(squeezed.map(\.gain).max() ?? 0, 1, 1e-9), "fades longer than the clip are scaled to fit")
+      let joined = AudioPlanner.gainCurve(clip: AudioClip(id: "o", source: "original", start: 0, end: 4), dips: [2], guardStart: true, guardEnd: true)
+      check(joined.contains { abs($0.t - 2) < 1e-9 && $0.gain == 0 } && joined.first?.gain == 0, "10 ms dip at a cut join and at the edges")
+      // A split: [0,2] at 100% then [2,4] at 50%, no guard where they meet.
+      let left = AudioPlanner.gainCurve(clip: AudioClip(id: "l", source: "original", start: 0, end: 2), guardStart: true)
+      let right = AudioPlanner.gainCurve(clip: AudioClip(id: "r", source: "original", start: 2, end: 4, volume: 0.5), guardEnd: true)
+      check(left.last?.gain == 1 && right.first?.gain == 0.5, "no fade at a split")
+      let joinRamps = AudioPlanner.ramps(left + right)
+      check(joinRamps.allSatisfy { ($0.until ?? .infinity) > $0.t } && joinRamps.contains { abs($0.t - 2.005) < 1e-9 && $0.from == 0.5 }, "the level change at a split takes 5 ms, no zero-length ramp")
+      check(joinRamps.contains { $0.t == 0.01 && $0.until == 2 && $0.from == 1 && $0.to == 1 }, "a hold is one flat ramp up to the next change")
+      check(zip(joinRamps, joinRamps.dropFirst()).allSatisfy { a, b in a.until == b.t }, "ramps are back to back")
+      check(zip(joinRamps, joinRamps.dropFirst()).allSatisfy { a, b in (a.until ?? a.t) <= b.t + 1e-9 }, "touching clips' ramps never overlap")
+    }
+
+    test("audio: documents without audio clips decode; partial clips get defaults; paths stay inside the project") {
+      let json = """
+      {"version":1,"cuts":[],"wordOverrides":[],"captions":{"styleId":"pop","font":"poppins","sizeScale":1,
+       "colors":{"base":"#FFFFFF","active":"#FFE14D","stroke":"#000000","bg":"transparent"},
+       "position":{"y":0.66},"uppercase":false,"maxWords":4,"enabled":true},
+       "zoom":{"mode":"off","intensity":2,"faceFollow":true},"crop":{"auto916":true},"audio":{"mode":"mute"}}
+      """
+      let old = try decodeJSON(EditDocument.self, json)
+      check(old.audioClips == nil && old.audio.mode == .mute, "old document: no audio clips, mute kept")
+      let partial = try decodeJSON(EditDocument.self, json.replacingOccurrences(of: "\"version\":1,", with: #""version":1,"audioClips":[{"id":"v","source":"file","file":"audio/v.m4a","start":1,"end":4}],"#))
+      let c = partial.audioClips?.first
+      check(c?.volume == 1 && c?.fadeIn == 0 && c?.fadeOut == 0 && c?.offset == 0 && c?.loop == nil && c?.ducking == nil, "defaults filled in")
+      let round = try decodeJSON(EditDocument.self, try encodeJSON(partial))
+      check(round == partial, "round-trips")
+      check(AudioPlanner.isSafeFile("audio/a.m4a") && !AudioPlanner.isSafeFile("../x.m4a") && !AudioPlanner.isSafeFile("/etc/x") && !AudioPlanner.isSafeFile("audio//a"), "safe relative paths only")
+      let lv = Envelope.levels(samples: [Float](repeating: 0.1, count: 1000) + [Float](repeating: 0, count: 1000), buckets: 4)
+      check(lv.count == 4 && near(lv[0], 0.8, 1e-6) && lv[3] == 0, "waveform levels on the timeline scale (\(lv))")
+    }
+
     print("\n\(passes) passed, \(failures) failed")
     exit(failures == 0 ? 0 : 1)
   }

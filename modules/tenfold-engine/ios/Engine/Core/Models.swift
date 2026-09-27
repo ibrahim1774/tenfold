@@ -333,11 +333,14 @@ public struct EditDocument: Codable, Sendable, Equatable {
   public var captionEdits: CaptionEdits?
   /// Titles and other text placed on the video, timed in output seconds (absent in older documents).
   public var textOverlays: [TextOverlay]?
+  /// The sound of the video as clips in output time (see AudioClip). Absent = one original track over the
+  /// whole video, silent when `audio.mode` is mute (how every document behaved before audio editing).
+  public var audioClips: [AudioClip]?
 
   public init(
     version: Int = 1, cuts: [Cut] = [], wordOverrides: [WordOverride] = [], captions: CaptionSettings = .init(),
     zoom: ZoomSettings = .init(), crop: CropSettings = .init(), audio: AudioSettings = .init(), captionEdits: CaptionEdits? = nil,
-    textOverlays: [TextOverlay]? = nil
+    textOverlays: [TextOverlay]? = nil, audioClips: [AudioClip]? = nil
   ) {
     self.version = version
     self.cuts = cuts
@@ -348,6 +351,7 @@ public struct EditDocument: Codable, Sendable, Equatable {
     self.audio = audio
     self.captionEdits = captionEdits
     self.textOverlays = textOverlays
+    self.audioClips = audioClips
   }
 }
 
@@ -402,6 +406,9 @@ public struct EditPlan: Codable, Sendable, Equatable {
   public var removedSec: Double
   /// Groups the user hid: not rendered, listed so the editor can show them again.
   public var hiddenCards: [CaptionCard] = []
+  /// When kept words are spoken, in composition seconds, padded and merged (AudioPlanner.speech).
+  /// Added sounds with ducking on dip under these.
+  public var speech: [TimeRange] = []
 }
 
 public extension JSONEncoder {

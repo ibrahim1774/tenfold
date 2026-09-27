@@ -106,6 +106,7 @@ public enum EditPlanner {
     }
     return EditPlan(
       segments: mapper.segments, compDuration: mapper.compDuration, zoom: zoom, cards: grouped.cards,
-      removedSec: max(0, analysis.media.durationSec - mapper.compDuration), hiddenCards: grouped.hidden)
+      removedSec: max(0, analysis.media.durationSec - mapper.compDuration), hiddenCards: grouped.hidden,
+      speech: AudioPlanner.speech(words: words, mapper: mapper))
   }
 }

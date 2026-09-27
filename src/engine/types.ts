@@ -140,6 +140,36 @@ export type TextOverlay = {
   end?: number;
 };
 
+/**
+ * A stretch of sound on the timeline (Swift AudioClip). Times are OUTPUT seconds, like text overlays.
+ * 'original' = the clip's own sound, mapped to source time through the cuts (original clips never overlap;
+ * a deleted stretch is silence). 'file' = a sound in the project folder (`file`, e.g. "audio/<id>.m4a").
+ */
+export type AudioClip = {
+  id: string;
+  source: 'original' | 'file';
+  file?: string;
+  /** "Voiceover 1", the file's name, "Sound from IMG_0042". */
+  title?: string;
+  start: number;
+  end: number;
+  /** Seconds into the file that play at `start` (trimmed head); 0 for original clips. */
+  offset: number;
+  /** 0..2 (1 = as recorded). */
+  volume: number;
+  fadeIn: number;
+  fadeOut: number;
+  /** Repeat the file to fill start..end. */
+  loop?: boolean;
+  /** File clips: dip to 20% while someone speaks. */
+  ducking?: boolean;
+  /** Length of the file when added (trim limits in the editor; the engine probes the file itself). */
+  fileDuration?: number;
+};
+
+/** A sound added to a project by the engine (Files, Photos, voiceover). */
+export type AddedAudio = { file?: string; title?: string; durationSec?: number; error?: string };
+
 export type EditDocument = {
   version: 1;
   cuts: Cut[];
@@ -155,6 +185,11 @@ export type EditDocument = {
   captionEdits?: CaptionEdits;
   /** Titles and other text on the video (output time). Per clip. */
   textOverlays?: TextOverlay[];
+  /**
+   * The sound as clips in output time. Absent = one original track over the whole video, muted when
+   * `audio.mode` is 'mute' (documents before audio editing). See src/editor/audioClips.ts.
+   */
+  audioClips?: AudioClip[];
   /** Pause/filler strength last picked in the editor (UI only). */
   levels?: { silence: SilenceLevel; fillers: FillerLevel; retakes?: boolean };
 };
@@ -198,6 +233,8 @@ export type EditPlan = {
   removedSec: number;
   /** Groups the user hid (not rendered). Absent from builds before caption edits. */
   hiddenCards?: CaptionCard[];
+  /** When kept words are spoken (output seconds, padded, merged): where ducked sounds dip. Absent in older builds. */
+  speech?: { start: number; end: number }[];
 };
 
 export type ImportedAsset = {

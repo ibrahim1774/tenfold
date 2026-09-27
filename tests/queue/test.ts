@@ -1,6 +1,7 @@
 import { calls, control, running } from './mockEngine';
 import { runCaptionEditTests } from './captionEdits';
 import { runTextOverlayTests } from './textOverlays';
+import { runAudioClipTests } from './audioClips';
 import { AppState } from './rnMock';
 import { importIntoBatch } from '@/batch/importClips';
 import { cancelBatch, queueExports, retryProject, setPaused, startBatch, startQueue, useQueueUI } from '@/batch/queue';
@@ -243,6 +244,7 @@ async function main() {
 
   runCaptionEditTests(check);
   runTextOverlayTests(check);
+  runAudioClipTests(check);
 
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);

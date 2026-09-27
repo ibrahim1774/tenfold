@@ -8,7 +8,8 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { AppText } from '@/design/components';
 import { colors } from '@/design/tokens';
-import type { CaptionCard, CompSegment, TextOverlay, Thumbnail } from '@/engine/types';
+import type { AudioClip, CaptionCard, CompSegment, TextOverlay, Thumbnail } from '@/engine/types';
+import { fileRows, originalsOf, trimLimits } from './audioClips';
 import { overlayWindow } from './textLayout';
 import { MIN_OVERLAY_SEC } from './textOverlays';
 
@@ -18,12 +19,18 @@ const ENVELOPE_STEP = 0.02; // seconds per envelope frame (Swift Envelope.frameS
 const MIN_CAPTION_SEC = 0.3; // CaptionGrouper.minRetimeSec
 const MIN_CLIP_SEC = 0.2; // src/editor/trim.ts
 const TEXT_ROW = 30; // height of one row of text bars
+const SOUND_ROW = 34; // height of one row of added sounds
 
 /** A stretch of the composition between two edit points (a cut or a user split), in composition seconds. */
 export type Region = { start: number; end: number };
 
 /** One thing is selected at a time: a clip (region), a caption group (by its stable id) or a text overlay. */
-export type TimelineSelection = { kind: 'region'; region: Region } | { kind: 'caption'; id: string } | { kind: 'text'; id: string } | null;
+export type TimelineSelection =
+  | { kind: 'region'; region: Region }
+  | { kind: 'caption'; id: string }
+  | { kind: 'text'; id: string }
+  | { kind: 'audio'; id: string }
+  | null;
 
 export type TimelineProps = {
   segments: CompSegment[];
@@ -40,6 +47,13 @@ export type TimelineProps = {
   restorable: { start: number; end: number };
   time: number; // composition time
   muted: boolean;
+  /**
+   * The sound as clips (output time; src/editor/audioClips.ts). Null in builds whose engine can't edit
+   * audio: the original waveform is drawn as one strip that can't be selected.
+   */
+  audioClips: AudioClip[] | null;
+  /** Waveform bars (0..1) of each added sound file, by file name. */
+  audioWaves: Record<string, number[]>;
   onScrubStart: () => void;
   onScrub: (compTime: number) => void;
   onScrubEnd: (compTime: number) => void;
@@ -50,6 +64,10 @@ export type TimelineProps = {
   onRetimeCaption: (card: CaptionCard, edge: { start?: number; end?: number }) => boolean;
   /** A text overlay's edges were moved (output seconds). True if the document changed. */
   onRetimeText: (id: string, edge: { start?: number; end?: number }) => boolean;
+  /** A sound's edges were moved (output seconds). True if the document changed. */
+  onRetimeAudio: (id: string, edge: { start?: number; end?: number }) => boolean;
+  /** An added sound was dragged to start at `start` (output seconds). True if the document changed. */
+  onMoveAudio: (id: string, start: number) => boolean;
 };
 
 export function toSource(segs: CompSegment[], comp: number) {
@@ -98,6 +116,8 @@ export function Timeline({
   restorable,
   time,
   muted,
+  audioClips,
+  audioWaves,
   onScrubStart,
   onScrub,
   onScrubEnd,
@@ -105,6 +125,8 @@ export function Timeline({
   onTrimRegion,
   onRetimeCaption,
   onRetimeText,
+  onRetimeAudio,
+  onMoveAudio,
 }: TimelineProps) {
   const scroll = useRef<ScrollView>(null);
   const [viewW, setViewW] = useState(0);
@@ -183,11 +205,15 @@ export function Timeline({
                   envelopeDb={envelopeDb}
                   thumbs={thumbs}
                   muted={muted}
+                  audioClips={audioClips}
+                  audioWaves={audioWaves}
                   scrollGesture={scrollGesture}
                   onSelect={onSelect}
                   onTrimRegion={onTrimRegion}
                   onRetimeCaption={onRetimeCaption}
                   onRetimeText={onRetimeText}
+                  onRetimeAudio={onRetimeAudio}
+                  onMoveAudio={onMoveAudio}
                 />
               </View>
             </ScrollView>
@@ -230,11 +256,15 @@ type TracksProps = {
   envelopeDb: number[];
   thumbs: Thumbnail[];
   muted: boolean;
+  audioClips: AudioClip[] | null;
+  audioWaves: Record<string, number[]>;
   scrollGesture: GestureType;
   onSelect: (selection: TimelineSelection) => void;
   onTrimRegion: TimelineProps['onTrimRegion'];
   onRetimeCaption: TimelineProps['onRetimeCaption'];
   onRetimeText: TimelineProps['onRetimeText'];
+  onRetimeAudio: TimelineProps['onRetimeAudio'];
+  onMoveAudio: TimelineProps['onMoveAudio'];
 };
 
 const same = (a: Region | null, b: Region) => !!a && Math.abs(a.start - b.start) < 1e-3 && Math.abs(a.end - b.end) < 1e-3;
@@ -253,16 +283,21 @@ const TimelineTracks = memo(function TimelineTracks({
   envelopeDb,
   thumbs,
   muted,
+  audioClips,
+  audioWaves,
   scrollGesture,
   onSelect,
   onTrimRegion,
   onRetimeCaption,
   onRetimeText,
+  onRetimeAudio,
+  onMoveAudio,
 }: TracksProps) {
   const x = (t: number) => pad + t * PPS;
   const selectedRegion = selection?.kind === 'region' ? selection.region : null;
   const selectedCaption = selection?.kind === 'caption' ? selection.id : null;
   const selectedText = selection?.kind === 'text' ? selection.id : null;
+  const selectedAudio = selection?.kind === 'audio' ? selection.id : null;
 
   const ticks = useMemo(() => {
     const step = total > 40 ? 10 : total > 16 ? 5 : 2;
@@ -314,6 +349,14 @@ const TimelineTracks = memo(function TimelineTracks({
     return { items: out, count: rowEnds.length };
   }, [texts, total]);
   const selText = textRows.items.find((t) => t.o.id === selectedText) ?? null;
+
+  // Sound: the original in one lane (deleted stretches are empty), added sounds in rows below it.
+  const originals = useMemo(() => (audioClips ? originalsOf(audioClips) : null), [audioClips]);
+  const sounds = useMemo(() => fileRows(audioClips ?? []), [audioClips]);
+  const selAudio = selectedAudio ? (audioClips?.find((c) => c.id === selectedAudio) ?? null) : null;
+  const selAudioRow = selAudio?.source === 'file' ? (sounds.rows.find((r) => r.clip.id === selAudio.id)?.row ?? 0) : 0;
+  const selAudioLimits = selAudio && audioClips ? trimLimits(audioClips, selAudio, total) : null;
+  const barsIn = (a: number, b: number) => bars.filter((bar) => bar.left >= a * PPS - 1 && bar.left < b * PPS);
 
   const selRegion = regions.find((r) => same(selectedRegion, r)) ?? null;
   const selCardIndex = selectedCaption ? allCards.findIndex((c) => c.id === selectedCaption) : -1;
@@ -525,11 +568,123 @@ const TimelineTracks = memo(function TimelineTracks({
         </View>
       )}
 
-      <View style={[styles.wave, { marginLeft: pad, width: total * PPS }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        {bars.map((b, i) => (
-          <View key={i} style={[styles.bar, { left: b.left, height: muted ? 2 : b.h }]} />
-        ))}
-      </View>
+      {originals === null ? (
+        <View style={[styles.wave, { marginLeft: pad, width: total * PPS }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {bars.map((b, i) => (
+            <View key={i} style={[styles.bar, { left: b.left, height: muted ? 2 : b.h }]} />
+          ))}
+        </View>
+      ) : (
+        <View style={styles.soundLane}>
+          <View pointerEvents="none" style={[styles.laneLine, { left: pad, width: total * PPS }]} />
+          {originals.map((c) => {
+            const isSel = c.id === selectedAudio;
+            const w = Math.max(4, (c.end - c.start) * PPS - 2);
+            return (
+              <Pressable
+                key={c.id}
+                onPress={() => onSelect(isSel ? null : { kind: 'audio', id: c.id })}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSel }}
+                accessibilityLabel={`Original sound${muted ? ', muted' : ''}, ${clock(c.start)} to ${clock(c.end)}`}
+                accessibilityHint={isSel ? 'Deselects it.' : 'Selects it to split, delete, set volume or fade.'}
+                style={[styles.soundClip, styles.originalClip, { left: x(c.start) + 1, width: w }, isSel && styles.soundSelected]}>
+                {barsIn(c.start, c.end).map((b, i) => (
+                  <View key={i} style={[styles.bar, { left: b.left - c.start * PPS, height: muted || c.volume === 0 ? 2 : Math.max(2, b.h * Math.min(1, 0.35 + c.volume * 0.65)) }]} />
+                ))}
+                {w > 70 && (
+                  <View pointerEvents="none" style={styles.soundLabel}>
+                    <SymbolView name={muted ? 'speaker.slash' : 'speaker.wave.2'} size={11} tintColor={colors.textSecondary} />
+                    <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}>
+                      Original
+                    </AppText>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+          {selAudio?.source === 'original' && selAudioLimits && (
+            <EdgeFrame
+              key={`aud-${selAudio.id}-${selAudio.start.toFixed(3)}-${selAudio.end.toFixed(3)}`}
+              left={x(selAudio.start) + 1}
+              width={Math.max(4, (selAudio.end - selAudio.start) * PPS - 2)}
+              top={4}
+              height={40}
+              radius={8}
+              color={colors.accent}
+              startRange={[selAudioLimits.start[0] * PPS, selAudioLimits.start[1] * PPS]}
+              endRange={[selAudioLimits.end[0] * PPS, selAudioLimits.end[1] * PPS]}
+              scrollGesture={scrollGesture}
+              onCommit={(side, dx) =>
+                onRetimeAudio(selAudio.id, side === 'start' ? { start: selAudio.start + dx / PPS } : { end: selAudio.end + dx / PPS })
+              }
+            />
+          )}
+        </View>
+      )}
+
+      {sounds.count > 0 && (
+        <View style={[styles.soundRows, { height: sounds.count * SOUND_ROW + 4 }]}>
+          {sounds.rows.map(({ clip: c, row }) => {
+            const isSel = c.id === selectedAudio;
+            const w = Math.max(28, (c.end - c.start) * PPS - 4);
+            const levels = c.file ? audioWaves[c.file] : undefined;
+            const fileDur = c.fileDuration ?? 0;
+            const marks: { left: number; h: number }[] = [];
+            if (levels?.length && fileDur > 0) {
+              for (let px = 0; px < w; px += 4) {
+                let t = c.offset + px / PPS;
+                if (c.loop) t %= fileDur;
+                const v = t <= fileDur ? (levels[Math.min(levels.length - 1, Math.floor((t / fileDur) * levels.length))] ?? 0) : 0;
+                marks.push({ left: px, h: 2 + v * 20 * Math.min(1, 0.35 + c.volume * 0.65) });
+              }
+            }
+            const title = c.title ?? 'Sound';
+            return (
+              <Pressable
+                key={c.id}
+                onPress={() => onSelect(isSel ? null : { kind: 'audio', id: c.id })}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSel }}
+                accessibilityLabel={`${title}, ${clock(c.start)} to ${clock(c.end)}${c.loop ? ', looping' : ''}`}
+                accessibilityHint={isSel ? 'Deselects it.' : 'Selects it to trim, move, set volume or fade.'}
+                style={[styles.soundClip, styles.fileClip, { top: 4 + row * SOUND_ROW, left: x(c.start), width: w }, isSel && styles.soundSelected]}>
+                {marks.map((b, i) => (
+                  <View key={i} style={[styles.fileBar, { left: b.left, height: b.h }]} />
+                ))}
+                <View pointerEvents="none" style={styles.soundLabel}>
+                  <SymbolView name={c.loop ? 'repeat' : title.startsWith('Voiceover') ? 'mic' : 'music.note'} size={11} tintColor={colors.textPrimary} />
+                  <AppText variant="caption" numberOfLines={1} style={styles.captionText}>
+                    {title}
+                  </AppText>
+                </View>
+              </Pressable>
+            );
+          })}
+          {selAudio?.source === 'file' && selAudioLimits && (
+            <EdgeFrame
+              key={`snd-${selAudio.id}-${selAudio.start.toFixed(3)}-${selAudio.end.toFixed(3)}`}
+              left={x(selAudio.start)}
+              width={Math.max(28, (selAudio.end - selAudio.start) * PPS - 4)}
+              top={4 + selAudioRow * SOUND_ROW}
+              height={26}
+              radius={8}
+              color={colors.accent}
+              startRange={[selAudioLimits.start[0] * PPS, selAudioLimits.start[1] * PPS]}
+              endRange={[selAudioLimits.end[0] * PPS, selAudioLimits.end[1] * PPS]}
+              scrollGesture={scrollGesture}
+              onCommit={(side, dx) =>
+                onRetimeAudio(selAudio.id, side === 'start' ? { start: selAudio.start + dx / PPS } : { end: selAudio.end + dx / PPS })
+              }
+              move={{
+                range: [-selAudio.start * PPS, Math.max(0, total - selAudio.end) * PPS],
+                onCommit: (dx) => onMoveAudio(selAudio.id, selAudio.start + dx / PPS),
+                onTap: () => onSelect(null),
+              }}
+            />
+          )}
+        </View>
+      )}
     </>
   );
 });
@@ -547,6 +702,8 @@ type EdgeFrameProps = {
   scrollGesture: GestureType;
   /** Returns true if the document changed; otherwise the frame springs back. */
   onCommit: (side: 'start' | 'end', dx: number) => boolean;
+  /** Drag the body to move the whole thing (added sounds); a tap on the body deselects. */
+  move?: { range: [number, number]; onCommit: (dx: number) => boolean; onTap: () => void };
 };
 
 /**
@@ -554,9 +711,10 @@ type EdgeFrameProps = {
  * (on the UI thread); on release the edit is committed once. Keyed by the selection's times, so a new
  * render of the document starts it fresh.
  */
-function EdgeFrame({ left, width, top, height, radius, color, startRange, endRange, scrollGesture, onCommit }: EdgeFrameProps) {
+function EdgeFrame({ left, width, top, height, radius, color, startRange, endRange, scrollGesture, onCommit, move }: EdgeFrameProps) {
   const dl = useSharedValue(0);
   const dr = useSharedValue(0);
+  const dm = useSharedValue(0);
   const [sMin, sMax] = startRange;
   const [eMin, eMax] = endRange;
 
@@ -590,10 +748,35 @@ function EdgeFrame({ left, width, top, height, radius, color, startRange, endRan
       scheduleOnRN(commit, 'end', dr.get());
     });
 
-  const frame = useAnimatedStyle(() => ({ left: left + dl.get(), width: Math.max(8, width - dl.get() + dr.get()) }));
+  const [mMin, mMax] = move?.range ?? [0, 0];
+  const commitMove = (dx: number) => {
+    const changed = Math.abs(dx) >= 1 && !!move?.onCommit(dx);
+    if (!changed) dm.set(0);
+  };
+  const tapBody = () => move?.onTap();
+  const bodyPan = Gesture.Pan()
+    .activeOffsetX([-4, 4])
+    .blocksExternalGesture(scrollGesture)
+    .onUpdate((e) => {
+      dm.set(Math.min(mMax, Math.max(mMin, e.translationX)));
+    })
+    .onEnd(() => {
+      scheduleOnRN(commitMove, dm.get());
+    });
+  const bodyTap = Gesture.Tap().onEnd(() => {
+    scheduleOnRN(tapBody);
+  });
+  const body = Gesture.Exclusive(bodyPan, bodyTap);
+
+  const frame = useAnimatedStyle(() => ({ left: left + dl.get() + dm.get(), width: Math.max(8, width - dl.get() + dr.get()) }));
 
   return (
     <Animated.View pointerEvents="box-none" style={[styles.edgeFrame, { top, height, borderRadius: radius, borderColor: color }, frame]}>
+      {move && (
+        <GestureDetector gesture={body}>
+          <View style={styles.edgeBody} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+        </GestureDetector>
+      )}
       <GestureDetector gesture={startPan}>
         <View style={[styles.edge, styles.edgeStart, { backgroundColor: color }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <View style={styles.edgeGrip} />
@@ -653,6 +836,16 @@ const styles = StyleSheet.create({
   edgeStart: { left: -8, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 },
   edgeEnd: { right: -8, borderTopRightRadius: 6, borderBottomRightRadius: 6 },
   edgeGrip: { width: 2, height: '45%', borderRadius: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
+  edgeBody: { position: 'absolute', top: 0, bottom: 0, left: 6, right: 6 },
+  soundLane: { height: 48, marginTop: 4 },
+  laneLine: { position: 'absolute', top: 23, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderStrong },
+  soundRows: { marginTop: 2 },
+  soundClip: { position: 'absolute', borderRadius: 8, overflow: 'hidden', justifyContent: 'center' },
+  originalClip: { top: 4, height: 40, backgroundColor: colors.card },
+  fileClip: { height: 26, backgroundColor: colors.cardHigh, borderWidth: 1, borderColor: colors.border },
+  soundSelected: { backgroundColor: colors.accentSoft },
+  soundLabel: { position: 'absolute', top: 3, left: 6, right: 6, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  fileBar: { position: 'absolute', bottom: 2, width: 2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.18)' },
   wave: { height: 48, marginTop: 4, justifyContent: 'center' },
   bar: { position: 'absolute', width: 2, borderRadius: 1, backgroundColor: colors.waveform },
   playhead: { position: 'absolute', top: 12, bottom: 0, width: 12, alignItems: 'center' },

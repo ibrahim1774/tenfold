@@ -60,6 +60,51 @@ public class TenfoldEngineModule: Module {
       return await ColorPicker.pick(initialHex: initialHex, from: presenter)
     }
 
+    // MARK: Audio (sounds added to a video live in <project>/audio/)
+
+    /// Files picker for a sound; copies it into the project. AddedAudio JSON (`error: "cancelled"` when closed).
+    AsyncFunction("pickAudioFile") { (projectId: String) async -> String in
+      guard let presenter = await MainActor.run(body: { ColorPicker.topViewController(from: self.appContext?.utilities?.currentViewController()) }) else {
+        return (try? encodeJSON(AddedAudio(error: "Couldn't open Files."))) ?? "{}"
+      }
+      let added = await AudioPicker.addFromFiles(projectId: projectId, presenter: presenter)
+      return (try? encodeJSON(added)) ?? "{}"
+    }
+
+    /// Photos picker for one video; saves its sound as .m4a. AddedAudio JSON (`error: "noAudio"` when it has none).
+    AsyncFunction("extractAudio") { (projectId: String) async -> String in
+      guard let presenter = await MainActor.run(body: { ColorPicker.topViewController(from: self.appContext?.utilities?.currentViewController()) }) else {
+        return (try? encodeJSON(AddedAudio(error: "Couldn't open Photos."))) ?? "{}"
+      }
+      let added = await MediaImporter.extractAudio(projectId: projectId, presenter: presenter)
+      return (try? encodeJSON(added)) ?? "{}"
+    }
+
+    /// Starts a voiceover. AddedAudio JSON: `file`, or `error: "microphone"` when access is denied.
+    AsyncFunction("startVoiceover") { (projectId: String) async -> String in
+      let started = await VoiceoverRecorder.start(projectId: projectId)
+      return (try? encodeJSON(started)) ?? "{}"
+    }
+
+    /// Stops the voiceover. AddedAudio JSON with `file` and `durationSec`.
+    AsyncFunction("stopVoiceover") { () async -> String in
+      let stopped = await VoiceoverRecorder.stop()
+      return (try? encodeJSON(stopped)) ?? "{}"
+    }
+
+    /// Waveform bars (0...1) for an added sound.
+    AsyncFunction("audioWaveform") { (projectId: String, file: String, buckets: Int) async throws -> String in
+      guard let url = AudioFiles.url(projectId, file), FileManager.default.fileExists(atPath: url.path) else {
+        throw EngineError.message("This sound file is missing.")
+      }
+      return try encodeJSON(try await AudioFiles.waveform(url, buckets: buckets))
+    }
+
+    /// Deletes an added sound no clip uses any more. False when the path isn't one of this project's sounds.
+    AsyncFunction("deleteAudioFile") { (projectId: String, file: String) -> Bool in
+      AudioFiles.remove(projectId, file)
+    }
+
     // MARK: Speech (Apple SpeechAnalyzer; assets managed by iOS)
 
     AsyncFunction("speechStatus") { (language: String) async -> String in
