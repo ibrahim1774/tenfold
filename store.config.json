@@ -47,6 +47,14 @@
       "kidsAgeBand": null,
       "ageRatingOverride": "NONE",
       "koreaAgeRatingOverride": "NONE"
+    },
+    "review": {
+      "firstName": "Mohammed",
+      "lastName": "Ibrahim",
+      "email": "ibrahim3709@gmail.com",
+      "phone": "+1 347 613 1906",
+      "demoRequired": false,
+      "notes": "Tenfold has no accounts and no server. Everything runs on the device with Apple's on-device speech recognition (iOS 26).\n\nTo test: open the app, finish onboarding (the demo step can be skipped), tap Import clips and pick one or more videos with speech from Photos, then Generate. Open a finished video to reach the editor: Captions, Text, Audio and the + tile for adding clips. Export saves to Photos.\n\nSubscriptions: Starter, Pro and Studio (monthly and yearly), each with a 3-day free trial, sold through the App Store and presented with the Superwall SDK. The free plan works without any purchase.\n\nPermissions are requested only when used: camera and microphone for in-app recording, add-to-Photos for export, speech recognition for captions."
     }
   }
 }
