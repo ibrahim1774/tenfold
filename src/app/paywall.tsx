@@ -1,34 +1,46 @@
+import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { SymbolView } from 'expo-symbols';
 import * as WebBrowser from 'expo-web-browser';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Background, FeatureRow, GradientButton, IconButton, PressableScale, SegmentedPill } from '@/design/components';
-import { colors, spacing } from '@/design/tokens';
-import { useEntitlements } from '@/state/entitlements';
+import { CAPTION_PRESETS } from '@/captions/presets';
+import { AppText, Background, GradientButton, IconButton } from '@/design/components';
+import type { SFSymbol } from '@/design/symbols';
+import { colors, radii, spacing } from '@/design/tokens';
+import { FREE_LIMITS, PRO_BATCH_SIZE, useEntitlements } from '@/state/entitlements';
 import { useSettings } from '@/state/settings';
 
 type Plan = 'monthly' | 'yearly';
 
 // M5: products, prices and trial eligibility come from Superwall. These strings are
 // placeholders replaced by the store's localized price strings; never ship them hardcoded.
-const MOCK_OFFERING: Record<Plan, { price: string; period: string; note: string }> = {
-  monthly: { price: '$9.99', period: '/month', note: 'Billed monthly. Cancel anytime.' },
-  yearly: { price: '$49.99', period: '/year', note: '7 days free, then billed annually. Cancel anytime.' },
+const MOCK_OFFERING: Record<Plan, { price: string; amount: number; per: string; trialDays: number }> = {
+  monthly: { price: '$9.99', amount: 9.99, per: 'month', trialDays: 0 },
+  yearly: { price: '$49.99', amount: 49.99, per: 'year', trialDays: 7 },
 };
 
-const FEATURES = [
-  { icon: 'infinity', title: 'Unlimited exports', subtitle: 'No credits, no minutes, ever.', color: '#FF7A30' },
-  { icon: 'square.stack.3d.up', title: 'Batches of 20', subtitle: 'Free plan edits 5 at a time.', color: '#A98BFF' },
-  { icon: 'drop.degreesign.slash', title: 'No watermark', subtitle: 'Clean videos, ready for social.', color: '#FF6A8A' },
-  { icon: '4k.tv', title: '4K export', subtitle: 'Full resolution from your camera.', color: '#4DD8FF' },
-  { icon: 'captions.bubble', title: 'All caption styles', subtitle: 'Karaoke, Outline, Subtle and more.', color: '#FFC24D' },
-] as const;
+const yearlyPerMonth = `$${(MOCK_OFFERING.yearly.amount / 12).toFixed(2)}`;
+const yearlySaving = Math.round((1 - MOCK_OFFERING.yearly.amount / (MOCK_OFFERING.monthly.amount * 12)) * 100);
+const freeCaptionStyles = CAPTION_PRESETS.filter((p) => p.free).length;
+
+// What Pro adds, each with what the free plan gets today (numbers come from the same limits the app enforces).
+const FEATURES: { icon: SFSymbol; title: string; free: string }[] = [
+  { icon: 'infinity', title: 'Unlimited exports', free: `Free: ${FREE_LIMITS.exportsPerMonth} a month` },
+  { icon: 'square.stack', title: `Batches of up to ${PRO_BATCH_SIZE} clips`, free: `Free: ${FREE_LIMITS.batchSize} at a time` },
+  { icon: 'drop', title: 'No watermark', free: 'Free: exports carry a small Tenfold watermark' },
+  { icon: '4k.tv', title: '4K export', free: 'From 4K source clips. Free: 1080p' },
+  {
+    icon: 'captions.bubble',
+    title: `All ${CAPTION_PRESETS.length} caption styles`,
+    free: `Free: ${freeCaptionStyles} styles`,
+  },
+];
 
 const LINKS = [
-  { label: 'Restore', onPress: () => Alert.alert('Restore purchases', 'Restoring arrives with subscriptions in the next update.') },
+  { label: 'Restore purchases', onPress: () => Alert.alert('Restore purchases', 'Restoring arrives with subscriptions in the next update.') },
   // Apple's standard licence agreement until Tenfold has its own terms page.
   { label: 'Terms', onPress: () => WebBrowser.openBrowserAsync('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/') },
   {
@@ -47,6 +59,11 @@ export default function PaywallScreen() {
   const offer = MOCK_OFFERING[plan];
   const fromOnboarding = from === 'onboarding';
 
+  const choose = (p: Plan) => {
+    if (p !== plan) Haptics.selectionAsync();
+    setPlan(p);
+  };
+
   const close = () => {
     if (fromOnboarding) {
       setOnboarded(true);
@@ -56,101 +73,193 @@ export default function PaywallScreen() {
     }
   };
 
-  return (
-    <View style={styles.flex}>
-      <Background />
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.top}>
-          <IconButton icon="xmark" label={fromOnboarding ? 'Continue with free plan' : 'Close'} size={40} onPress={close} />
-        </View>
+  const subscribe = () => {
+    // Placeholder until Superwall (M5): dev builds can unlock Pro to test; release builds never get it free.
+    if (__DEV__) {
+      setPro(true);
+      close();
+    } else {
+      Alert.alert('Coming soon', 'Subscriptions open with the next update.');
+    }
+  };
 
-        <Animated.View entering={FadeInDown.duration(400)} style={styles.head}>
-          <AppText variant="label" color={colors.textSecondary} style={styles.center}>
+  const cta = offer.trialDays > 0 ? `Start ${offer.trialDays}-day free trial` : `Subscribe for ${offer.price} a ${offer.per}`;
+  const terms =
+    offer.trialDays > 0
+      ? `Free for ${offer.trialDays} days, then ${offer.price} a ${offer.per}. Cancel anytime in Settings.`
+      : `${offer.price} a ${offer.per}. Cancel anytime in Settings.`;
+
+  return (
+    <View style={[styles.flex, { paddingTop: insets.top + spacing.xs, paddingBottom: insets.bottom + spacing.xs }]}>
+      <Background />
+
+      <View style={styles.top}>
+        <IconButton icon="xmark" label={fromOnboarding ? 'Continue with free plan' : 'Close'} size={44} tone="ghost" onPress={close} />
+      </View>
+
+      <ScrollView style={styles.flex} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.head}>
+          <AppText variant="label" color={colors.textSecondary}>
             Tenfold Pro
           </AppText>
-          <AppText variant="hero" style={styles.center}>
-            Edit Without Limits
+          <AppText variant="display">Unlimited exports, no watermark</AppText>
+          <AppText variant="body" color={colors.textSecondary}>
+            Everything still runs on your iPhone. No account, no uploads.
           </AppText>
-          <AppText variant="label" color={colors.textSecondary} style={styles.center}>
-            Batch edit unlimited videos on your iPhone. No credits. No uploads.
-          </AppText>
-        </Animated.View>
+        </View>
 
-        <SegmentedPill<Plan>
-          value={plan}
-          onChange={setPlan}
-          segments={[
-            { value: 'monthly', label: 'Monthly' },
-            { value: 'yearly', label: 'Yearly', badge: '-58%' },
-          ]}
-        />
-
-        <View style={styles.features}>
+        <View style={styles.group}>
           {FEATURES.map((f, i) => (
-            <Animated.View key={f.title} entering={FadeInDown.delay(60 * i).duration(350)}>
-              <FeatureRow icon={f.icon} title={f.title} subtitle={f.subtitle} iconColor={f.color} />
-            </Animated.View>
+            <View key={f.title} style={[styles.featureRow, i > 0 && styles.divider]} accessible accessibilityLabel={`${f.title}. ${f.free}`}>
+              <SymbolView name={f.icon} size={20} tintColor={colors.textPrimary} weight="regular" style={styles.featureIcon} />
+              <View style={styles.flex}>
+                <AppText variant="bodyStrong">{f.title}</AppText>
+                <AppText variant="label" color={colors.textMuted}>
+                  {f.free}
+                </AppText>
+              </View>
+            </View>
           ))}
         </View>
 
-        <View style={styles.priceBlock}>
-          <AppText style={styles.price}>
-            {offer.price}
-            <AppText variant="bodyStrong">{offer.period}</AppText>
-          </AppText>
-          <AppText variant="label" color={colors.textSecondary} style={styles.center}>
-            {offer.note}
-          </AppText>
+        <View style={styles.plans} accessibilityRole="radiogroup">
+          <PlanRow
+            selected={plan === 'yearly'}
+            onPress={() => choose('yearly')}
+            name="Yearly"
+            badge={`Save ${yearlySaving}%`}
+            price={`${MOCK_OFFERING.yearly.price} a year`}
+            detail={`${yearlyPerMonth} a month · ${MOCK_OFFERING.yearly.trialDays} days free`}
+          />
+          <PlanRow
+            selected={plan === 'monthly'}
+            onPress={() => choose('monthly')}
+            name="Monthly"
+            price={`${MOCK_OFFERING.monthly.price} a month`}
+            detail="No free trial"
+          />
         </View>
+      </ScrollView>
 
-        <GradientButton
-          title={plan === 'yearly' ? 'Start 7-day free trial' : 'Subscribe'}
-          icon={false}
-          shape="pill"
-          onPress={() => {
-            // Placeholder until Superwall (M5): dev builds can unlock Pro to test; release builds never get it free.
-            if (__DEV__) {
-              setPro(true);
-              close();
-            } else {
-              Alert.alert('Coming soon', 'Subscriptions open with the next update.');
-            }
-          }}
-        />
+      <View style={styles.footer}>
+        <GradientButton title={cta} shape="pill" onPress={subscribe} />
+        <AppText variant="caption" color={colors.textMuted} tabular style={styles.center}>
+          {terms}
+        </AppText>
 
         {fromOnboarding && (
-          <PressableScale haptic={false} onPress={close} style={styles.later} accessibilityRole="button">
+          <Pressable onPress={close} accessibilityRole="button" style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
             <AppText variant="bodyStrong" color={colors.textSecondary}>
               Continue with free plan
             </AppText>
-          </PressableScale>
+          </Pressable>
         )}
 
         <View style={styles.links}>
-          {LINKS.map(({ label: l, onPress }) => (
-            <PressableScale key={l} haptic={false} accessibilityRole="link" onPress={onPress}>
+          {LINKS.map(({ label, onPress }) => (
+            <Pressable
+              key={label}
+              onPress={onPress}
+              accessibilityRole="link"
+              style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
               <AppText variant="caption" color={colors.textMuted}>
-                {l}
+                {label}
               </AppText>
-            </PressableScale>
+            </Pressable>
           ))}
         </View>
-      </ScrollView>
+      </View>
     </View>
+  );
+}
+
+function PlanRow({
+  selected,
+  onPress,
+  name,
+  badge,
+  price,
+  detail,
+}: {
+  selected: boolean;
+  onPress: () => void;
+  name: string;
+  badge?: string;
+  price: string;
+  detail: string;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      accessibilityLabel={`${name}, ${price}. ${detail}${badge ? `. ${badge}` : ''}`}
+      style={({ pressed }) => [styles.plan, selected && styles.planOn, pressed && styles.pressed]}>
+      <SymbolView
+        name={selected ? 'checkmark.circle.fill' : 'circle'}
+        size={22}
+        tintColor={selected ? colors.textPrimary : colors.textMuted}
+        weight="regular"
+      />
+      <View style={styles.flex}>
+        <View style={styles.planName}>
+          <AppText variant="bodyStrong">{name}</AppText>
+          {badge ? (
+            <AppText variant="caption" color={colors.orange} tabular>
+              {badge}
+            </AppText>
+          ) : null}
+        </View>
+        <AppText variant="label" color={colors.textSecondary} tabular>
+          {detail}
+        </AppText>
+      </View>
+      <AppText variant="bodyStrong" tabular>
+        {price}
+      </AppText>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { paddingHorizontal: spacing.gutter, gap: spacing.lg },
-  top: { flexDirection: 'row' },
-  head: { gap: spacing.sm },
   center: { textAlign: 'center' },
-  features: { gap: 10 },
-  priceBlock: { gap: 2, marginTop: spacing.sm },
-  price: { fontFamily: 'Poppins-SemiBold', fontSize: 40, lineHeight: 48, color: '#FFFFFF', textAlign: 'center', letterSpacing: -1 },
-  later: { alignSelf: 'center', padding: 8 },
-  links: { flexDirection: 'row', justifyContent: 'center', gap: 28 },
+  top: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: spacing.md },
+  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.xxl },
+  head: { gap: spacing.sm },
+
+  group: {
+    borderRadius: radii.card,
+    borderCurve: 'continuous',
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    overflow: 'hidden',
+  },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, minHeight: 60 },
+  featureIcon: { width: 24, height: 24 },
+  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderStrong },
+
+  plans: { gap: spacing.md },
+  plan: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    minHeight: 64,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radii.card,
+    borderCurve: 'continuous',
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  planOn: { borderColor: colors.textPrimary, backgroundColor: colors.cardHigh },
+  planName: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+
+  footer: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.sm },
+  textButton: { minHeight: 44, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
+  links: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xs },
+  link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md },
+  pressed: { opacity: 0.6 },
 });

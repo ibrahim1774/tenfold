@@ -6,14 +6,15 @@ import { motion } from '../tokens';
 
 export type PressableScaleProps = Omit<PressableProps, 'style'> & {
   style?: StyleProp<ViewStyle>;
-  haptic?: boolean;
+  /** 'impact' for actions (default), 'selection' for choices like chips and segments, false for none. */
+  haptic?: boolean | 'impact' | 'selection';
   scaleTo?: number;
 };
 
-/** Pressable that springs to 0.97 and fires a light haptic, per the motion spec. */
+/** Pressable that eases to 0.97 while held. Haptics are opt-in (docs/DESIGN.md §7). */
 export function PressableScale({
   style,
-  haptic = true,
+  haptic = false,
   scaleTo = motion.pressScale,
   onPressIn,
   onPressOut,
@@ -36,7 +37,8 @@ export function PressableScale({
         onPressOut?.(e);
       }}
       onPress={(e) => {
-        if (haptic) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (haptic === 'selection') Haptics.selectionAsync();
+        else if (haptic) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress?.(e);
       }}>
       {(state) => (

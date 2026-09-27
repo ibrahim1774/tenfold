@@ -59,5 +59,5 @@ const styles = StyleSheet.create({
   },
   selected: { backgroundColor: '#FFFFFF' },
   badge: { backgroundColor: colors.orange, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 1 },
-  badgeText: { fontFamily: fonts.medium, fontSize: 11, lineHeight: 16, color: '#FFFFFF' },
+  badgeText: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16, color: '#FFFFFF' },
 });

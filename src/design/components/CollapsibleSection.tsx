@@ -22,7 +22,9 @@ export function CollapsibleSection({ title, summary, initiallyOpen = false, chil
       <Card>
         <View style={styles.header}>
           <View style={styles.titles}>
-            <AppText variant="bodyStrong">{title}</AppText>
+            <AppText variant="title" accessibilityRole="header">
+              {title}
+            </AppText>
             {!open && summary ? (
               <AppText variant="label" color={colors.textMuted} numberOfLines={1}>
                 {summary}

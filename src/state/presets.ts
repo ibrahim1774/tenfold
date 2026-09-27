@@ -2,7 +2,7 @@ import { captionSettingsFromPreset } from '../captions/presets';
 import type { BatchPreset, PresetId } from '../engine/types';
 
 export const PRESET_OPTIONS: { id: PresetId; name: string; blurb: string }[] = [
-  { id: 'cleanTalk', name: 'Clean Talk', blurb: 'Medium cuts, Pop captions, subtle zoom' },
+  { id: 'cleanTalk', name: 'Clean talk', blurb: 'Medium cuts, pop captions, subtle zoom' },
   { id: 'punchy', name: 'Punchy', blurb: 'Aggressive cuts, dynamic zoom' },
   { id: 'podcast', name: 'Podcast', blurb: 'Light cuts, boxed captions, no zoom' },
   { id: 'story', name: 'Story', blurb: 'Light cuts, minimal captions' },

@@ -1,23 +1,23 @@
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
+import Animated, { LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Background, Chip, ChipGroup, GradientButton, useTabBarSpace } from '@/design/components';
-import { colors, spacing } from '@/design/tokens';
+import { AppText, Background, Chip, GradientButton, useTabBarSpace } from '@/design/components';
+import { colors, motion, spacing } from '@/design/tokens';
 import type { BatchStatus } from '@/engine/types';
 import { BatchCard } from '@/library/BatchCard';
 import { batchStatus, useLibrary } from '@/state/library';
-import { router } from 'expo-router';
 
 type Filter = 'all' | BatchStatus;
 
-const FILTERS: { v: Filter; l: string }[] = [
-  { v: 'all', l: 'All' },
-  { v: 'setup', l: 'Not started' },
-  { v: 'processing', l: 'Editing' },
-  { v: 'ready', l: 'Ready' },
-  { v: 'exported', l: 'Exported' },
+const FILTERS: { v: Filter; l: string; none: string }[] = [
+  { v: 'all', l: 'All', none: '' },
+  { v: 'setup', l: 'Not started', none: 'Every batch has been started.' },
+  { v: 'processing', l: 'Editing', none: 'Nothing is being edited right now.' },
+  { v: 'ready', l: 'Ready', none: 'No batches are waiting to export.' },
+  { v: 'exported', l: 'Exported', none: 'No batch has been fully exported yet.' },
 ];
 
 export default function LibraryScreen() {
@@ -26,6 +26,7 @@ export default function LibraryScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const batchMap = useLibrary((s) => s.batches);
   const projects = useLibrary((s) => s.projects);
+  const total = Object.keys(batchMap).length;
   const batches = useMemo(
     () =>
       Object.values(batchMap)
@@ -38,41 +39,62 @@ export default function LibraryScreen() {
     <View style={styles.flex}>
       <Background />
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12, paddingBottom: bottom }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md, paddingBottom: bottom }]}
         showsVerticalScrollIndicator={false}>
-        <AppText variant="display">Library</AppText>
-        <ChipGroup>
-          {FILTERS.map((f) => (
-            <Chip key={f.v} label={f.l} selected={filter === f.v} onPress={() => setFilter(f.v)} />
-          ))}
-        </ChipGroup>
-
-        {batches.length === 0 && filter !== 'all' && Object.keys(batchMap).length > 0 ? (
-          <View style={styles.empty}>
-            <AppText variant="bodyStrong">No {FILTERS.find((f) => f.v === filter)?.l.toLowerCase()} batches</AppText>
-            <Chip label="Show all" onPress={() => setFilter('all')} />
-          </View>
-        ) : batches.length === 0 ? (
-          <View style={styles.empty}>
-            <AppText variant="bodyStrong">Nothing here yet</AppText>
-            <AppText variant="label" color={colors.textSecondary} style={styles.center}>
-              Batches you edit show up here, newest first.
+        <View style={styles.head}>
+          <AppText variant="display" accessibilityRole="header">
+            Library
+          </AppText>
+          {total > 0 && (
+            <AppText variant="label" color={colors.textSecondary} tabular>
+              {total} {total === 1 ? 'batch' : 'batches'}
             </AppText>
-            <GradientButton title="Edit a batch" onPress={() => router.push('/import')} style={styles.emptyBtn} />
+          )}
+        </View>
+
+        {total === 0 ? (
+          <View style={styles.empty}>
+            <AppText variant="title" style={styles.center}>
+              No batches yet
+            </AppText>
+            <AppText variant="body" color={colors.textSecondary} style={styles.center}>
+              Batches you edit are kept here, newest first, with their clips and exported videos.
+            </AppText>
+            <GradientButton title="New batch" icon="plus" onPress={() => router.push('/import')} style={styles.emptyBtn} />
           </View>
         ) : (
-          <View style={styles.grid}>
-            {Array.from({ length: Math.ceil(batches.length / 2) }).map((_, row) => (
-              <Animated.View
-                key={`${filter}-${row}`}
-                entering={FadeInDown.delay(row * 50).duration(350)}
-                layout={LinearTransition}
-                style={styles.gridRow}>
-                <BatchCard batch={batches[row * 2]} />
-                {batches[row * 2 + 1] ? <BatchCard batch={batches[row * 2 + 1]} /> : <View style={styles.flex} />}
-              </Animated.View>
-            ))}
-          </View>
+          <>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.chipsScroll}
+              contentContainerStyle={styles.chips}>
+              {FILTERS.map((f) => (
+                <Chip key={f.v} label={f.l} selected={filter === f.v} onPress={() => setFilter(f.v)} />
+              ))}
+            </ScrollView>
+
+            {batches.length === 0 ? (
+              <View style={styles.empty}>
+                <AppText variant="body" color={colors.textSecondary} style={styles.center}>
+                  {FILTERS.find((f) => f.v === filter)?.none}
+                </AppText>
+                <Chip label="Show all" onPress={() => setFilter('all')} />
+              </View>
+            ) : (
+              <View style={styles.grid}>
+                {Array.from({ length: Math.ceil(batches.length / 2) }).map((_, row) => (
+                  <Animated.View
+                    key={batches[row * 2].id}
+                    layout={LinearTransition.duration(motion.base)}
+                    style={styles.gridRow}>
+                    <BatchCard batch={batches[row * 2]} />
+                    {batches[row * 2 + 1] ? <BatchCard batch={batches[row * 2 + 1]} /> : <View style={styles.flex} />}
+                  </Animated.View>
+                ))}
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
     </View>
@@ -82,9 +104,12 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { paddingHorizontal: spacing.gutter, gap: spacing.lg },
+  head: { gap: 2 },
+  chipsScroll: { marginHorizontal: -spacing.gutter, flexGrow: 0 },
+  chips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.gutter },
   grid: { gap: spacing.md },
   gridRow: { flexDirection: 'row', gap: spacing.md },
-  empty: { alignItems: 'center', gap: spacing.sm, marginTop: 60 },
+  empty: { alignItems: 'center', gap: spacing.md, marginTop: spacing.xxl * 2, paddingHorizontal: spacing.lg },
   center: { textAlign: 'center' },
-  emptyBtn: { alignSelf: 'stretch', marginTop: spacing.lg },
+  emptyBtn: { alignSelf: 'stretch', marginTop: spacing.sm },
 });

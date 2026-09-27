@@ -23,6 +23,8 @@ export const colors = {
   // Accents
   violet: '#8B5CF6',
   violetSoft: 'rgba(139,92,246,0.18)',
+  /** Text for in-place actions and small accents (links, "Pro"). */
+  accentText: '#C9B6FF',
   orange: '#FF7A30',
   danger: '#FF5A6E',
   dangerSoft: 'rgba(255,90,110,0.16)',

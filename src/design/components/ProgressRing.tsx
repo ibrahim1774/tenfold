@@ -55,7 +55,7 @@ export function ProgressRing({ progress, size = 120, stroke = 10, label, showLab
       </Svg>
       {showLabel && (
         <View style={[StyleSheet.absoluteFill, styles.center]}>
-          <AppText variant={size >= 100 ? 'title' : 'caption'}>{label ?? `${Math.round(progress * 100)}%`}</AppText>
+          <AppText variant={size >= 100 ? 'title' : 'caption'} tabular>{label ?? `${Math.round(progress * 100)}%`}</AppText>
         </View>
       )}
     </View>

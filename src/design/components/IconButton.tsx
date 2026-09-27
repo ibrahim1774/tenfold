@@ -30,6 +30,7 @@ export function IconButton({
       onPress={onPress}
       disabled={disabled}
       scaleTo={0.9}
+      haptic={false}
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={6}

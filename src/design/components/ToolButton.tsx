@@ -15,7 +15,7 @@ export type ToolButtonProps = {
 
 /** Line icon over a small label (Canvas / Audio / Text … row in the reference editor). */
 export function ToolButton({ icon, label, onPress, active }: ToolButtonProps) {
-  const tint = active ? '#C9B6FF' : colors.textPrimary;
+  const tint = active ? colors.accentText : colors.textPrimary;
   return (
     <PressableScale
       onPress={onPress}

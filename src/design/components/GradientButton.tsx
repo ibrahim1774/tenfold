@@ -36,6 +36,8 @@ export function GradientButton({
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={title}
+      accessibilityState={{ disabled }}
+      haptic="impact"
       style={[styles.wrap, { height, borderRadius: radius, opacity: disabled ? 0.45 : 1 }, style]}>
       <LinearGradient
         colors={gradients.cta}
@@ -45,7 +47,7 @@ export function GradientButton({
       />
       <View style={styles.row}>
         {icon ? <SymbolView name={icon} size={18} tintColor={colors.textPrimary} weight="regular" /> : null}
-        <AppText variant="cta">{title}</AppText>
+        <AppText variant="bodyStrong">{title}</AppText>
         {trailingArrow ? <SymbolView name="arrow.right" size={16} tintColor={colors.textPrimary} /> : null}
       </View>
     </PressableScale>
@@ -70,6 +72,7 @@ export function OutlineButton({ title, onPress, icon, height = sizes.ctaHeight, 
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={title}
+      accessibilityState={{ disabled }}
       style={[
         styles.outline,
         tone === 'violet' && styles.violet,
@@ -78,7 +81,7 @@ export function OutlineButton({ title, onPress, icon, height = sizes.ctaHeight, 
       ]}>
       <View style={styles.row}>
         {icon ? <SymbolView name={icon} size={17} tintColor={colors.textPrimary} weight="regular" /> : null}
-        <AppText variant={height < 44 ? 'chip' : 'cta'}>{title}</AppText>
+        <AppText variant={height < 44 ? 'chip' : 'bodyStrong'}>{title}</AppText>
       </View>
     </PressableScale>
   );

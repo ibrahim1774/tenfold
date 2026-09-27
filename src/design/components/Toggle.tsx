@@ -16,7 +16,7 @@ const W = 38;
 const H = 22;
 const KNOB = 14;
 
-/** Outlined pill switch from the reference's AI Actions cards. */
+/** Outlined pill switch. */
 export function Toggle({ value, onChange, label, disabled }: ToggleProps) {
   const t = useSharedValue(value ? 1 : 0);
 
@@ -38,7 +38,7 @@ export function Toggle({ value, onChange, label, disabled }: ToggleProps) {
       accessibilityLabel={label}
       accessibilityState={{ checked: value, disabled }}
       disabled={disabled}
-      hitSlop={10}
+      hitSlop={12}
       onPress={() => {
         Haptics.selectionAsync();
         onChange(!value);

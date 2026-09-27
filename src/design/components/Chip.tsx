@@ -19,6 +19,7 @@ export function Chip({ label, selected, onPress, disabled, locked }: ChipProps) 
       onPress={onPress}
       disabled={disabled}
       scaleTo={0.94}
+      haptic="selection"
       accessibilityRole="button"
       accessibilityState={{ selected, disabled }}
       accessibilityLabel={locked ? `${label}, Pro` : label}
@@ -28,7 +29,9 @@ export function Chip({ label, selected, onPress, disabled, locked }: ChipProps) 
       </AppText>
       {locked ? (
         <View style={styles.pro}>
-          <AppText style={styles.proText}>PRO</AppText>
+          <AppText variant="caption" color={colors.accentText}>
+            Pro
+          </AppText>
         </View>
       ) : null}
     </PressableScale>
@@ -53,7 +56,6 @@ const styles = StyleSheet.create({
   },
   selected: { backgroundColor: colors.chipSelectedFill, borderColor: colors.chipSelectedFill },
   disabled: { opacity: 0.4 },
-  pro: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 6, backgroundColor: colors.violetSoft },
-  proText: { fontSize: 9, lineHeight: 12, color: '#C9B6FF', fontWeight: '700' },
+  pro: { paddingHorizontal: 6, borderRadius: 6, backgroundColor: colors.violetSoft },
   group: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });

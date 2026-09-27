@@ -19,7 +19,7 @@ const ICONS: Record<string, { icon: SFSymbol; active: SFSymbol; label: string }>
 };
 
 /**
- * Floating frosted pill (reference Home screen). The sparkles slot is an action, not a route:
+ * Floating frosted pill (reference Home screen). The plus slot is an action, not a route:
  * it opens the new-batch flow, the app's primary job.
  */
 export function TabBar({ state, navigation }: TabBarProps) {
@@ -72,7 +72,7 @@ export function TabBar({ state, navigation }: TabBarProps) {
           accessibilityLabel="New batch"
           onPress={() => router.push('/import')}
           style={styles.slot}>
-          <SymbolView name="sparkles" size={22} tintColor="#C9B6FF" weight="regular" />
+          <SymbolView name="plus" size={22} tintColor={colors.accentText} weight="regular" />
         </PressableScale>
         {names.includes('settings') && item('settings')}
       </View>

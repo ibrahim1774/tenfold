@@ -1,7 +1,7 @@
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { cancelBatch, queueExports, retryProject, setPaused, STAGE_LABELS, startBatch, useQueueUI } from '@/batch/queue';
@@ -9,6 +9,7 @@ import {
   AppText,
   Background,
   GradientButton,
+  IconButton,
   OutlineButton,
   PressableScale,
   ProgressRing,
@@ -55,22 +56,18 @@ export default function ProcessingScreen() {
   }
 
   const projects = projectsOf(batch, allProjects);
-  const analysed = projects.filter((p) => ['ready', 'exportQueued', 'exporting', 'done'].includes(p.status)).length;
+  const analysed = projects.filter(analysedStatus).length;
   const done = projects.filter((p) => p.status === 'done').length;
   const working = projects.some((p) => ['queued', 'analyzing', 'exportQueued', 'exporting'].includes(p.status));
   const cancelled = projects.filter((p) => p.status === 'cancelled').length;
   // Until anything is exported, the ring shows analysis alone (so "all ready" is a full ring, not half).
   const exporting = projects.some((p) => ['exportQueued', 'exporting', 'done'].includes(p.status));
-  const overall = exporting
-    ? projects.reduce((sum, p) => {
-        if (p.status === 'done') return sum + 1;
-        if (p.status === 'ready' || p.status === 'exportQueued') return sum + 0.5;
-        if (p.status === 'exporting') return sum + 0.5 + p.progress * 0.5;
-        if (p.status === 'analyzing') return sum + p.progress * 0.5;
-        return sum;
-      }, 0) / Math.max(1, projects.length)
-    : projects.reduce((sum, p) => sum + (p.status === 'ready' ? 1 : p.status === 'analyzing' ? p.progress : 0), 0) /
-      Math.max(1, projects.length);
+  // The ring measures what the headline counts: exports once any exist, otherwise analysis.
+  const overall =
+    projects.reduce((sum, p) => {
+      if (exporting) return sum + (p.status === 'done' ? 1 : p.status === 'exporting' ? p.progress : 0);
+      return sum + (analysedStatus(p) ? 1 : p.status === 'analyzing' ? p.progress : 0);
+    }, 0) / Math.max(1, projects.length);
   const exportable = projects.filter((p) => p.status === 'ready').map((p) => p.id);
   const inFlight = projects.filter((p) => p.status === 'exportQueued' || p.status === 'exporting').length;
   const left = exportsLeft(ent) - inFlight;
@@ -92,97 +89,108 @@ export default function ProcessingScreen() {
     }
   };
 
-  const more = () =>
-    Alert.alert(batch.title, undefined, [
-      {
-        text: 'Delete batch',
-        style: 'destructive',
-        onPress: () =>
-          Alert.alert('Delete this batch?', 'Edits and exported files inside Tenfold are removed. Videos already saved to Photos stay.', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Delete',
-              style: 'destructive',
-              onPress: async () => {
-                await cancelBatch(batchId);
-                projects.forEach((p) => Engine.deleteProject(p.id).catch(() => {}));
-                deleteBatch(batchId);
-                router.dismissTo('/');
-              },
-            },
-          ]),
-      },
+  const confirmDelete = () =>
+    Alert.alert('Delete this batch?', 'Edits and exported files inside Tenfold are removed. Videos already saved to Photos stay.', [
       { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await cancelBatch(batchId);
+          projects.forEach((p) => Engine.deleteProject(p.id).catch(() => {}));
+          deleteBatch(batchId);
+          router.dismissTo('/');
+        },
+      },
+    ]);
+
+  const more = () =>
+    ActionSheetIOS.showActionSheetWithOptions(
+      { title: batch.title, options: ['Delete batch', 'Cancel'], destructiveButtonIndex: 0, cancelButtonIndex: 1 },
+      (i) => {
+        if (i === 0) confirmDelete();
+      },
+    );
+
+  const confirmCancel = () =>
+    Alert.alert('Cancel the rest of this batch?', 'Clips that are already done stay. You can resume later.', [
+      { text: 'Keep going', style: 'cancel' },
+      { text: 'Cancel batch', style: 'destructive', onPress: () => cancelBatch(batchId) },
     ]);
 
   const lowPower = Engine.isLowPowerMode();
+  const total = projects.length;
+  const failed = projects.filter((p) => p.status === 'failed').length;
+  const headline = exporting ? `${done} of ${total} exported` : `${analysed} of ${total} ready`;
+  const activity = activityLine({ projects, paused: !!batch.paused, working, cancelled, failed, done, allSaved });
+  const percent = Math.round(overall * 100);
 
   return (
     <View style={styles.flex}>
       <Background />
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 4, paddingBottom: insets.bottom + 110, gap: spacing.xl }}
+        contentContainerStyle={{ paddingTop: insets.top + 4, paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}>
         <View style={styles.gutter}>
           <ScreenHeader
             title={batch.title}
             onBack={() => router.dismissTo('/')}
-            right={<OutlineButton title="•••" height={40} onPress={more} />}
+            right={<IconButton icon="ellipsis" label="More actions" size={46} onPress={more} />}
           />
         </View>
 
+        {/* Summary: facts, with a real number. */}
         <View style={[styles.gutter, styles.summary]}>
-          <ProgressRing progress={overall} size={150} stroke={9} />
-          <View style={styles.summaryText}>
-            <AppText variant="title">
-              {done > 0 ? `${done} of ${projects.length} exported` : `${analysed} of ${projects.length} ready`}
-            </AppText>
-            <View style={styles.onDevice}>
-              <SymbolView name="iphone" size={14} tintColor={colors.textSecondary} />
-              <AppText variant="label" color={colors.textSecondary}>
-                {batch.paused
-                  ? working
-                    ? 'Paused. Finishing the current clip…'
-                    : 'Paused'
-                  : working
-                    ? 'Editing on your iPhone. Keep Tenfold open.'
-                    : cancelled > 0
-                      ? `${cancelled} ${cancelled === 1 ? 'clip' : 'clips'} cancelled`
-                      : done === projects.length
-                        ? 'All done on your iPhone.'
-                        : 'Ready to review.'}
-              </AppText>
+          <View style={styles.summaryRow} accessible accessibilityLabel={`${headline}. ${activity}. ${percent} percent`}>
+            <View>
+              <ProgressRing progress={overall} size={84} stroke={6} showLabel={false} />
+              <View style={styles.ringLabel} pointerEvents="none">
+                <AppText variant="chip" tabular>
+                  {percent}%
+                </AppText>
+              </View>
             </View>
-            {lowPower && working && (
-              <AppText variant="caption" color={colors.orange}>
-                Low Power Mode is on, so this will be slower.
+            <View style={styles.summaryText}>
+              <AppText variant="title" tabular>
+                {headline}
               </AppText>
-            )}
+              <AppText variant="label" color={colors.textSecondary} tabular numberOfLines={2}>
+                {activity}
+              </AppText>
+              {working && !batch.paused && (
+                <View style={styles.onDevice}>
+                  <SymbolView name="iphone" size={12} tintColor={colors.textMuted} weight="regular" />
+                  <AppText variant="caption" color={colors.textMuted}>
+                    On this iPhone · keep Tenfold open
+                  </AppText>
+                </View>
+              )}
+              {lowPower && working && (
+                <AppText variant="caption" color={colors.orange}>
+                  Low Power Mode is on, so this is slower.
+                </AppText>
+              )}
+            </View>
           </View>
+
           {working || batch.paused ? (
             <View style={styles.actions}>
               <OutlineButton
                 title={batch.paused ? 'Resume' : 'Pause'}
                 icon={batch.paused ? 'play' : 'pause'}
-                height={42}
+                height={44}
                 style={styles.flex}
                 onPress={() => setPaused(batchId, !batch.paused)}
               />
-              <OutlineButton
-                title="Cancel"
-                icon="xmark"
-                height={42}
-                style={styles.flex}
-                onPress={() =>
-                  Alert.alert('Cancel the rest of this batch?', 'Clips that are already done stay. You can resume later.', [
-                    { text: 'Keep going', style: 'cancel' },
-                    { text: 'Cancel batch', style: 'destructive', onPress: () => cancelBatch(batchId) },
-                  ])
-                }
-              />
+              <OutlineButton title="Cancel" icon="xmark" height={44} style={styles.flex} onPress={confirmCancel} />
             </View>
           ) : cancelled > 0 ? (
-            <OutlineButton title={`Resume ${cancelled} ${cancelled === 1 ? 'clip' : 'clips'}`} icon="play" height={42} onPress={() => startBatch(batchId)} />
+            <OutlineButton
+              title={`Resume ${cancelled} ${cancelled === 1 ? 'clip' : 'clips'}`}
+              icon="play"
+              height={44}
+              onPress={() => startBatch(batchId)}
+            />
           ) : null}
         </View>
 
@@ -196,19 +204,24 @@ export default function ProcessingScreen() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 8 }]}>
         {!ent.isPro && Number.isFinite(left) && (
-          <AppText variant="caption" color={colors.textSecondary} style={styles.center}>
+          <AppText variant="caption" color={colors.textSecondary} style={styles.center} tabular>
             {left} free {left === 1 ? 'export' : 'exports'} left this month
+          </AppText>
+        )}
+        {exportable.length === 0 && done < total && (
+          <AppText variant="caption" color={colors.textMuted} style={styles.center}>
+            {inFlight > 0 ? 'Exporting now.' : 'Videos can be exported once they are ready.'}
           </AppText>
         )}
         <GradientButton
           title={
             exportable.length > 0
-              ? `Export ${exportable.length === projects.length ? 'all' : exportable.length} to Photos`
+              ? `Export ${exportable.length} ${exportable.length === 1 ? 'video' : 'videos'}`
               : allSaved
                 ? 'All saved to Photos'
-                : done === projects.length
+                : done === total
                   ? 'All exported'
-                  : 'Export when ready'
+                  : 'Export videos'
           }
           icon="square.and.arrow.down"
           shape="pill"
@@ -218,6 +231,44 @@ export default function ProcessingScreen() {
       </View>
     </View>
   );
+}
+
+/** One line of fact about what the batch is doing right now, e.g. "Clip 4 · Transcribing". */
+function activityLine({
+  projects,
+  paused,
+  working,
+  cancelled,
+  failed,
+  done,
+  allSaved,
+}: {
+  projects: Project[];
+  paused: boolean;
+  working: boolean;
+  cancelled: number;
+  failed: number;
+  done: number;
+  allSaved: boolean;
+}): string {
+  const active = projects.find((p) => p.status === 'exporting') ?? projects.find((p) => p.status === 'analyzing');
+  const n = active ? projects.indexOf(active) + 1 : 0;
+  if (paused) return working && active ? `Paused · finishing clip ${n}` : 'Paused';
+  if (active?.status === 'exporting')
+    return `Clip ${n} · ${STAGE_LABELS[active.stage ?? ''] ?? 'Exporting'} · ${Math.round(active.progress * 100)}%`;
+  if (active) return `Clip ${n} · ${STAGE_LABELS[active.stage ?? ''] ?? 'Analysing'}`;
+  if (projects.some((p) => p.status === 'exportQueued' && p.stage === 'cooling')) return 'Cooling down before the next export';
+  if (working) return 'Starting';
+  const notes: string[] = [];
+  if (failed > 0) notes.push(`${failed} failed`);
+  if (cancelled > 0) notes.push(`${cancelled} cancelled`);
+  if (notes.length > 0) return `${notes.join(' · ')} · tap a video to retry`;
+  if (done === projects.length) return allSaved ? 'All saved to Photos' : 'All exported';
+  return 'Tap a video to review it';
+}
+
+function analysedStatus(p: Project): boolean {
+  return ['ready', 'exportQueued', 'exporting', 'done'].includes(p.status);
 }
 
 /** Seconds removed by the applied cuts (overlaps merged), for the "1:12 → 0:58" line. */
@@ -247,50 +298,68 @@ function savedSec(p: Project): number {
 function ResultCard({ project: p, batch, saved }: { project: Project; batch: Batch; saved: number }) {
   const openable = ['ready', 'exportQueued', 'exporting', 'done'].includes(p.status);
   const retryable = p.status === 'failed' || p.status === 'cancelled';
-  const busy = ['queued', 'analyzing', 'exportQueued', 'exporting'].includes(p.status);
+  const running = p.status === 'analyzing' || p.status === 'exporting';
+  const waiting = p.status === 'queued' || p.status === 'exportQueued' || p.status === 'pending';
   const label = statusLabel(p);
   const dur = p.media?.durationSec ?? 0;
+  const trimmed = openable && saved > 0.5;
+  const durText = trimmed ? `${formatDuration(dur)} → ${formatDuration(dur - saved)}` : formatDuration(dur);
+  const detail = openable && !p.error ? (p.status === 'done' ? label : editsSummary(editsOf(p, batch))) : p.error && p.status !== 'failed' ? p.error : label;
 
   return (
     <PressableScale
-      scaleTo={0.97}
+      haptic={false}
       disabled={!openable && !retryable}
-      accessibilityLabel={`${p.title}, ${label}`}
+      accessibilityRole="button"
+      accessibilityLabel={`${p.title}, ${durText.replace('→', 'to')}, ${label}`}
+      accessibilityHint={retryable ? 'Tries this video again' : openable ? 'Opens the video to review and export' : undefined}
+      accessibilityState={{ disabled: !openable && !retryable, busy: running || waiting }}
       onPress={() => (retryable ? retryProject(p.id) : router.push({ pathname: '/editor/[projectId]', params: { projectId: p.id } }))}
       style={styles.card}>
       <Thumb seed={seedOf(p.id)} uri={p.posterUri} style={styles.poster}>
-        {busy && (
-          <View style={styles.posterCenter}>
-            <ProgressRing progress={p.progress} size={44} stroke={3} />
-          </View>
-        )}
-        {retryable && (
-          <View style={styles.posterCenter}>
-            <View style={styles.posterBadge}>
-              <SymbolView name="arrow.clockwise" size={16} tintColor="#FFFFFF" />
-            </View>
+        {(running || waiting || retryable) && (
+          <View style={[styles.posterCenter, styles.posterDim]}>
+            {running ? (
+              <View>
+                <ProgressRing progress={p.progress} size={48} stroke={3} showLabel={false} />
+                <View style={styles.ringLabel}>
+                  <AppText variant="caption" tabular>
+                    {Math.round(p.progress * 100)}
+                  </AppText>
+                </View>
+              </View>
+            ) : retryable ? (
+              <View style={styles.posterBadge}>
+                <SymbolView name="arrow.clockwise" size={16} tintColor={colors.textPrimary} weight="regular" />
+              </View>
+            ) : (
+              <SymbolView name="clock" size={18} tintColor={colors.textSecondary} weight="regular" />
+            )}
           </View>
         )}
         {p.status === 'done' && (
           <View style={styles.doneBadge}>
-            <SymbolView name="checkmark" size={11} weight="bold" tintColor={colors.textInverse} />
+            <SymbolView name="checkmark" size={12} weight="regular" tintColor={colors.textInverse} />
           </View>
         )}
         <View style={styles.durationBadge}>
-          <AppText variant="caption" style={styles.tabular}>
-            {openable && saved > 0.5 ? `${formatDuration(dur)} → ${formatDuration(dur - saved)}` : formatDuration(dur)}
+          <AppText variant="caption" tabular>
+            {durText}
           </AppText>
         </View>
       </Thumb>
-      <AppText variant="chip" numberOfLines={1}>
-        {p.title}
-      </AppText>
-      <AppText
-        variant="caption"
-        numberOfLines={2}
-        color={p.status === 'failed' ? colors.danger : p.error ? colors.orange : colors.textMuted}>
-        {openable && !p.error ? (p.status === 'done' ? label : editsSummary(editsOf(p, batch))) : (p.error && p.status !== 'failed' ? p.error : label)}
-      </AppText>
+      <View style={styles.cardText}>
+        <AppText variant="chip" numberOfLines={1}>
+          {p.title}
+        </AppText>
+        <AppText
+          variant="caption"
+          numberOfLines={2}
+          tabular
+          color={p.status === 'failed' ? colors.danger : p.error ? colors.orange : colors.textMuted}>
+          {detail}
+        </AppText>
+      </View>
     </PressableScale>
   );
 }
@@ -323,17 +392,21 @@ function statusLabel(p: Project): string {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { textAlign: 'center' },
-  missing: { alignItems: 'center', justifyContent: 'center', gap: 16 },
+  missing: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: spacing.gutter },
   gutter: { paddingHorizontal: spacing.gutter },
-  summary: { alignItems: 'center', gap: spacing.lg },
-  summaryText: { alignItems: 'center', gap: 4 },
-  onDevice: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  actions: { flexDirection: 'row', gap: spacing.md, alignSelf: 'stretch' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  card: { width: '48%', flexGrow: 1, maxWidth: '50%', gap: 6 },
-  poster: { width: '100%', aspectRatio: 9 / 13, borderRadius: radii.tile, borderCurve: 'continuous' },
-  posterCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,9,14,0.35)' },
-  posterBadge: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,9,14,0.7)' },
+  summary: { gap: spacing.lg, marginTop: spacing.md, marginBottom: spacing.xxl },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
+  summaryText: { flex: 1, gap: 2 },
+  ringLabel: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  onDevice: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
+  actions: { flexDirection: 'row', gap: spacing.md },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.md, rowGap: spacing.xl },
+  card: { width: '48%', flexGrow: 1, maxWidth: '50%', gap: spacing.sm },
+  cardText: { gap: 2 },
+  poster: { width: '100%', aspectRatio: 9 / 13, borderRadius: radii.tile, borderCurve: 'continuous', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  posterCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  posterDim: { backgroundColor: 'rgba(10,9,14,0.45)' },
+  posterBadge: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.overlay },
   doneBadge: {
     position: 'absolute',
     top: 8,
@@ -352,9 +425,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-    backgroundColor: 'rgba(10,9,14,0.7)',
+    backgroundColor: colors.overlay,
   },
-  tabular: { fontVariant: ['tabular-nums'] },
   footer: {
     position: 'absolute',
     left: 0,
@@ -364,7 +436,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 8,
     backgroundColor: 'rgba(10,9,14,0.92)',
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
 });

@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -21,14 +22,22 @@ export function EditsChecklist({ batch, clips }: { batch: Batch; clips: Project[
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
-        <AppText variant="section">Edits</AppText>
+        <View style={styles.flex}>
+          <AppText variant="title" accessibilityRole="header">
+            Edits
+          </AppText>
+          <AppText variant="label" color={colors.textSecondary}>
+            {clips.length === 0 ? 'Add clips to choose what Tenfold does.' : 'What Tenfold does to each video.'}
+          </AppText>
+        </View>
         {clips.length > 0 && (
           <Pressable
-            hitSlop={10}
+            hitSlop={8}
+            style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}
             onPress={() => setAllEdits(batch.id, !everything)}
             accessibilityRole="button"
             accessibilityLabel={everything ? 'Clear all edits' : 'Select all edits'}>
-            <AppText variant="label" color={colors.textSecondary}>
+            <AppText variant="chip" color={colors.textSecondary}>
               {everything ? 'Clear all' : 'Select all'}
             </AppText>
           </Pressable>
@@ -44,12 +53,12 @@ export function EditsChecklist({ batch, clips }: { batch: Batch; clips: Project[
             <View key={e.key} style={[styles.row, i < EDITS.length - 1 && styles.divider]}>
               <View style={styles.flex}>
                 <AppText variant="bodyStrong">{e.label}</AppText>
-                <AppText variant="caption" color={colors.textMuted}>
+                <AppText variant="label" color={colors.textMuted}>
                   {e.detail}
                 </AppText>
               </View>
               {mixed && (
-                <AppText variant="caption" color={colors.textSecondary} style={styles.tabular}>
+                <AppText variant="label" color={colors.textSecondary} tabular accessibilityLabel={`On for ${n} of ${clips.length} videos`}>
                   {n} of {clips.length}
                 </AppText>
               )}
@@ -61,7 +70,7 @@ export function EditsChecklist({ batch, clips }: { batch: Batch; clips: Project[
 
       {clips.length > 1 && (
         <>
-          <AppText variant="label" color={colors.textMuted} style={styles.subhead}>
+          <AppText variant="caption" color={colors.textMuted} style={styles.subhead} accessibilityRole="header">
             PER VIDEO
           </AppText>
           <View style={styles.card}>
@@ -75,7 +84,7 @@ export function EditsChecklist({ batch, clips }: { batch: Batch; clips: Project[
                       <AppText variant="chip" numberOfLines={1} style={styles.flex}>
                         {c.title}
                       </AppText>
-                      <AppText variant="caption" color={colors.textMuted} style={styles.tabular}>
+                      <AppText variant="caption" color={colors.textMuted} tabular>
                         {formatDuration(c.media?.durationSec ?? 0)}
                       </AppText>
                     </View>
@@ -84,6 +93,7 @@ export function EditsChecklist({ batch, clips }: { batch: Batch; clips: Project[
                         <CheckPill
                           key={e.key}
                           label={e.label}
+                          clip={c.title}
                           on={sel[e.key]}
                           onPress={() => setEdit(batch.id, e.key, !sel[e.key], [c.id])}
                         />
@@ -100,17 +110,20 @@ export function EditsChecklist({ batch, clips }: { batch: Batch; clips: Project[
   );
 }
 
-function CheckPill({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+function CheckPill({ label, clip, on, onPress }: { label: string; clip: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable
-      onPress={onPress}
-      hitSlop={4}
+      onPress={() => {
+        Haptics.selectionAsync();
+        onPress();
+      }}
+      hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: on }}
-      accessibilityLabel={label}
+      accessibilityLabel={`${label}, ${clip}`}
       style={({ pressed }) => [styles.pill, on ? styles.pillOn : styles.pillOff, pressed && styles.pressed]}>
-      {on && <SymbolView name="checkmark" size={10} weight="bold" tintColor={colors.textInverse} />}
-      <AppText variant="caption" color={on ? colors.textInverse : colors.textSecondary}>
+      {on && <SymbolView name="checkmark" size={11} weight="regular" tintColor={colors.textInverse} />}
+      <AppText variant="label" color={on ? colors.textInverse : colors.textSecondary}>
         {label}
       </AppText>
     </Pressable>
@@ -120,8 +133,9 @@ function CheckPill({ label, on, onPress }: { label: string; on: boolean; onPress
 const styles = StyleSheet.create({
   wrap: { gap: spacing.md },
   flex: { flex: 1 },
-  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  subhead: { letterSpacing: 0.8, marginTop: spacing.sm, paddingHorizontal: 4 },
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md },
+  textButton: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' },
+  subhead: { letterSpacing: 0.8, marginTop: spacing.sm, paddingHorizontal: spacing.xs },
   card: {
     borderRadius: radii.card,
     borderCurve: 'continuous',
@@ -130,15 +144,14 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
-  divider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.1)' },
-  tabular: { fontVariant: ['tabular-nums'] },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, minHeight: 60 },
+  divider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   video: { flexDirection: 'row', gap: 12, padding: 12 },
-  thumb: { width: 44, height: 64, borderRadius: 8 },
+  thumb: { width: 44, height: 64, borderRadius: 8, borderCurve: 'continuous' },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  checks: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 26, paddingHorizontal: 10, borderRadius: 13 },
+  checks: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 8, columnGap: 6, marginTop: 10 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 32, paddingHorizontal: 12, borderRadius: 16 },
   pillOn: { backgroundColor: '#FFFFFF' },
   pillOff: { borderWidth: 1, borderColor: colors.borderStrong },
-  pressed: { opacity: 0.7 },
+  pressed: { opacity: 0.6 },
 });

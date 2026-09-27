@@ -1,18 +1,25 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { gradients } from '../tokens';
+import { gradients, motion } from '../tokens';
 
+/** Thin progress bar; slides to each new value instead of jumping. */
 export function ProgressBar({ progress, height = 6 }: { progress: number; height?: number }) {
-  const pct = `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%` as const;
+  const p = useSharedValue(Math.max(0, Math.min(1, progress)));
+  useEffect(() => {
+    p.set(withTiming(Math.max(0, Math.min(1, progress)), { duration: motion.base, easing: Easing.out(Easing.cubic) }));
+  }, [progress, p]);
+  const fill = useAnimatedStyle(() => ({ width: `${p.get() * 100}%` }));
   return (
-    <View style={[styles.track, { height, borderRadius: height / 2 }]}>
-      <LinearGradient
-        colors={gradients.cta}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        style={{ width: pct, height, borderRadius: height / 2 }}
-      />
+    <View
+      style={[styles.track, { height, borderRadius: height / 2 }]}
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
+      <Animated.View style={[{ height, borderRadius: height / 2, overflow: 'hidden' }, fill]}>
+        <LinearGradient colors={gradients.cta} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={StyleSheet.absoluteFill} />
+      </Animated.View>
     </View>
   );
 }

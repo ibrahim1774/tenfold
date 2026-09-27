@@ -1,7 +1,7 @@
 import { StyleSheet, View, type TextStyle } from 'react-native';
 
 import type { CaptionAnimation } from '../../captions/presets';
-import { fonts, radii } from '../tokens';
+import { colors, fonts, radii } from '../tokens';
 import { AppText } from './AppText';
 import { PressableScale } from './PressableScale';
 import { Thumb } from './Thumb';
@@ -60,6 +60,7 @@ export function StyleTile({
 
   return (
     <PressableScale
+      haptic="selection"
       onPress={onPress}
       scaleTo={0.95}
       accessibilityRole="button"
@@ -121,6 +122,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: 'rgba(10,9,14,0.7)',
   },
-  lockText: { fontFamily: fonts.semiBold, fontSize: 9, lineHeight: 12, color: '#C9B6FF' },
+  lockText: { fontFamily: fonts.semiBold, fontSize: 9, lineHeight: 12, color: colors.accentText },
   label: { textAlign: 'center' },
 });
