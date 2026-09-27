@@ -10,7 +10,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { queueExports, STAGE_LABELS } from '@/batch/queue';
 import { AppText, Background, GradientButton, OutlineButton, ProgressRing } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
-import { exportsLeft, useEntitlements } from '@/state/entitlements';
+import { usePaywallGate } from '@/monetization/superwall';
+import { limitsFor, lowestTierWhere } from '@/onboarding/plans';
+import { exportsLeft, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
 import { useLibrary } from '@/state/library';
 import { useSettings } from '@/state/settings';
 
@@ -21,6 +23,9 @@ export default function ExportScreen() {
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const project = useLibrary((s) => s.projects[projectId]);
   const ent = useEntitlements();
+  const tier = tierOf(ent);
+  const { uhd: uhdAllowed, watermark } = limitsFor(tier);
+  const gate = usePaywallGate();
   const { exportQuality, setExportQuality } = useSettings();
   // When this screen started an export (0 = not yet), to tell a fresh export from an older one.
   const [startedAt, setStartedAt] = useState(0);
@@ -45,16 +50,28 @@ export default function ExportScreen() {
   const left = exportsLeft(ent);
   const choosing = !started || failed;
   const saved = finished && !!project.savedToPhotos;
-  const uhdSelected = ent.isPro && can4K && exportQuality === 'uhd';
+  const uhdSelected = uhdAllowed && can4K && exportQuality === 'uhd';
+  const uhdTier = lowestTierWhere((l) => l.uhd) ?? 'pro';
+  const cleanTier = lowestTierWhere((l) => !l.watermark) ?? 'starter';
 
-  const start = () => {
-    if (exportsLeft(ent) <= 0) {
-      router.push('/paywall');
-      return;
-    }
+  const exportNow = () => {
     setStartedAt(Date.now());
     queueExports([projectId]);
   };
+  const start = () => {
+    if (exportsLeft(ent) > 0) {
+      exportNow();
+      return;
+    }
+    // Out of exports this month: gated, the export starts once the plan allows it.
+    gate({
+      placement: 'export_limit',
+      params: { tier },
+      allowed: () => exportsLeft(useEntitlements.getState()) > 0,
+      run: exportNow,
+    });
+  };
+  const seePlans = (feature: string) => gate({ placement: 'settings_upgrade', params: { feature }, allowed: () => false });
 
   const share = async () => {
     if (!project.exportUri) return;
@@ -74,8 +91,14 @@ export default function ExportScreen() {
   };
 
   const pickQuality = (q: 'hd' | 'uhd') => {
-    if (q === 'uhd' && !ent.isPro) {
-      router.push('/paywall');
+    if (q === 'uhd' && !uhdAllowed) {
+      // No placement of its own: the plans paywall, then 4K is selected once the plan includes it.
+      gate({
+        placement: 'settings_upgrade',
+        params: { feature: '4k' },
+        allowed: () => limitsFor(tierOf(useEntitlements.getState())).uhd,
+        run: () => setExportQuality('uhd'),
+      });
       return;
     }
     if (q === exportQuality) return;
@@ -129,20 +152,20 @@ export default function ExportScreen() {
               />
               <QualityRow
                 title="4K"
-                subtitle={ent.isPro && !can4K ? 'Needs a 4K source clip' : 'Sharper on large screens, bigger file'}
+                subtitle={uhdAllowed && !can4K ? 'Needs a 4K source clip' : 'Sharper on large screens, bigger file'}
                 selected={uhdSelected}
-                pro={!ent.isPro}
-                disabled={ent.isPro && !can4K}
+                badge={uhdAllowed ? undefined : TIER_NAMES[uhdTier]}
+                disabled={uhdAllowed && !can4K}
                 onPress={() => pickQuality('uhd')}
                 last
               />
             </View>
 
-            {!ent.isPro ? (
+            {watermark ? (
               <Pressable
-                onPress={() => router.push('/paywall')}
+                onPress={() => seePlans('watermark')}
                 accessibilityRole="button"
-                accessibilityHint="Opens Pro plans"
+                accessibilityHint="Shows plans"
                 style={styles.notice}>
                 <AppText variant="caption" color={colors.textMuted}>
                   Free exports include a small Tenfold watermark
@@ -153,10 +176,14 @@ export default function ExportScreen() {
                   ) : null}
                   .{' '}
                   <AppText variant="caption" color={colors.textPrimary}>
-                    Remove it with Pro
+                    Remove it with {TIER_NAMES[cleanTier]}
                   </AppText>
                 </AppText>
               </Pressable>
+            ) : Number.isFinite(left) ? (
+              <AppText variant="caption" color={colors.textMuted} style={styles.notice} tabular>
+                {left} exports left this month
+              </AppText>
             ) : null}
           </View>
         ) : finished ? (
@@ -200,7 +227,7 @@ export default function ExportScreen() {
 
       {choosing && (
         <GradientButton
-          title={left <= 0 ? 'See Pro plans' : 'Save to Photos'}
+          title={left <= 0 ? 'See plans' : 'Save to Photos'}
           icon={left <= 0 ? false : 'square.and.arrow.down'}
           shape="pill"
           onPress={start}
@@ -232,18 +259,19 @@ type QualityRowProps = {
   subtitle: string;
   selected: boolean;
   onPress: () => void;
-  pro?: boolean;
+  /** The plan that unlocks this row, shown as a badge. */
+  badge?: string;
   disabled?: boolean;
   last?: boolean;
 };
 
-function QualityRow({ title, subtitle, selected, onPress, pro, disabled, last }: QualityRowProps) {
+function QualityRow({ title, subtitle, selected, onPress, badge, disabled, last }: QualityRowProps) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="radio"
-      accessibilityLabel={pro ? `${title}, Pro` : title}
+      accessibilityLabel={badge ? `${title}, ${badge}` : title}
       accessibilityHint={subtitle}
       accessibilityState={{ checked: selected, disabled }}>
       {({ pressed }) => (
@@ -254,10 +282,10 @@ function QualityRow({ title, subtitle, selected, onPress, pro, disabled, last }:
               {subtitle}
             </AppText>
           </View>
-          {pro ? (
+          {badge ? (
             <View style={styles.proBadge}>
               <AppText variant="caption" color={colors.textSecondary}>
-                Pro
+                {badge}
               </AppText>
             </View>
           ) : null}

@@ -2,7 +2,8 @@ import { AppState } from 'react-native';
 import { create } from 'zustand';
 
 import { Engine, EngineEvents, type Project } from '../engine';
-import { exportsLeft, useEntitlements } from '../state/entitlements';
+import { limitsFor } from '../onboarding/plans';
+import { exportsLeft, tierOf, useEntitlements } from '../state/entitlements';
 import { docFromAnalysis, projectsOf, useLibrary } from '../state/library';
 import { useSettings } from '../state/settings';
 import { editsOf, effectiveLevels } from './edits';
@@ -124,7 +125,7 @@ async function analyzeOne(p: Project) {
     const analysis = await Engine.analyze(p.id, { ...effectiveLevels(batch.preset, edits), language: useSettings.getState().language });
     if (lib().projects[p.id]?.status !== 'analyzing') return; // cancelled meanwhile
     lib().setDoc(p.id, docFromAnalysis(analysis, batch, edits));
-    // Out of free exports: leave it ready instead of queueing an export that would only bounce to the paywall.
+    // Out of exports this month: leave it ready instead of queueing an export that would only bounce to the paywall.
     const autoExport = batch.preset.autoExport && exportsLeft(useEntitlements.getState()) > 0;
     lib().updateProject(p.id, {
       status: autoExport ? 'exportQueued' : 'ready',
@@ -161,7 +162,7 @@ async function runExportLane() {
         if (!fresh || fresh.status !== 'exportQueued' || !b || b.paused) continue;
       }
       if (exportsLeft(useEntitlements.getState()) <= 0) {
-        // Free tier used up: park everything waiting and ask for Pro.
+        // This month's exports used up: park everything waiting and show the export_limit paywall.
         for (let q = nextProject('exportQueued'); q; q = nextProject('exportQueued')) {
           lib().updateProject(q.id, { status: 'ready', stage: undefined, progress: 1 });
         }
@@ -182,13 +183,13 @@ async function exportOne(p: Project) {
     lib().updateProject(p.id, { status: 'failed', error: 'This video hasn’t been analysed yet.' });
     return;
   }
-  const { isPro } = useEntitlements.getState();
+  const { uhd, watermark } = limitsFor(tierOf(useEntitlements.getState()));
   const { exportQuality, keepHDR } = useSettings.getState();
   lib().updateProject(p.id, { status: 'exporting', stage: 'rendering', progress: 0, error: undefined });
   try {
     const result = await Engine.export(p.id, doc, {
-      quality: isPro && exportQuality === 'uhd' ? 'uhd' : 'hd',
-      watermark: !isPro,
+      quality: uhd && exportQuality === 'uhd' ? 'uhd' : 'hd',
+      watermark,
       saveToPhotos: true,
       keepHDR,
     });

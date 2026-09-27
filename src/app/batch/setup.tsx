@@ -23,7 +23,17 @@ import type { AudioMode, FillerLevel, SilenceLevel, ZoomMode } from '@/engine/ty
 import { importIntoBatch, useImporting } from '@/batch/importClips';
 import { startBatch } from '@/batch/queue';
 import { setCaptionStyle as setStyle, setPresetId as setPreset, updatePreset } from '@/state/batchSetup';
-import { exportsLeft as freeExportsLeft, FREE_LIMITS, maxBatchSize, tierOf, useEntitlements } from '@/state/entitlements';
+import { usePaywallGate } from '@/monetization/superwall';
+import { lowestTierWhere, nextTier } from '@/onboarding/plans';
+import {
+  captionStyleUnlocked,
+  exportLimit,
+  exportsLeft as tierExportsLeft,
+  maxBatchSize,
+  tierOf,
+  TIER_NAMES,
+  useEntitlements,
+} from '@/state/entitlements';
 import { tourTarget } from '@/tour/targets';
 import { formatDuration, projectsOf, useLibrary } from '@/state/library';
 import { PRESET_OPTIONS } from '@/state/presets';
@@ -68,8 +78,11 @@ export default function BatchSetupScreen() {
   const deleteBatch = useLibrary((s) => s.deleteBatch);
   const importing = useImporting((s) => s.busy);
   const ent = useEntitlements();
-  const isPro = ent.isPro;
-  const exportsLeft = freeExportsLeft(ent);
+  const tier = tierOf(ent);
+  const exportsLeft = tierExportsLeft(ent);
+  const monthlyExports = exportLimit(tier);
+  const limitedExports = Number.isFinite(monthlyExports);
+  const gate = usePaywallGate();
 
   if (!batch) {
     return (
@@ -113,9 +126,42 @@ export default function BatchSetupScreen() {
 
   const captionsOn = edits.some((e) => e.captions);
   const reframeOn = edits.some((e) => e.reframe);
-  const limit = maxBatchSize(tierOf(ent));
+  const limit = maxBatchSize(tier);
   const full = clips.length >= limit;
-  const footerNotes = (isPro ? 0 : 1) + (clips.length === 0 && !importing ? 1 : 0);
+  // A full batch keeps its + tile while a bigger plan exists; tapping it asks Superwall (batch_limit).
+  const canGrow = nextTier(tier) !== null;
+  const captionUnlockTier = lowestTierWhere((l) => l.allCaptionStyles) ?? 'starter';
+  const footerNotes = (limitedExports ? 1 : 0) + (clips.length === 0 && !importing ? 1 : 0);
+
+  const roomNow = () => {
+    const b = useLibrary.getState().batches[batchId];
+    return maxBatchSize(tierOf(useEntitlements.getState())) - (b?.projectIds.length ?? 0);
+  };
+  const addClips = () => {
+    if (!full) {
+      importIntoBatch(batchId);
+      return;
+    }
+    // Gated: after an upgrade the picker opens again with the new plan's room.
+    gate({
+      placement: 'batch_limit',
+      params: { clips: clips.length, limit },
+      allowed: () => roomNow() > 0,
+      run: () => importIntoBatch(batchId),
+    });
+  };
+  const pickCaptionStyle = (id: (typeof CAPTION_PRESETS)[number]['id'], free: boolean) => {
+    if (captionStyleUnlocked(tier, free)) {
+      setCaptionStyle(id);
+      return;
+    }
+    gate({
+      placement: 'caption_style_locked',
+      params: { style: id },
+      allowed: () => captionStyleUnlocked(tierOf(useEntitlements.getState()), free),
+      run: () => setCaptionStyle(id),
+    });
+  };
   const footerHeight = FOOTER + footerNotes * FOOTER_NOTE + insets.bottom;
 
   return (
@@ -149,7 +195,7 @@ export default function BatchSetupScreen() {
           </AppText>
           {clips.length > 0 && (
             <AppText variant="label" color={colors.textSecondary} tabular>
-              {full ? (isPro ? `Up to ${limit} clips per batch` : `Free plan: up to ${limit} clips per batch`) : `${clips.length} of ${limit}`}
+              {full ? `${TIER_NAMES[tier]} plan: up to ${limit} clips per batch` : `${clips.length} of ${limit}`}
             </AppText>
           )}
         </View>
@@ -178,13 +224,14 @@ export default function BatchSetupScreen() {
               </Pressable>
             );
           })}
-          {!full && (
+          {(!full || canGrow) && (
             <Pressable
-              onPress={() => importIntoBatch(batchId)}
+              onPress={addClips}
               disabled={importing}
               style={({ pressed }) => [styles.addTile, (importing || pressed) && styles.pressed]}
               accessibilityRole="button"
               accessibilityLabel={importing ? 'Adding clips' : 'Add clips'}
+              accessibilityHint={full ? `The ${TIER_NAMES[tier]} plan holds ${limit} clips per batch. Shows bigger plans.` : undefined}
               accessibilityState={{ busy: importing }}>
               <SymbolView name={importing ? 'hourglass' : 'plus'} size={20} tintColor={colors.textPrimary} weight="regular" />
             </Pressable>
@@ -232,14 +279,15 @@ export default function BatchSetupScreen() {
           contentContainerStyle={styles.chipRow}
           style={clips.length > 0 && !captionsOn && styles.muted}>
           {CAPTION_PRESETS.map((p) => {
-            const locked = !isPro && !p.free;
+            const locked = !captionStyleUnlocked(tier, p.free);
             return (
               <Chip
                 key={p.id}
                 label={p.name}
                 locked={locked}
+                lockLabel={TIER_NAMES[captionUnlockTier]}
                 selected={preset.captions.styleId === p.id}
-                onPress={() => (locked ? router.push('/paywall') : setCaptionStyle(p.id))}
+                onPress={() => pickCaptionStyle(p.id, p.free)}
               />
             );
           })}
@@ -387,9 +435,9 @@ export default function BatchSetupScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 8 }]}>
-        {!isPro && (
+        {limitedExports && (
           <AppText variant="caption" color={colors.textSecondary} style={styles.centerText} tabular>
-            {exportsLeft} of {FREE_LIMITS.exportsPerMonth} free exports left this month · editing is unlimited
+            {exportsLeft} of {monthlyExports} exports left this month · editing is unlimited
           </AppText>
         )}
         {clips.length === 0 && !importing && (

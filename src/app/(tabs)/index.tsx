@@ -23,6 +23,7 @@ import { importNewBatch, useImporting } from '@/batch/importClips';
 import { Engine, EngineEvents, engineAvailable } from '@/engine';
 import type { Batch } from '@/engine/types';
 import { BatchCard, openBatch, summarize, type BatchSummary } from '@/library/BatchCard';
+import { usePaywallGate } from '@/monetization/superwall';
 import { maxBatchSize, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
 import { useLibrary } from '@/state/library';
 import { useSettings } from '@/state/settings';
@@ -186,6 +187,8 @@ function FirstBatchCard({ limit }: { limit: number }) {
 }
 
 function ProPill({ isPro, name }: { isPro: boolean; name: string }) {
+  // Free: the same plans paywall as Settings "See plans".
+  const gate = usePaywallGate();
   if (isPro) {
     return (
       <View style={styles.proPill} accessible accessibilityLabel={`Tenfold ${name} is active`}>
@@ -196,13 +199,13 @@ function ProPill({ isPro, name }: { isPro: boolean; name: string }) {
   }
   return (
     <PressableScale
-      onPress={() => router.push('/paywall')}
+      onPress={() => gate({ placement: 'settings_upgrade', params: { source: 'home' }, allowed: () => false })}
       haptic={false}
       style={styles.proPill}
       accessibilityRole="button"
-      accessibilityLabel="Get Pro">
+      accessibilityLabel="See plans">
       <SymbolView name="crown" size={15} tintColor={colors.textPrimary} weight="regular" />
-      <AppText variant="chip">Pro</AppText>
+      <AppText variant="chip">Upgrade</AppText>
     </PressableScale>
   );
 }

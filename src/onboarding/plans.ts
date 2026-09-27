@@ -1,67 +1,145 @@
-import { FREE_LIMITS, PRO_BATCH_SIZE, STUDIO_BATCH_SIZE, type Tier } from '../state/entitlements';
+// The one source of truth for tiers: names, prices, App Store products and limits.
+// `src/state/entitlements.ts` reads its limits from here; the paywall and Settings read the copy.
+// Superwall's paywalls show the store's localized prices; these USD prices drive the native fallback paywall.
+// No imports from `state/`, so this file stays free of import cycles.
 
-// TODO(M5, Superwall): products, localized prices and trial eligibility come from Superwall.
-// These placeholder prices exist only so the paywall layout and maths can be built and tested.
-
+export type Tier = 'free' | 'starter' | 'pro' | 'studio';
+export type PaidTier = Exclude<Tier, 'free'>;
 export type Billing = 'monthly' | 'annual';
+
+/** Lowest to highest. */
+export const TIER_ORDER: readonly Tier[] = ['free', 'starter', 'pro', 'studio'];
+export const PAID_TIERS: readonly PaidTier[] = ['starter', 'pro', 'studio'];
 
 export const TRIAL_DAYS = 3;
 
-export type PlanInfo = {
-  tier: Tier;
-  name: string;
-  /** Placeholder prices in USD; null = free. */
-  price: Record<Billing, number> | null;
-  features: string[];
+export type TierLimits = {
+  /** Exports a calendar month; Infinity = unlimited. */
+  exportsPerMonth: number;
+  /** Clips per batch. */
+  batchSize: number;
+  /** false = only caption styles marked `free`. */
+  allCaptionStyles: boolean;
+  watermark: boolean;
+  /** 4K export. */
+  uhd: boolean;
 };
 
-export const PLANS: PlanInfo[] = [
-  {
+export type TierInfo = {
+  tier: Tier;
+  name: string;
+  /** USD; null = free. */
+  price: Record<Billing, number> | null;
+  limits: TierLimits;
+};
+
+export const TIERS: Record<Tier, TierInfo> = {
+  free: {
     tier: 'free',
-    name: 'Starter',
+    name: 'Free',
     price: null,
-    features: [`Batches of ${FREE_LIMITS.batchSize}`, `${FREE_LIMITS.exportsPerMonth} exports a month`, 'Free caption styles', 'Small watermark'],
+    limits: { exportsPerMonth: 3, batchSize: 10, allCaptionStyles: false, watermark: true, uhd: false },
   },
-  {
+  starter: {
+    tier: 'starter',
+    name: 'Starter',
+    price: { monthly: 19.99, annual: 159.99 },
+    limits: { exportsPerMonth: 100, batchSize: 20, allCaptionStyles: true, watermark: false, uhd: false },
+  },
+  pro: {
     tier: 'pro',
     name: 'Pro',
-    price: { monthly: 9.99, annual: 79.99 },
-    features: [`Batches of ${PRO_BATCH_SIZE}`, 'Unlimited exports', 'All caption styles', 'No watermark', '4K export'],
+    price: { monthly: 49.99, annual: 399.99 },
+    limits: { exportsPerMonth: 300, batchSize: 50, allCaptionStyles: true, watermark: false, uhd: true },
   },
-  {
+  studio: {
     tier: 'studio',
     name: 'Studio',
-    price: { monthly: 19.99, annual: 159.99 },
-    // TODO: 4K and Keep HDR aren't Studio-only today (4K is in Pro, Keep HDR is ungated), so they aren't listed here.
-    features: ['Everything in Pro', `Batches of ${STUDIO_BATCH_SIZE}`],
+    price: { monthly: 89.99, annual: 719.99 },
+    limits: { exportsPerMonth: Infinity, batchSize: 100, allCaptionStyles: true, watermark: false, uhd: true },
   },
-];
+};
 
-export function planFor(tier: Tier): PlanInfo {
-  return PLANS.find((p) => p.tier === tier) ?? PLANS[0];
+/** App Store product identifiers (also the Superwall products). */
+export const PRODUCT_IDS: Record<PaidTier, Record<Billing, string>> = {
+  starter: { monthly: 'com.ibrahim.tenfold.starter.monthly', annual: 'com.ibrahim.tenfold.starter.yearly' },
+  pro: { monthly: 'com.ibrahim.tenfold.pro.monthly', annual: 'com.ibrahim.tenfold.pro.yearly' },
+  studio: { monthly: 'com.ibrahim.tenfold.studio.monthly', annual: 'com.ibrahim.tenfold.studio.yearly' },
+};
+
+export function limitsFor(tier: Tier): TierLimits {
+  return TIERS[tier].limits;
 }
 
+export function tierRank(tier: Tier): number {
+  return TIER_ORDER.indexOf(tier);
+}
+
+/** The next tier up, or null at the top. */
+export function nextTier(tier: Tier): PaidTier | null {
+  const next = TIER_ORDER[tierRank(tier) + 1];
+  return next && next !== 'free' ? next : null;
+}
+
+/** The lowest tier whose limits pass `ok`, or null if none does. */
+export function lowestTierWhere(ok: (l: TierLimits) => boolean): Tier | null {
+  return TIER_ORDER.find((t) => ok(TIERS[t].limits)) ?? null;
+}
+
+const count = (n: number) => (Number.isFinite(n) ? n.toLocaleString('en-US') : 'Unlimited');
+
+/** Feature lines for a tier, written from its limits. */
+export function featuresFor(tier: Tier): string[] {
+  const l = limitsFor(tier);
+  const lines = [
+    Number.isFinite(l.exportsPerMonth) ? `${count(l.exportsPerMonth)} exports a month` : 'Unlimited exports',
+    `Batches of ${l.batchSize}`,
+    l.allCaptionStyles ? 'All caption styles' : 'Free caption styles',
+    l.watermark ? 'Small watermark' : 'No watermark',
+  ];
+  if (l.uhd) lines.push('4K export');
+  return lines;
+}
+
+export type PlanInfo = TierInfo & { features: string[] };
+
+export function planFor(tier: Tier): PlanInfo {
+  return { ...TIERS[tier], features: featuresFor(tier) };
+}
+
+/** The three paid plans the paywall offers, lowest first. */
+export const PLANS: PlanInfo[] = PAID_TIERS.map(planFor);
+
 /** Whole-percent saving of paying annually over 12 monthly payments. */
-export function annualSavingPercent(plan: PlanInfo): number {
+export function annualSavingPercent(plan: Pick<TierInfo, 'price'>): number {
   if (!plan.price) return 0;
   return Math.round((1 - plan.price.annual / (plan.price.monthly * 12)) * 100);
 }
 
+/** The saving shown on the Annual toggle: the smallest across the paid plans, so it's true for each. */
+export function annualSavingPill(): number {
+  return Math.min(...PLANS.map(annualSavingPercent));
+}
+
 export const money = (n: number) => `$${n.toFixed(2)}`;
 
-/** "$79.99 a year", "$9.99 a month". */
-export function priceLine(plan: PlanInfo, billing: Billing): string {
+/** "$159.99 a year", "$19.99 a month". */
+export function priceLine(plan: Pick<TierInfo, 'price'>, billing: Billing): string {
   if (!plan.price) return 'Free';
   return `${money(plan.price[billing])} a ${billing === 'annual' ? 'year' : 'month'}`;
 }
 
-/** Annual price as a monthly figure, "$6.67 a month". */
-export function perMonth(plan: PlanInfo): string | null {
+/** Annual price as a monthly figure, "$13.33 a month". */
+export function perMonth(plan: Pick<TierInfo, 'price'>): string | null {
   return plan.price ? `${money(plan.price.annual / 12)} a month` : null;
 }
 
-/** The renewal sentence under the button. */
-export function renewalLine(plan: PlanInfo, billing: Billing): string {
-  if (!plan.price) return 'Starter is free. No trial, no payment.';
-  return `Free for ${TRIAL_DAYS} days, then ${priceLine(plan, billing)}. Renews automatically until you cancel in Settings at least 24 hours before the end of the period.`;
+/** The renewal sentence under the button. `trial` false: already subscribed, so no second free trial. */
+export function renewalLine(plan: Pick<TierInfo, 'price'>, billing: Billing, trial = true): string {
+  if (!plan.price) return 'Free has no trial and no payment.';
+  const start = trial ? `Free for ${TRIAL_DAYS} days, then ${priceLine(plan, billing)}.` : `${priceLine(plan, billing)}.`;
+  return `${start} Renews automatically until you cancel in Settings at least 24 hours before the end of the period.`;
 }
+
+export const TERMS_URL = 'https://ibrahim1774.github.io/tenfold/terms.html';
+export const PRIVACY_URL = 'https://ibrahim1774.github.io/tenfold/privacy.html';

@@ -19,10 +19,38 @@ import {
 } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
 import { Engine, type Batch, type Project } from '@/engine';
+import { usePaywallGate, type GateRequest } from '@/monetization/superwall';
 import { exportsLeft, useEntitlements } from '@/state/entitlements';
 import { editsOf, editsSummary } from '@/batch/edits';
 import { formatDuration, projectsOf, useLibrary } from '@/state/library';
 import { clipsOf, effectiveCuts, playingClipCount, playingSeconds } from '@/editor/clips';
+
+/** Exports left this month after the ones already queued in this batch (read fresh, e.g. after an upgrade). */
+function exportRoom(batchId: string) {
+  const lib = useLibrary.getState();
+  const b = lib.batches[batchId];
+  const inFlight = b ? projectsOf(b, lib.projects).filter((p) => p.status === 'exportQueued' || p.status === 'exporting').length : 0;
+  return exportsLeft(useEntitlements.getState()) - inFlight;
+}
+
+/** Queues this batch's ready videos, as many as this month's exports allow. */
+function exportReadyIn(batchId: string) {
+  const lib = useLibrary.getState();
+  const b = lib.batches[batchId];
+  if (!b) return;
+  const ready = projectsOf(b, lib.projects).filter((p) => p.status === 'ready').map((p) => p.id);
+  const left = exportRoom(batchId);
+  if (left <= 0 || ready.length === 0) return;
+  queueExports(Number.isFinite(left) ? ready.slice(0, left) : ready);
+}
+
+/** export_limit: gated, the ready videos export once the plan has exports left. */
+const exportLimitGate = (batchId: string): GateRequest => ({
+  placement: 'export_limit',
+  params: { batchId },
+  allowed: () => exportRoom(batchId) > 0,
+  run: () => exportReadyIn(batchId),
+});
 
 export default function ProcessingScreen() {
   const insets = useSafeAreaInsets();
@@ -33,13 +61,14 @@ export default function ProcessingScreen() {
   const ent = useEntitlements();
   const limitReached = useQueueUI((s) => s.limitReached);
   const setLimitReached = useQueueUI((s) => s.setLimitReached);
+  const gate = usePaywallGate();
 
   useEffect(() => {
     if (limitReached) {
       setLimitReached(false);
-      router.push('/paywall');
+      gate(exportLimitGate(batchId));
     }
-  }, [limitReached, setLimitReached]);
+  }, [limitReached, setLimitReached, gate, batchId]);
 
   if (!batch) {
     return (
@@ -77,15 +106,15 @@ export default function ProcessingScreen() {
   const exportAll = () => {
     if (exportable.length === 0) return;
     if (left <= 0) {
-      router.push('/paywall');
+      gate(exportLimitGate(batchId));
       return;
     }
     const ids = Number.isFinite(left) ? exportable.slice(0, left) : exportable;
     queueExports(ids);
     if (ids.length < exportable.length) {
-      Alert.alert('Free plan limit', `Exporting ${ids.length} now. Go Pro for unlimited exports.`, [
+      Alert.alert('Monthly export limit', `Exporting ${ids.length} now. The rest can export on a bigger plan or next month.`, [
         { text: 'Later', style: 'cancel' },
-        { text: 'See Pro', onPress: () => router.push('/paywall') },
+        { text: 'See plans', onPress: () => gate(exportLimitGate(batchId)) },
       ]);
     }
   };
@@ -204,9 +233,9 @@ export default function ProcessingScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 8 }]}>
-        {!ent.isPro && Number.isFinite(left) && (
+        {Number.isFinite(left) && (
           <AppText variant="caption" color={colors.textSecondary} style={styles.center} tabular>
-            {left} free {left === 1 ? 'export' : 'exports'} left this month
+            {Math.max(0, left)} {left === 1 ? 'export' : 'exports'} left this month
           </AppText>
         )}
         {exportable.length === 0 && done < total && (

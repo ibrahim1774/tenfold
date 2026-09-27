@@ -10,7 +10,8 @@ import { AppText, Background, Card, Chip, ChipGroup, GradientButton, IconButton,
 import type { SFSymbol } from '@/design/symbols';
 import { colors, motion, radii, spacing } from '@/design/tokens';
 import { Engine, EngineEvents, engineAvailable } from '@/engine';
-import { maxBatchSize, tierOf, useEntitlements } from '@/state/entitlements';
+import { nextTier } from '@/onboarding/plans';
+import { maxBatchSize, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
 
 const FACTS: { icon: SFSymbol; text: string }[] = [
   { icon: 'doc.on.doc', text: 'Clips are copied into Tenfold. Your originals in Photos stay untouched.' },
@@ -25,8 +26,9 @@ export default function ImportScreen() {
   const params = useLocalSearchParams<{ mode?: string }>();
   const canJoin = Engine.canAddClips();
   const [mode, setMode] = useState<'single' | 'multiple'>(params.mode === 'multiple' && canJoin ? 'multiple' : 'single');
-  const isPro = useEntitlements((s) => s.isPro);
-  const limit = maxBatchSize(useEntitlements((s) => tierOf(s)));
+  const tier = useEntitlements((s) => tierOf(s));
+  const limit = maxBatchSize(tier);
+  const bigger = nextTier(tier);
   const busy = useImporting((s) => s.busy);
   const [progress, setProgress] = useState<{ index: number; total: number } | null>(null);
   const available = engineAvailable();
@@ -135,9 +137,9 @@ export default function ImportScreen() {
           <AppText variant="caption" color={colors.textMuted} style={styles.text}>
             This build doesn’t include the video engine. Install the latest build to import clips.
           </AppText>
-        ) : !isPro ? (
+        ) : bigger ? (
           <AppText variant="caption" color={colors.textMuted} style={styles.text} tabular>
-            Free: {maxBatchSize(false)} clips per batch. Pro: {maxBatchSize(true)}.
+            {TIER_NAMES[tier]}: {limit} clips per batch. {TIER_NAMES[bigger]}: {maxBatchSize(bigger)}.
           </AppText>
         ) : null}
       </View>

@@ -11,11 +11,13 @@ export type ChipProps = {
   onPress?: () => void;
   disabled?: boolean;
   locked?: boolean;
+  /** Badge on a locked chip: the plan that unlocks it. */
+  lockLabel?: string;
   /** Extends the touch area to 44 pt where the chip sits in a plain row (not inside a ScrollView, which clips it). */
   hitSlop?: number | Insets;
 };
 
-export function Chip({ label, selected, onPress, disabled, locked, hitSlop }: ChipProps) {
+export function Chip({ label, selected, onPress, disabled, locked, lockLabel = 'Paid', hitSlop }: ChipProps) {
   return (
     <PressableScale
       onPress={onPress}
@@ -25,7 +27,7 @@ export function Chip({ label, selected, onPress, disabled, locked, hitSlop }: Ch
       haptic="selection"
       accessibilityRole="button"
       accessibilityState={{ selected, disabled }}
-      accessibilityLabel={locked ? `${label}, Pro` : label}
+      accessibilityLabel={locked ? `${label}, ${lockLabel}` : label}
       style={[styles.chip, selected && styles.selected, disabled && styles.disabled]}>
       <AppText variant="chip" color={selected ? colors.chipSelectedText : colors.chipText}>
         {label}
@@ -33,7 +35,7 @@ export function Chip({ label, selected, onPress, disabled, locked, hitSlop }: Ch
       {locked ? (
         <View style={styles.pro}>
           <AppText variant="caption" color={colors.accentText}>
-            Pro
+            {lockLabel}
           </AppText>
         </View>
       ) : null}

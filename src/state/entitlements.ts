@@ -1,26 +1,26 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+import { limitsFor, TIERS, type Tier } from '../onboarding/plans';
 import { persistStorage } from './storage';
 
-// Free / Pro / Studio (spec §5.3). M5 replaces the local `tier` with Superwall subscription status.
-export type Tier = 'free' | 'pro' | 'studio';
+// The tier in effect on this iPhone. Superwall's subscription status sets it (src/monetization);
+// the persisted value is the last known tier, used when Superwall can't answer (old build, offline).
+// Limits come from the table in src/onboarding/plans.ts.
+export type { Tier } from '../onboarding/plans';
 
-export const FREE_LIMITS = {
-  exportsPerMonth: 3,
-  batchSize: 10,
-} as const;
-
-export const PRO_BATCH_SIZE = 20;
-export const STUDIO_BATCH_SIZE = 50;
-
-export const TIER_NAMES: Record<Tier, string> = { free: 'Starter', pro: 'Pro', studio: 'Studio' };
+export const TIER_NAMES: Record<Tier, string> = {
+  free: TIERS.free.name,
+  starter: TIERS.starter.name,
+  pro: TIERS.pro.name,
+  studio: TIERS.studio.name,
+};
 
 const monthKey = (d = new Date()) => `${d.getFullYear()}-${d.getMonth() + 1}`;
 
 type EntitlementsState = {
   tier: Tier;
-  /** Derived: `tier !== 'free'`. Kept as a field so existing readers (`s.isPro`) keep working. */
+  /** Derived: any paid tier (`tier !== 'free'`). Kept as a field so existing readers (`s.isPro`) keep working. */
   isPro: boolean;
   exportMonth: string;
   exportsUsed: number;
@@ -58,28 +58,40 @@ export const useEntitlements = create<EntitlementsState>()(
 
 /** The tier in effect. A bare `isPro: true` (older state, tests) counts as Pro. */
 export function tierOf(s: Pick<EntitlementsState, 'tier' | 'isPro'>): Tier {
-  if (s.tier && s.tier !== 'free') return s.tier;
+  if (s.tier && s.tier !== 'free' && s.tier in TIERS) return s.tier;
   return s.isPro ? 'pro' : 'free';
 }
 
+const asTier = (t: Tier | boolean): Tier => (typeof t === 'boolean' ? (t ? 'pro' : 'free') : t);
+
 /** Clips per batch. Accepts a tier, or the legacy Pro boolean. */
 export function maxBatchSize(t: Tier | boolean): number {
-  const tier: Tier = typeof t === 'boolean' ? (t ? 'pro' : 'free') : t;
-  return tier === 'studio' ? STUDIO_BATCH_SIZE : tier === 'pro' ? PRO_BATCH_SIZE : FREE_LIMITS.batchSize;
+  return limitsFor(asTier(t)).batchSize;
 }
 
-/** Free exports used this month (0 after the month rolls over). */
+/** Exports a month for a tier (Infinity = unlimited). */
+export function exportLimit(t: Tier | boolean): number {
+  return limitsFor(asTier(t)).exportsPerMonth;
+}
+
+/** True when a caption style can be used on this tier (`free` is the style's own flag). */
+export function captionStyleUnlocked(t: Tier | boolean, styleIsFree: boolean): boolean {
+  return styleIsFree || limitsFor(asTier(t)).allCaptionStyles;
+}
+
+/** Exports used this month (0 after the month rolls over). */
 export function exportsUsedThisMonth(s: Pick<EntitlementsState, 'exportMonth' | 'exportsUsed'>): number {
   return s.exportMonth === monthKey() ? s.exportsUsed : 0;
 }
 
-/** Free exports left this month (Infinity for Pro and Studio). */
+/** Exports left this month for the tier in effect (Infinity for unlimited tiers). */
 export function exportsLeft(s: Pick<EntitlementsState, 'isPro' | 'exportMonth' | 'exportsUsed'> & { tier?: Tier }): number {
-  if (tierOf({ tier: s.tier ?? 'free', isPro: s.isPro }) !== 'free') return Infinity;
-  return Math.max(0, FREE_LIMITS.exportsPerMonth - exportsUsedThisMonth(s));
+  const limit = exportLimit(tierOf({ tier: s.tier ?? 'free', isPro: s.isPro }));
+  if (!Number.isFinite(limit)) return Infinity;
+  return Math.max(0, limit - exportsUsedThisMonth(s));
 }
 
-/** First day of next month: when the free export count resets. */
+/** First day of next month: when the export count resets. */
 export function exportsResetDate(now = new Date()): Date {
   return new Date(now.getFullYear(), now.getMonth() + 1, 1);
 }

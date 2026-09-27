@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
@@ -15,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Background, GradientButton, IconButton } from '@/design/components';
 import { colors, motion, spacing } from '@/design/tokens';
+import { usePaywallGate } from '@/monetization/superwall';
 import { Demo } from '@/onboarding/Demo';
 import { Hook } from '@/onboarding/Hook';
 import { Language } from '@/onboarding/Language';
@@ -43,6 +43,7 @@ export default function OnboardingScreen() {
   const { contentTypes, setContentTypes, setDefaultPreset, setOnboarded } = useSettings();
   const ob = useOnboarding();
   const free = useEntitlements((s) => tierOf(s) === 'free');
+  const gate = usePaywallGate();
   const payoff = computePayoff(ob.videosPerWeek, ob.minutesPerVideo);
 
   // The payoff screen only exists when both of its answers were given.
@@ -68,8 +69,17 @@ export default function OnboardingScreen() {
   const finish = (tour: boolean) => {
     ob.setTourEnabled(tour);
     // Replaying onboarding as a subscriber: no paywall.
-    if (!free) setOnboarded(true);
-    else router.push({ pathname: '/paywall', params: { from: 'onboarding' } });
+    if (!free) {
+      setOnboarded(true);
+      return;
+    }
+    // Non-gated: Superwall's paywall (if the campaign shows one), then into the app either way.
+    // Tenfold's own paywall when Superwall can't present; it finishes onboarding when closed.
+    gate({
+      placement: 'onboarding_end',
+      run: () => setOnboarded(true),
+      fallback: { pathname: '/paywall', params: { from: 'onboarding' } },
+    });
   };
 
   const skip = () => {

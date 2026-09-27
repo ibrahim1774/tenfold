@@ -9,7 +9,9 @@ import { StyleSample } from '@/captions/StyleSample';
 import { useCaptionTarget } from '@/captions/useCaptionTarget';
 import { AppText } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
-import { useEntitlements } from '@/state/entitlements';
+import { usePaywallGate } from '@/monetization/superwall';
+import { lowestTierWhere } from '@/onboarding/plans';
+import { captionStyleUnlocked, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
 
 // Every caption style as a row with a real sample. Picking one replaces the look (font, colours,
 // background, outline, animation) and keeps the size and the on/off switch; the sheet then shows it.
@@ -17,7 +19,10 @@ export default function StylePicker() {
   const insets = useSafeAreaInsets();
   const { projectId, batchId } = useLocalSearchParams<{ projectId?: string; batchId?: string }>();
   const { settings, update } = useCaptionTarget(projectId, batchId);
-  const isPro = useEntitlements((s) => s.isPro);
+  const tier = useEntitlements((s) => tierOf(s));
+  const gate = usePaywallGate();
+  // The plan that unlocks every style, named on locked rows.
+  const unlockTier = lowestTierWhere((l) => l.allCaptionStyles) ?? 'starter';
   const words = useSampleWords(projectId);
 
   return (
@@ -27,7 +32,11 @@ export default function StylePicker() {
       </AppText>
       <View style={styles.group}>
         {CAPTION_PRESETS.map((p, i) => {
-          const locked = !isPro && !p.free;
+          const locked = !captionStyleUnlocked(tier, p.free);
+          const apply = () => {
+            update((c) => ({ ...captionSettingsFromPreset(p.id), sizeScale: c.sizeScale, enabled: c.enabled }));
+            router.back();
+          };
           const selected = settings?.styleId === p.id;
           const preset = captionSettingsFromPreset(p.id);
           return (
@@ -35,17 +44,22 @@ export default function StylePicker() {
               {i > 0 && <View style={styles.divider} />}
               <Pressable
                 onPress={() => {
-                  if (locked) {
-                    router.push('/paywall');
+                  if (!locked) {
+                    apply();
                     return;
                   }
-                  update((c) => ({ ...captionSettingsFromPreset(p.id), sizeScale: c.sizeScale, enabled: c.enabled }));
-                  router.back();
+                  // Gated: the style is applied once the plan allows it.
+                  gate({
+                    placement: 'caption_style_locked',
+                    params: { style: p.id },
+                    allowed: () => captionStyleUnlocked(tierOf(useEntitlements.getState()), p.free),
+                    run: apply,
+                  });
                 }}
                 accessibilityRole="button"
-                accessibilityLabel={`${p.name}${locked ? ', Pro' : ''}`}
+                accessibilityLabel={`${p.name}${locked ? `, ${TIER_NAMES[unlockTier]}` : ''}`}
                 accessibilityState={{ selected }}
-                accessibilityHint={locked ? 'Opens Tenfold Pro.' : undefined}
+                accessibilityHint={locked ? 'Shows plans with every caption style.' : undefined}
                 style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
                 <StyleSample look={{ ...preset, ...lookOf(preset) }} words={words} />
                 <View style={styles.text}>
@@ -53,7 +67,7 @@ export default function StylePicker() {
                   {locked && (
                     <View style={styles.pro}>
                       <AppText variant="caption" color={colors.accentText}>
-                        Pro
+                        {TIER_NAMES[unlockTier]}
                       </AppText>
                     </View>
                   )}

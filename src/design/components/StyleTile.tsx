@@ -64,7 +64,7 @@ export function StyleTile({
       onPress={onPress}
       scaleTo={0.95}
       accessibilityRole="button"
-      accessibilityLabel={locked ? `${name}, Pro` : name}
+      accessibilityLabel={locked ? `${name}, needs a paid plan` : name}
       accessibilityState={{ selected }}
       style={[styles.wrap, { width }]}>
       <View style={[styles.frame, selected && styles.frameSelected]}>

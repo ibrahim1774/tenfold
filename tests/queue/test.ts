@@ -8,7 +8,8 @@ import { importIntoBatch, importJoinedBatch } from '@/batch/importClips';
 import { cancelBatch, queueExports, retryProject, setPaused, startBatch, startQueue, useQueueUI } from '@/batch/queue';
 import { clampPlacement, fillUserScale, fitScale, MAX_SCALE, MIN_SCALE } from '@/editor/frame';
 import { setAllEdits, setEdit, setPresetId } from '@/state/batchSetup';
-import { FREE_LIMITS, maxBatchSize, PRO_BATCH_SIZE, useEntitlements } from '@/state/entitlements';
+import { maxBatchSize, useEntitlements } from '@/state/entitlements';
+import { runMonetizationTests } from './monetization';
 import { projectsOf, useLibrary } from '@/state/library';
 import { batchPreset } from '@/state/presets';
 
@@ -41,7 +42,7 @@ async function main() {
   check(lib().projects[lib().batches[b].projectIds[0]].title === 'Clip 0000', 'IMG_ titles cleaned');
 
   console.log('• free tier: export all stops at 3 and asks for Pro');
-  useEntitlements.setState({ isPro: false, exportsUsed: 0 });
+  useEntitlements.setState({ tier: 'free', isPro: false, exportsUsed: 0 });
   queueExports(lib().batches[b].projectIds);
   check(await until(() => useQueueUI.getState().limitReached), 'limit flag raised');
   check(statuses(b).filter((s) => s === 'done').length === 3, `3 exported (${statuses(b)})`);
@@ -196,10 +197,10 @@ async function main() {
   setPresetId(b, 'punchy');
   check(lib().batches[b].projectIds.every((id) => lib().projects[id].edits!.zoom === true), 'punchy turns zoom back on everywhere');
 
-  console.log('• batch limit: free 10, pro 20, the 11th clip is refused');
-  check(FREE_LIMITS.batchSize === 10 && maxBatchSize(false) === 10, `free batch size is 10 (${maxBatchSize(false)})`);
-  check(PRO_BATCH_SIZE === 20 && maxBatchSize(true) === 20, `pro batch size is 20 (${maxBatchSize(true)})`);
-  useEntitlements.setState({ isPro: false });
+  console.log('• batch limit: free 10, starter 20, the 11th clip is refused on free');
+  check(maxBatchSize('free') === 10 && maxBatchSize(false) === 10, `free batch size is 10 (${maxBatchSize(false)})`);
+  check(maxBatchSize('starter') === 20, `starter batch size is 20 (${maxBatchSize('starter')})`);
+  useEntitlements.getState().setTier('free');
   const pickCalls = () => calls.filter((c) => c.fn === 'pickVideos');
   b = newBatch(9);
   let before = pickCalls().length;
@@ -212,10 +213,10 @@ async function main() {
   await importIntoBatch(b);
   check(pickCalls().length === before, 'at 10 clips the picker does not open for free');
   check(lib().batches[b].projectIds.length === 10, 'the 11th clip is refused for free');
-  useEntitlements.setState({ isPro: true });
+  useEntitlements.getState().setTier('starter');
   control.pickCount = 1;
   await importIntoBatch(b);
-  check(lib().batches[b].projectIds.length === 11 && pickCalls().at(-1)?.opts.max === 10, `pro adds an 11th (max ${pickCalls().at(-1)?.opts.max})`);
+  check(lib().batches[b].projectIds.length === 11 && pickCalls().at(-1)?.opts.max === 10, `starter adds an 11th (max ${pickCalls().at(-1)?.opts.max})`);
   lib().deleteBatch(b);
 
   console.log('• framing math matches the engine (same numbers as CoreTests)');
@@ -269,6 +270,7 @@ async function main() {
   runTextOverlayTests(check);
   runAudioClipTests(check);
   runClipTests(check);
+  runMonetizationTests(check);
 
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);
@@ -279,7 +281,7 @@ main();
 // Imports are hoisted, so they can sit with the section they serve.
 import { computePayoff } from '@/onboarding/savings';
 import { annualSavingPercent, planFor, PLANS, TRIAL_DAYS } from '@/onboarding/plans';
-import { exportsLeft as entExportsLeft, STUDIO_BATCH_SIZE, tierOf } from '@/state/entitlements';
+import { exportsLeft as entExportsLeft, tierOf } from '@/state/entitlements';
 import { ONBOARDING_STORE_KEY, tourDue, useOnboarding } from '@/state/onboarding';
 import { initialTour, TOUR_STEPS, tourReducer } from '@/tour/steps';
 import kv from './kvMock';
@@ -295,14 +297,16 @@ async function onboardingSection(check: (c: boolean, m: string) => void) {
   check(c?.hours === 25, `6+ a week, 60+ min → 25 h (${c?.hours})`);
   check(computePayoff(null, '10-30') === null && computePayoff('3-5', null) === null && computePayoff(null, null) === null, 'a skipped answer → no payoff screen');
 
-  console.log('• tiers: free 10, pro 20, studio 50; isPro derived');
+  console.log('• tiers: free 10, starter 20, pro 50, studio 100; isPro derived (any paid tier)');
   const ent = useEntitlements.getState();
   ent.setTier('free');
-  check(!useEntitlements.getState().isPro && maxBatchSize(tierOf(useEntitlements.getState())) === 10, 'free: 10, not pro');
+  check(!useEntitlements.getState().isPro && maxBatchSize(tierOf(useEntitlements.getState())) === 10, 'free: 10, not paid');
+  ent.setTier('starter');
+  check(useEntitlements.getState().isPro && maxBatchSize(tierOf(useEntitlements.getState())) === 20, 'starter: 20, isPro');
   ent.setTier('pro');
-  check(useEntitlements.getState().isPro && maxBatchSize(tierOf(useEntitlements.getState())) === 20, 'pro: 20, isPro');
+  check(useEntitlements.getState().isPro && maxBatchSize(tierOf(useEntitlements.getState())) === 50, 'pro: 50, isPro');
   ent.setTier('studio');
-  check(useEntitlements.getState().isPro && STUDIO_BATCH_SIZE === 50 && maxBatchSize(tierOf(useEntitlements.getState())) === 50, 'studio: 50, isPro');
+  check(useEntitlements.getState().isPro && maxBatchSize(tierOf(useEntitlements.getState())) === 100, 'studio: 100, isPro');
   check(entExportsLeft(useEntitlements.getState()) === Infinity, 'studio exports are unlimited');
   useEntitlements.setState({ tier: 'free', isPro: true });
   check(tierOf(useEntitlements.getState()) === 'pro', 'legacy isPro: true counts as pro');
@@ -312,8 +316,8 @@ async function onboardingSection(check: (c: boolean, m: string) => void) {
 
   console.log('• plans: 3-day trial, annual saving is computed');
   check(TRIAL_DAYS === 3, 'trial is 3 days');
-  check(annualSavingPercent(planFor('pro')) === 33 && annualSavingPercent(planFor('studio')) === 33, `annual saves 33% (${annualSavingPercent(planFor('pro'))}, ${annualSavingPercent(planFor('studio'))})`);
-  check(PLANS.map((p) => p.tier).join(',') === 'free,pro,studio' && planFor('free').price === null, 'three tiers, Starter is free');
+  check(['starter', 'pro', 'studio'].every((t) => annualSavingPercent(planFor(t as 'pro')) === 33), `annual saves 33% (${PLANS.map(annualSavingPercent).join(', ')})`);
+  check(PLANS.map((p) => p.tier).join(',') === 'starter,pro,studio' && planFor('free').price === null, 'three paid plans; Free has no price');
 
   console.log('• onboarding store persists answers and tour flags');
   const ob = useOnboarding.getState();

@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
+import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useState, type ReactNode } from 'react';
 import { ActionSheetIOS, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +11,9 @@ import { AppText, Background, ProgressBar, Toggle, useTabBarSpace } from '@/desi
 import type { SFSymbol } from '@/design/symbols';
 import { colors, radii, spacing } from '@/design/tokens';
 import { Engine, engineAvailable } from '@/engine';
-import { exportsResetDate, exportsUsedThisMonth, FREE_LIMITS, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
+import { usePaywallGate, useStoreActions } from '@/monetization/superwall';
+import { PRIVACY_URL, TERMS_URL } from '@/onboarding/plans';
+import { exportLimit, exportsResetDate, exportsUsedThisMonth, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
 import { useOnboarding } from '@/state/onboarding';
 import { PRESET_OPTIONS } from '@/state/presets';
 import { useSettings } from '@/state/settings';
@@ -46,6 +49,8 @@ export default function SettingsScreen() {
   const ent = useEntitlements();
   const tier = tierOf(ent);
   const isPro = tier !== 'free';
+  const gate = usePaywallGate();
+  const store = useStoreActions();
   const resetTour = useOnboarding((s) => s.resetTour);
   const engine = engineAvailable();
   const [storage, setStorage] = useState<number | null>(null);
@@ -95,8 +100,26 @@ export default function SettingsScreen() {
             ? 'Unavailable'
             : '…';
 
-  const used = Math.min(FREE_LIMITS.exportsPerMonth, exportsUsedThisMonth(ent));
+  const limit = exportLimit(tier);
+  const limited = Number.isFinite(limit);
+  const used = limited ? Math.min(limit, exportsUsedThisMonth(ent)) : 0;
   const resets = exportsResetDate().toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+
+  // Superwall's paywall for this placement, or Tenfold's own when none is shown. Nothing to unlock here.
+  const seePlans = () => gate({ placement: 'settings_upgrade', allowed: () => false });
+
+  const restore = async () => {
+    const result = await store.restore();
+    const now = tierOf(useEntitlements.getState());
+    if (result.ok && now !== 'free') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(`Restored ${TIER_NAMES[now]}`, 'Your plan is active on this iPhone.');
+    } else if (result.ok) {
+      Alert.alert('Nothing to restore', 'No active subscription was found for this Apple ID.');
+    } else {
+      Alert.alert('Couldn’t restore purchases', result.message ?? 'Try again in a moment.');
+    }
+  };
 
   const replayTour = () => {
     resetTour();
@@ -117,19 +140,19 @@ export default function SettingsScreen() {
 
         <Group title="Plan">
           <Row icon="crown" title="Plan" value={TIER_NAMES[tier]} />
-          {!isPro && (
+          {limited && (
             <View
               style={styles.meter}
               accessible
-              accessibilityLabel={`${used} of ${FREE_LIMITS.exportsPerMonth} free exports used. Resets on ${resets}.`}>
-              <ProgressBar progress={used / FREE_LIMITS.exportsPerMonth} height={4} />
+              accessibilityLabel={`${used} of ${limit} exports used this month. Resets on ${resets}.`}>
+              <ProgressBar progress={used / limit} height={4} />
               <AppText variant="caption" color={colors.textSecondary} tabular>
-                {used} of {FREE_LIMITS.exportsPerMonth} free exports used · resets on {resets}
+                {used} of {limit} exports used · resets on {resets}
               </AppText>
               <View style={[styles.divider, { left: ROW_PAD + ICON_BOX + ICON_GAP }]} />
             </View>
           )}
-          <Row icon="square.grid.2x2" title="See plans" accessory="chevron" onPress={() => router.push('/paywall')} />
+          <Row icon="square.grid.2x2" title="See plans" accessory="chevron" onPress={seePlans} />
           {isPro ? (
             <Row
               icon="creditcard"
@@ -142,7 +165,7 @@ export default function SettingsScreen() {
             icon="arrow.clockwise"
             title="Restore purchases"
             action
-            onPress={() => Alert.alert('Not available yet', 'Purchases arrive with the App Store release.')}
+            onPress={restore}
             last
           />
         </Group>
@@ -197,7 +220,10 @@ export default function SettingsScreen() {
             <AppText variant="label" color={colors.textSecondary} style={styles.flex}>
               Nothing leaves your phone. No account, no uploads, no analytics.
             </AppText>
+            <View style={[styles.divider, { left: ROW_PAD }]} />
           </View>
+          <Row icon="hand.raised" title="Privacy policy" accessory="external" onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)} />
+          <Row icon="doc.text" title="Terms of use" accessory="external" onPress={() => WebBrowser.openBrowserAsync(TERMS_URL)} last />
         </Group>
 
         <Group title="About">

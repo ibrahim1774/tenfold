@@ -70,7 +70,8 @@
           "recordAudioAndroid": true
         }
       ],
-      "./plugins/withQuotedBundleScript.js"
+      "./plugins/withQuotedBundleScript.js",
+      "./plugins/withStoreKitConfig.js"
     ],
     "experiments": {
       "typedRoutes": true,

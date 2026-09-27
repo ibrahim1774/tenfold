@@ -1,0 +1,180 @@
+{
+  "identifier": "A1F0C3D2",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_storefront": "USA",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [
+    {
+      "id": "21504070",
+      "localizations": [
+        {
+          "description": "Tenfold plans",
+          "displayName": "Tenfold",
+          "locale": "en_US"
+        }
+      ],
+      "name": "Tenfold",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "159.99",
+          "familyShareable": false,
+          "groupNumber": 3,
+          "internalID": "6750121",
+          "introductoryOffer": {
+            "internalID": "6750132",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P3D"
+          },
+          "localizations": [
+            {
+              "description": "100 exports a month, batches of 20, no watermark.",
+              "displayName": "Tenfold Starter Yearly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.ibrahim.tenfold.starter.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Starter Yearly",
+          "subscriptionGroupID": "21504070",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "19.99",
+          "familyShareable": false,
+          "groupNumber": 3,
+          "internalID": "6750099",
+          "introductoryOffer": {
+            "internalID": "6750110",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P3D"
+          },
+          "localizations": [
+            {
+              "description": "100 exports a month, batches of 20, no watermark.",
+              "displayName": "Tenfold Starter Monthly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.ibrahim.tenfold.starter.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Starter Monthly",
+          "subscriptionGroupID": "21504070",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "399.99",
+          "familyShareable": false,
+          "groupNumber": 2,
+          "internalID": "6750077",
+          "introductoryOffer": {
+            "internalID": "6750088",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P3D"
+          },
+          "localizations": [
+            {
+              "description": "300 exports a month, batches of 50, 4K export, no watermark.",
+              "displayName": "Tenfold Pro Yearly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.ibrahim.tenfold.pro.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Pro Yearly",
+          "subscriptionGroupID": "21504070",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "49.99",
+          "familyShareable": false,
+          "groupNumber": 2,
+          "internalID": "6750055",
+          "introductoryOffer": {
+            "internalID": "6750066",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P3D"
+          },
+          "localizations": [
+            {
+              "description": "300 exports a month, batches of 50, 4K export, no watermark.",
+              "displayName": "Tenfold Pro Monthly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.ibrahim.tenfold.pro.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Pro Monthly",
+          "subscriptionGroupID": "21504070",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "719.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "6750033",
+          "introductoryOffer": {
+            "internalID": "6750044",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P3D"
+          },
+          "localizations": [
+            {
+              "description": "Unlimited exports, batches of 100, 4K export, no watermark.",
+              "displayName": "Tenfold Studio Yearly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.ibrahim.tenfold.studio.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Studio Yearly",
+          "subscriptionGroupID": "21504070",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "89.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "6750011",
+          "introductoryOffer": {
+            "internalID": "6750022",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P3D"
+          },
+          "localizations": [
+            {
+              "description": "Unlimited exports, batches of 100, 4K export, no watermark.",
+              "displayName": "Tenfold Studio Monthly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.ibrahim.tenfold.studio.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Studio Monthly",
+          "subscriptionGroupID": "21504070",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

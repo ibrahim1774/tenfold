@@ -3,40 +3,49 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Background, GradientButton, IconButton } from '@/design/components';
 import { colors, motion, radii, spacing } from '@/design/tokens';
+import { useStoreActions } from '@/monetization/superwall';
 import {
-  annualSavingPercent,
+  annualSavingPill,
   PLANS,
   perMonth,
   planFor,
   priceLine,
+  PRIVACY_URL,
+  PRODUCT_IDS,
   renewalLine,
+  TERMS_URL,
   TRIAL_DAYS,
   type Billing,
+  type PaidTier,
   type PlanInfo,
 } from '@/onboarding/plans';
-import { tierOf, useEntitlements, type Tier } from '@/state/entitlements';
+import { tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
 import { useSettings } from '@/state/settings';
 
-const NOT_YET = 'Purchases arrive with the App Store release.';
-
+// Tenfold's own paywall. Superwall presents the paywalls normally (src/monetization); this screen is the
+// fallback when this build has no Superwall module or a paywall can't be presented.
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const current = useEntitlements((s) => tierOf(s));
   const setTier = useEntitlements((s) => s.setTier);
   const setOnboarded = useSettings((s) => s.setOnboarded);
+  const store = useStoreActions();
   const [billing, setBilling] = useState<Billing>('annual');
-  const [tier, setSelected] = useState<Tier>(current === 'free' ? 'pro' : current);
+  const [tier, setSelected] = useState<PaidTier>(current === 'free' ? 'pro' : current);
   const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const fromOnboarding = from === 'onboarding';
+  // Apple gives one free trial per subscription group: subscribers switching plans don't get another.
+  const trial = current === 'free';
   const plan = planFor(tier);
-  const saving = annualSavingPercent(planFor('pro'));
+  const saving = annualSavingPill();
 
   const close = () => {
     if (fromOnboarding) {
@@ -52,38 +61,73 @@ export default function PaywallScreen() {
     Haptics.selectionAsync();
     setBilling(b);
   };
-  const pickTier = (t: Tier) => {
+  const pickTier = (t: PaidTier) => {
     if (t === tier) return;
     Haptics.selectionAsync();
     setSelected(t);
     setNotice(null);
   };
 
-  const confirm = () => {
-    // TODO(M5): Superwall purchase. Until then dev builds switch tiers locally to test limits;
-    // release builds never unlock anything for free.
-    if (tier === 'free') {
-      if (__DEV__) setTier('free');
+  // Development builds only: long-press a plan to switch to it locally (again to go back to Free).
+  const devSetTier = __DEV__
+    ? (t: PaidTier) => {
+        const next = current === t ? 'free' : t;
+        setTier(next);
+        setNotice(`Development build: plan set to ${TIER_NAMES[next]} on this iPhone.`);
+      }
+    : undefined;
+
+  const confirm = async () => {
+    if (busy) return;
+    if (tier === current) {
       close();
       return;
     }
-    if (__DEV__) {
-      setTier(tier);
+    if (!store.available) {
+      setNotice(store.unavailableReason);
+      return;
+    }
+    setBusy(true);
+    setNotice(null);
+    const outcome = await store.purchase(PRODUCT_IDS[tier][billing]);
+    setBusy(false);
+    if (outcome === 'purchased') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       close();
+    } else if (outcome === 'pending') {
+      setNotice('The purchase is waiting for approval. Your plan changes when it’s approved.');
+    } else if (outcome === 'unavailable') {
+      setNotice(store.unavailableReason);
+    } else if (outcome === 'failed') {
+      setNotice('The purchase didn’t go through. Nothing was charged. Try again.');
+    }
+  };
+
+  const restore = async () => {
+    if (busy) return;
+    if (!store.available) {
+      setNotice(store.unavailableReason);
+      return;
+    }
+    setBusy(true);
+    setNotice(null);
+    const result = await store.restore();
+    setBusy(false);
+    const now = tierOf(useEntitlements.getState());
+    if (result.ok && now !== 'free') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setNotice(`Restored ${TIER_NAMES[now]}.`);
+    } else if (result.ok) {
+      setNotice('No active subscription was found for this Apple ID.');
     } else {
-      setNotice(NOT_YET);
+      setNotice(result.message ? `Couldn’t restore: ${result.message}` : 'Couldn’t restore purchases. Try again.');
     }
   };
 
   const links = [
-    { label: 'Restore purchases', onPress: () => setNotice(NOT_YET) },
-    // Apple's standard licence agreement until Tenfold has its own terms page.
-    { label: 'Terms', onPress: () => WebBrowser.openBrowserAsync('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/') },
-    {
-      label: 'Privacy',
-      onPress: () =>
-        Alert.alert('Privacy', 'Tenfold edits everything on your iPhone. No account, no uploads, no analytics. Your videos never leave your phone.'),
-    },
+    { label: 'Restore purchases', onPress: restore },
+    { label: 'Terms', onPress: () => WebBrowser.openBrowserAsync(TERMS_URL) },
+    { label: 'Privacy', onPress: () => WebBrowser.openBrowserAsync(PRIVACY_URL) },
   ];
 
   return (
@@ -97,10 +141,10 @@ export default function PaywallScreen() {
       <ScrollView style={styles.flex} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
           <AppText variant="display" accessibilityRole="header">
-            Try Tenfold Pro free for {TRIAL_DAYS} days
+            Try Tenfold free for {TRIAL_DAYS} days
           </AppText>
           <AppText variant="body" color={colors.textSecondary}>
-            Everything still runs on your iPhone. No account, no uploads.
+            Every plan starts with a {TRIAL_DAYS}-day free trial. Everything still runs on your iPhone.
           </AppText>
         </View>
 
@@ -132,13 +176,26 @@ export default function PaywallScreen() {
 
         <View style={styles.plans} accessibilityRole="radiogroup">
           {PLANS.map((p) => (
-            <PlanCard key={p.tier} plan={p} billing={billing} selected={tier === p.tier} current={current === p.tier} onPress={() => pickTier(p.tier)} />
+            <PlanCard
+              key={p.tier}
+              plan={p}
+              billing={billing}
+              selected={tier === p.tier}
+              current={current === p.tier}
+              onPress={() => pickTier(p.tier as PaidTier)}
+              onLongPress={devSetTier ? () => devSetTier(p.tier as PaidTier) : undefined}
+            />
           ))}
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        <GradientButton title={`Continue with ${plan.name}`} shape="pill" onPress={confirm} />
+        <GradientButton
+          title={busy ? 'Waiting for the App Store' : tier === current ? `Keep ${plan.name}` : trial ? `Try ${plan.name} free` : `Switch to ${plan.name}`}
+          shape="pill"
+          disabled={busy}
+          onPress={confirm}
+        />
         {notice ? (
           <Animated.View entering={FadeIn.duration(motion.fast)}>
             <AppText variant="caption" color={colors.textPrimary} style={styles.center} accessibilityLiveRegion="polite">
@@ -147,7 +204,7 @@ export default function PaywallScreen() {
           </Animated.View>
         ) : null}
         <AppText variant="caption" color={colors.textMuted} tabular style={styles.center}>
-          {renewalLine(plan, billing)}
+          {renewalLine(plan, billing, trial)}
         </AppText>
 
         <Pressable onPress={close} accessibilityRole="button" style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
@@ -176,18 +233,21 @@ function PlanCard({
   selected,
   current,
   onPress,
+  onLongPress,
 }: {
   plan: PlanInfo;
   billing: Billing;
   selected: boolean;
   current: boolean;
   onPress: () => void;
+  onLongPress?: () => void;
 }) {
   const price = priceLine(plan, billing);
   const detail = plan.price ? (billing === 'annual' ? perMonth(plan) : `${TRIAL_DAYS} days free`) : null;
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
       accessibilityLabel={`${plan.name}, ${price}${current ? ', your plan' : ''}. ${plan.features.join(', ')}`}
