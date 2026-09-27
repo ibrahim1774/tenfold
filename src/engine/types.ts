@@ -112,6 +112,34 @@ export type CaptionEdits = {
   timing?: { id: string; start?: number; end?: number }[];
 };
 
+export type TextOverlayStyle = 'classic' | 'elegance' | 'neon' | 'retro' | 'comic' | 'typewriter' | 'handwriting' | 'serif' | 'bold';
+export type TextOverlayBox = 'none' | 'filled' | 'translucent' | 'outline';
+export type TextAlign = 'left' | 'center' | 'right';
+
+/**
+ * A title, hook or line of subtext on the finished video (Swift TextOverlay). Geometry is in fractions of the
+ * output canvas, so it survives aspect and quality changes. Times are OUTPUT (composition) seconds, after cuts,
+ * because titles are placed on the edited video; undefined = the whole clip.
+ */
+export type TextOverlay = {
+  id: string;
+  text: string;
+  style: TextOverlayStyle;
+  box: TextOverlayBox;
+  /** "#RRGGBB" text colour. A filled / translucent box takes this colour and the text turns black or white. */
+  color: string;
+  align: TextAlign;
+  /** Font size as a fraction of min(canvas width, height): default 0.07, range 0.03–0.2. */
+  size: number;
+  /** Centre of the text box, fractions of the canvas (0..1). */
+  x: number;
+  y: number;
+  /** Degrees, clockwise. */
+  rotation: number;
+  start?: number;
+  end?: number;
+};
+
 export type EditDocument = {
   version: 1;
   cuts: Cut[];
@@ -125,6 +153,8 @@ export type EditDocument = {
   splits?: number[];
   /** Split / merge / hide / retime edits to caption groups. */
   captionEdits?: CaptionEdits;
+  /** Titles and other text on the video (output time). Per clip. */
+  textOverlays?: TextOverlay[];
   /** Pause/filler strength last picked in the editor (UI only). */
   levels?: { silence: SilenceLevel; fillers: FillerLevel; retakes?: boolean };
 };

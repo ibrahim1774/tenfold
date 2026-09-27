@@ -147,7 +147,8 @@ public enum CaptionLayerBuilder {
 
   // MARK: - Tree
 
-  public static func build(plan: EditPlan, captions: CaptionSettings, render: CGSize, contentsScale: CGFloat = 1, watermark: Bool = false) -> CALayer {
+  /// `overlays` (titles, hooks) are drawn above the captions whether or not captions are on.
+  public static func build(plan: EditPlan, captions: CaptionSettings, render: CGSize, contentsScale: CGFloat = 1, watermark: Bool = false, overlays: [TextOverlay] = []) -> CALayer {
     let root = CALayer()
     root.frame = CGRect(origin: .zero, size: render)
     root.masksToBounds = true
@@ -272,6 +273,8 @@ public enum CaptionLayerBuilder {
         root.addSublayer(cardLayer)
       }
     }
+
+    TextOverlayLayerBuilder.add(to: root, overlays: overlays, render: render, total: total, contentsScale: contentsScale)
 
     if watermark {
       let size = unit(render) * 0.034

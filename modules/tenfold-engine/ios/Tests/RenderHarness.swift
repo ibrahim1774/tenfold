@@ -246,6 +246,158 @@ func orientationSuite(outDir: URL, check: (Bool, String) -> Void) async throws {
   check(ms < 250, "caption build under 250 ms")
 }
 
+
+// MARK: - Text overlays
+
+/// Registers the app's bundled fonts (assets/fonts) so the harness renders the real faces, not a fallback.
+func registerBundledFonts() {
+  let dir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("../../../assets/fonts").standardized
+  let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+  for f in files where f.pathExtension == "ttf" {
+    CTFontManagerRegisterFontsForURL(f as CFURL, .process, nil)
+  }
+}
+
+func pixelRect(_ r: CGRect, _ render: CGSize) -> CGRect {
+  CGRect(x: r.minX / render.width, y: r.minY / render.height, width: r.width / render.width, height: r.height / render.height)
+}
+
+func colorDiff(_ a: (Double, Double, Double), _ b: (Double, Double, Double)) -> Double {
+  (abs(a.0 - b.0) + abs(a.1 - b.1) + abs(a.2 - b.2)) / 3
+}
+
+func isGreen(_ c: (Double, Double, Double)) -> Bool { c.1 > 170 && c.0 < 110 && c.2 < 110 }
+
+func fmtColor(_ c: (Double, Double, Double)) -> String { String(format: "(%.0f, %.0f, %.0f)", c.0, c.1, c.2) }
+
+/// Box-local point → canvas point, rotating clockwise on screen (y down), as the layer tree and RN do.
+func canvasPoint(_ lay: TextOverlayLayerBuilder.Layout, rotation: Double, local: CGPoint) -> CGPoint {
+  let theta = CGFloat(rotation * Double.pi / 180)
+  let dx = local.x - lay.boxSize.width / 2
+  let dy = local.y - lay.boxSize.height / 2
+  let c = cos(theta)
+  let s = sin(theta)
+  let x = lay.center.x + dx * c - dy * s
+  let y = lay.center.y + dx * s + dy * c
+  return CGPoint(x: x, y: y)
+}
+
+/// A small sample square around a canvas point (normalised rect).
+func around(_ p: CGPoint, _ render: CGSize, _ half: CGFloat = 4) -> CGRect {
+  pixelRect(CGRect(x: p.x - half, y: p.y - half, width: half * 2, height: half * 2), render)
+}
+
+func textOverlaySuite(src: URL, media: MediaInfo, outDir: URL, check: (Bool, String) -> Void) async throws {
+  registerBundledFonts()
+  let analysis = Analysis(media: media, transcript: nil, envelopeDb: [], noiseFloorDb: -60, speechThresholdDb: -38, speechCoverage: 0, noSpeech: true, cuts: [], faces: [], warnings: [])
+
+  func render(_ name: String, overlays: [TextOverlay], cuts: [Cut] = []) async throws -> (URL, CGSize, EditPlan) {
+    var doc = EditDocument(cuts: cuts)
+    doc.zoom = ZoomSettings(mode: .off)
+    doc.captions.enabled = false
+    doc.textOverlays = overlays
+    let plan = EditPlanner.plan(doc: doc, analysis: analysis)
+    let built = try await CompositionBuilder.build(source: src, media: media, plan: plan, doc: doc, faces: [], quality: .hd)
+    let out = outDir.appendingPathComponent("harness-text-\(name).mp4")
+    try await Exporter.export(built: built, plan: plan, captions: doc.captions, overlays: doc.textOverlays ?? [], options: ExportOptions(quality: .hd, watermark: false, saveToPhotos: false), to: out) { _ in }
+    return (out, built.renderSize, plan)
+  }
+
+  print("• text overlays: fonts")
+  for style in TextOverlayMetrics.styles {
+    let want = TextOverlayMetrics.fontName(style)
+    let got = CTFontCopyPostScriptName(TextOverlayLayerBuilder.font(style, size: 40)) as String
+    check(got == want, "\(style): font \(got) (wanted \(want))")
+  }
+
+  print("• text overlays: nine styles at their places")
+  let (base, size, _) = try await render("baseline", overlays: [])
+  let baseImg = try await frame(base, at: 1, orient: false)
+  var grid: [TextOverlay] = []
+  for (i, style) in TextOverlayMetrics.styles.enumerated() {
+    let x = [0.22, 0.5, 0.78][i % 3]
+    let y = [0.55, 0.7, 0.85][i / 3]  // below the synthetic face, above the progress bar
+    grid.append(TextOverlay(id: style, text: "Abc", style: style, color: "#FFFFFF", size: 0.07, x: x, y: y))
+  }
+  let (gridURL, gridSize, _) = try await render("styles", overlays: grid)
+  check(gridSize == size, "same canvas \(gridSize)")
+  let gridImg = try await frame(gridURL, at: 1, orient: false)
+  try ThumbnailGenerator.writeJPEG(gridImg, to: outDir.appendingPathComponent("harness-text-styles.jpg"))
+  for o in grid {
+    let lay = TextOverlayLayerBuilder.layout(o, render: size)
+    guard let line = lay.lines.first else {
+      check(false, "\(o.style): laid out")
+      continue
+    }
+    let r = line.frame.offsetBy(dx: lay.center.x - lay.boxSize.width / 2, dy: lay.center.y - lay.boxSize.height / 2)
+    let over = meanColor(gridImg, pixelRect(r, size))
+    let before = meanColor(baseImg, pixelRect(r, size))
+    // Mean over the whole line box: thin faces (Didot) cover less of it than heavy ones.
+    check(colorDiff(over, before) > 10, "\(o.style): text drawn at \(Int(r.midX)),\(Int(r.midY)) (\(fmtColor(over)) vs \(fmtColor(before)))")
+    // Well away from the text (a box-height below it), the frame is untouched.
+    let below = r.offsetBy(dx: 0, dy: lay.boxSize.height * 1.2)
+    check(colorDiff(meanColor(gridImg, pixelRect(below, size)), meanColor(baseImg, pixelRect(below, size))) < 4, "\(o.style): nothing drawn below it")
+  }
+
+  print("• text overlays: corners stay inside the frame")
+  let corners = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)].enumerated().map { i, p in
+    TextOverlay(id: "c\(i)", text: "Corner", style: "classic", box: "filled", color: "#00FF00", size: 0.08, x: p.0, y: p.1)
+  }
+  let (cornerURL, _, _) = try await render("corners", overlays: corners)
+  let cornerImg = try await frame(cornerURL, at: 1, orient: false)
+  try ThumbnailGenerator.writeJPEG(cornerImg, to: outDir.appendingPathComponent("harness-text-corners.jpg"))
+  for o in corners {
+    let lay = TextOverlayLayerBuilder.layout(o, render: size)
+    let box = CGRect(x: lay.center.x - lay.boxSize.width / 2, y: lay.center.y - lay.boxSize.height / 2, width: lay.boxSize.width, height: lay.boxSize.height)
+    check(box.minX >= -0.5 && box.minY >= -0.5 && box.maxX <= size.width + 0.5 && box.maxY <= size.height + 0.5, "\(o.id): box \(box) inside \(size)")
+    // The box's left padding, halfway down, is the box colour.
+    let pad = lay.fontSize * CGFloat(TextOverlayMetrics.padX)
+    let strip = CGRect(x: box.minX + pad * 0.25, y: box.midY - lay.lineHeight * 0.2, width: pad * 0.5, height: lay.lineHeight * 0.4)
+    let c = meanColor(cornerImg, pixelRect(strip, size))
+    check(isGreen(c), "\(o.id): box drawn in the corner \(fmtColor(c))")
+  }
+
+  print("• text overlays: filled box and rotation")
+  let boxed = TextOverlay(id: "box", text: "Filled", style: "bold", box: "filled", color: "#00FF00", size: 0.08, x: 0.5, y: 0.25)
+  let turned = TextOverlay(id: "rot", text: "Rotated title", style: "classic", box: "filled", color: "#00FF00", size: 0.08, x: 0.5, y: 0.65, rotation: 30)
+  let (rotURL, _, _) = try await render("box-rotation", overlays: [boxed, turned])
+  let rotImg = try await frame(rotURL, at: 1, orient: false)
+  try ThumbnailGenerator.writeJPEG(rotImg, to: outDir.appendingPathComponent("harness-text-rotation.jpg"))
+  let bl = TextOverlayLayerBuilder.layout(boxed, render: size)
+  let pad = bl.fontSize * CGFloat(TextOverlayMetrics.padX)
+  let leftPad = canvasPoint(bl, rotation: 0, local: CGPoint(x: pad * 0.5, y: bl.boxSize.height / 2))
+  let behind = meanColor(rotImg, around(leftPad, size))
+  check(isGreen(behind) && !isGreen(meanColor(baseImg, around(leftPad, size))), "filled box turns the pixel beside the text green \(fmtColor(behind))")
+  let over = meanColor(rotImg, around(CGPoint(x: bl.center.x, y: bl.center.y), size, 30))
+  check(over.1 < 200 || over.0 < 60, "text on a light box is dark \(fmtColor(over))")
+  let rl = TextOverlayLayerBuilder.layout(turned, render: size)
+  let rp = rl.fontSize * CGFloat(TextOverlayMetrics.padX)
+  // The right-hand padding: clockwise rotation carries it down (y grows); the mirror position stays video.
+  let rightPad = canvasPoint(rl, rotation: 30, local: CGPoint(x: rl.boxSize.width - rp * 0.5, y: rl.boxSize.height / 2))
+  let mirror = CGPoint(x: rightPad.x, y: rl.center.y - (rightPad.y - rl.center.y))
+  let cw = meanColor(rotImg, around(rightPad, size))
+  let ccw = meanColor(rotImg, around(mirror, size))
+  check(rightPad.y > rl.center.y + 20, "positive degrees turn clockwise (right end at y \(Int(rightPad.y)) below centre \(Int(rl.center.y)))")
+  check(isGreen(cw) && !isGreen(ccw), "rotated box drawn clockwise \(fmtColor(cw)), not counter-clockwise \(fmtColor(ccw))")
+
+  print("• text overlays: output time across a cut")
+  // Source 1.0–2.5 is cut, so output 1.0 joins source 1.0 to 2.5. The overlay spans output 0.8–2.0.
+  let cut = Cut(id: "c", start: 1.0, end: 2.5, reason: .manual, accepted: true, confidence: 1)
+  let timed = TextOverlay(id: "timed", text: "After the cut", style: "classic", box: "filled", color: "#00FF00", size: 0.08, x: 0.5, y: 0.4, start: 0.8, end: 2.0)
+  let (cutURL, _, cutPlan) = try await render("cut", overlays: [timed], cuts: [cut])
+  check(abs(cutPlan.compDuration - 4.5) < 0.1, "cut shortens the video to 4.5 s (\(cutPlan.compDuration))")
+  let tl = TextOverlayLayerBuilder.layout(timed, render: size)
+  let tp = tl.fontSize * CGFloat(TextOverlayMetrics.padX)
+  let probe = canvasPoint(tl, rotation: 0, local: CGPoint(x: tp * 0.5, y: tl.boxSize.height / 2))
+  for (t, visible) in [(0.5, false), (1.6, true), (3.0, false)] {
+    let img = try await frame(cutURL, at: t, orient: false)
+    if visible { try ThumbnailGenerator.writeJPEG(img, to: outDir.appendingPathComponent("harness-text-cut.jpg")) }
+    let c = meanColor(img, around(probe, size))
+    check(isGreen(c) == visible, "output \(t) s: overlay \(visible ? "shown" : "hidden") \(fmtColor(c))")
+  }
+  for u in [base, gridURL, cornerURL, rotURL, cutURL] { try? FileManager.default.removeItem(at: u) }
+}
+
 @main
 struct RenderHarness {
   static func main() async {
@@ -432,6 +584,8 @@ struct RenderHarness {
       let longCard = CaptionCard(start: 0, end: 1, words: [CardWord(index: 0, text: "UNBELIEVABLEEEEE", start: 0, end: 1, emphasis: false)])
       let laid = CaptionLayerBuilder.layout(card: longCard, captions: big, style: CaptionStyle.forId("oneword"), render: CGSize(width: 1080, height: 1920))
       check(laid.count == 1 && laid[0].frame.minX >= 0 && laid[0].frame.maxX <= 1080, "long word fits \(laid.first?.frame ?? .zero)")
+
+      try await textOverlaySuite(src: src, media: media, outDir: outDir, check: check)
       ProjectStore.delete(id)
     } catch {
       print("  FAIL threw \(error)")

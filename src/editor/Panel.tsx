@@ -79,11 +79,14 @@ export function RowGroupSkeleton({ count }: { count: number }) {
   );
 }
 
-export type ToolId = 'cuts' | 'words' | 'captions' | 'zoom' | 'crop' | 'audio';
+export type ToolId = 'cuts' | 'words' | 'captions' | 'text' | 'zoom' | 'crop' | 'audio';
+
+/** Tools that open a screen of their own instead of a panel (plain buttons, never selected). */
+const OPENS_SCREEN: ToolId[] = ['captions', 'text'];
 
 /**
  * The editor's tool row. The open tool sits on a raised fill so it reads as selected at a glance;
- * Captions opens a sheet, so it is a plain button that never stays selected.
+ * Captions and Text open their own screens, so they are plain buttons that never stay selected.
  */
 export function ToolBar({ tools, active, onPress }: { tools: { id: ToolId; icon: SFSymbol; label: string }[]; active: ToolId | null; onPress: (id: ToolId) => void }) {
   return (
@@ -96,9 +99,9 @@ export function ToolBar({ tools, active, onPress }: { tools: { id: ToolId; icon:
             haptic={false}
             scaleTo={0.94}
             onPress={() => onPress(t.id)}
-            accessibilityRole={t.id === 'captions' ? 'button' : 'tab'}
+            accessibilityRole={OPENS_SCREEN.includes(t.id) ? 'button' : 'tab'}
             accessibilityLabel={t.label}
-            accessibilityState={t.id === 'captions' ? undefined : { selected: on }}
+            accessibilityState={OPENS_SCREEN.includes(t.id) ? undefined : { selected: on }}
             style={[styles.tool, on && styles.toolOn]}>
             <SymbolView name={t.icon} size={22} weight="regular" tintColor={on ? colors.textPrimary : colors.textSecondary} />
             <AppText variant="caption" color={on ? colors.textPrimary : colors.textSecondary} numberOfLines={1} style={styles.toolLabel}>

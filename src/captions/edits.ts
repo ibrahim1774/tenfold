@@ -162,9 +162,9 @@ export function resetCaptionEdits(doc: EditDocument): EditDocument {
   return rest;
 }
 
-/** Back to the untouched clip: no cuts, captions off (preset look, no caption edits), no zoom or reframing. */
+/** Back to the untouched clip: no cuts, captions off (preset look, no caption edits), no text, no zoom or reframing. */
 export function revertToOriginal(doc: EditDocument): EditDocument {
-  const { captionEdits: _edits, ...rest } = doc;
+  const { captionEdits: _edits, textOverlays: _texts, ...rest } = doc;
   return {
     ...rest,
     cuts: [],

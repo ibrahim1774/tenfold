@@ -331,10 +331,13 @@ public struct EditDocument: Codable, Sendable, Equatable {
   public var audio: AudioSettings
   /// Split / merge / hide / retime edits to caption groups (absent in older documents).
   public var captionEdits: CaptionEdits?
+  /// Titles and other text placed on the video, timed in output seconds (absent in older documents).
+  public var textOverlays: [TextOverlay]?
 
   public init(
     version: Int = 1, cuts: [Cut] = [], wordOverrides: [WordOverride] = [], captions: CaptionSettings = .init(),
-    zoom: ZoomSettings = .init(), crop: CropSettings = .init(), audio: AudioSettings = .init(), captionEdits: CaptionEdits? = nil
+    zoom: ZoomSettings = .init(), crop: CropSettings = .init(), audio: AudioSettings = .init(), captionEdits: CaptionEdits? = nil,
+    textOverlays: [TextOverlay]? = nil
   ) {
     self.version = version
     self.cuts = cuts
@@ -344,6 +347,7 @@ public struct EditDocument: Codable, Sendable, Equatable {
     self.crop = crop
     self.audio = audio
     self.captionEdits = captionEdits
+    self.textOverlays = textOverlays
   }
 }
 

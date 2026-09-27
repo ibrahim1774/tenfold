@@ -177,7 +177,7 @@ class TenfoldPreviewView: ExpoView {
 
       syncLayer?.removeFromSuperlayer()
       let sync = AVSynchronizedLayer(playerItem: item)
-      let root = CaptionLayerBuilder.build(plan: plan, captions: doc.captions, render: built.renderSize, contentsScale: 1, watermark: false)
+      let root = CaptionLayerBuilder.build(plan: plan, captions: doc.captions, render: built.renderSize, contentsScale: 1, watermark: false, overlays: doc.textOverlays ?? [])
       sync.addSublayer(root)
       layer.addSublayer(sync)
       syncLayer = sync

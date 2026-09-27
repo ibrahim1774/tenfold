@@ -385,6 +385,49 @@ struct CoreTests {
       check(junk == CaptionStyle.forId("boxed"), "unknown values keep the preset")
     }
 
+    test("text overlay clamp keeps the rotated box inside the canvas (same cases as tests/queue)") {
+      // Mirrored in tests/queue/textOverlays.ts: change both together.
+      let W = 1080.0, H = 1920.0
+      let centred = TextOverlayMetrics.clampCenter(x: 0.5, y: 0.5, boxW: 200, boxH: 100, rotation: 0, canvasW: W, canvasH: H)
+      check(near(centred.x, 0.5, 1e-9) && near(centred.y, 0.5, 1e-9), "centred box stays (\(centred))")
+      let right = TextOverlayMetrics.clampCenter(x: 0.95, y: 0.5, boxW: 400, boxH: 100, rotation: 0, canvasW: W, canvasH: H)
+      check(near(right.x, 880.0 / 1080, 1e-9) && near(right.y, 0.5, 1e-9), "past the right edge pulls back to 0.8148 (\(right.x))")
+      let turned = TextOverlayMetrics.clampCenter(x: 0.05, y: 0.02, boxW: 400, boxH: 100, rotation: 90, canvasW: W, canvasH: H)
+      check(near(turned.x, 0.05, 1e-9) && near(turned.y, 200.0 / 1920, 1e-9), "90° swaps the extents (\(turned))")
+      let huge = TextOverlayMetrics.clampCenter(x: 0.9, y: 0.3, boxW: 1200, boxH: 100, rotation: 0, canvasW: W, canvasH: H)
+      check(near(huge.x, 0.5, 1e-9) && near(huge.y, 0.3, 1e-9), "wider than the canvas centres (\(huge))")
+    }
+
+    test("text overlay colours, sizes and windows") {
+      check(TextOverlayMetrics.contrastText("#FFFFFF") == "#000000" && TextOverlayMetrics.contrastText("#FFE14D") == "#000000", "light boxes get black text")
+      check(TextOverlayMetrics.contrastText("#000000") == "#FFFFFF" && TextOverlayMetrics.contrastText("#FF3B30") == "#FFFFFF", "dark boxes get white text")
+      // Mirrored in tests/queue/textOverlays.ts.
+      check(near(TextOverlayMetrics.luminance("#FF3B30"), 0.2126 + 0.7152 * 59 / 255 + 0.0722 * 48 / 255, 1e-9), "luma of #FF3B30")
+      check(TextOverlayMetrics.clampSize(1) == 0.2 && TextOverlayMetrics.clampSize(0) == 0.03 && TextOverlayMetrics.clampSize(.nan) == 0.07, "size clamps")
+      let whole = TextOverlayMetrics.window(TextOverlay(text: "Hi"), total: 12)
+      check(whole.start == 0 && whole.end == 12, "no times = whole clip")
+      let late = TextOverlayMetrics.window(TextOverlay(text: "Hi", start: 10, end: 20), total: 12)
+      check(late.start == 10 && late.end == 12, "clipped to the video")
+      check(TextOverlayMetrics.styles.count == 9 && Set(TextOverlayMetrics.styles.map(TextOverlayMetrics.fontName)).count == 9, "nine styles, nine fonts")
+    }
+
+    test("documents without text overlays decode; partial overlays get defaults") {
+      let json = """
+      {"version":1,"cuts":[],"wordOverrides":[],"captions":{"styleId":"pop","font":"poppins","sizeScale":1,
+       "colors":{"base":"#FFFFFF","active":"#FFE14D","stroke":"#000000","bg":"transparent"},
+       "position":{"y":0.66},"uppercase":false,"maxWords":4,"enabled":true},
+       "zoom":{"mode":"off","intensity":2,"faceFollow":true},"crop":{"auto916":true},"audio":{"mode":"original"}}
+      """
+      let old = try decodeJSON(EditDocument.self, json)
+      check(old.textOverlays == nil, "old document: no overlays")
+      let partial = try decodeJSON(EditDocument.self, json.replacingOccurrences(of: "\"version\":1,", with: #""version":1,"textOverlays":[{"id":"a","text":"POV: day 1","style":"retro"}],"#))
+      let o = partial.textOverlays?.first
+      check(o?.text == "POV: day 1" && o?.box == "none" && o?.align == "center" && o?.size == 0.07 && o?.x == 0.5 && o?.rotation == 0, "defaults filled in")
+      check(o?.color == "#FFF3D6" && o?.start == nil && o?.end == nil, "retro default colour, whole clip")
+      let round = try decodeJSON(EditDocument.self, try encodeJSON(partial))
+      check(round == partial, "round-trips")
+    }
+
     print("\n\(passes) passed, \(failures) failed")
     exit(failures == 0 ? 0 : 1)
   }

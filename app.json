@@ -55,7 +55,8 @@
             "./assets/fonts/BebasNeue_400Regular.ttf",
             "./assets/fonts/Montserrat_800ExtraBold.ttf",
             "./assets/fonts/TikTokSans_800ExtraBold.ttf",
-            "./assets/fonts/TikTokSans_600SemiBold.ttf"
+            "./assets/fonts/TikTokSans_600SemiBold.ttf",
+            "./assets/fonts/ComicNeue_700Bold.ttf"
           ]
         }
       ],

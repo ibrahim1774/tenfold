@@ -144,7 +144,7 @@ public class TenfoldEngineModule: Module {
         let built = try await CompositionBuilder.build(source: source, media: meta.media, plan: plan, doc: doc, faces: analysis.faces, quality: quality, keepHDR: options.keepHDR)
         let name = "tenfold-\(Int(Date().timeIntervalSince1970)).mp4"
         let out = ProjectStore.subdir(projectId, "exports").appendingPathComponent(name)
-        try await Exporter.export(built: built, plan: plan, captions: doc.captions, options: options, to: out) { f in
+        try await Exporter.export(built: built, plan: plan, captions: doc.captions, overlays: doc.textOverlays ?? [], options: options, to: out) { f in
           self.sendEvent("onJobProgress", ["projectId": projectId, "stage": "exporting", "fraction": f])
         }
         var saved = false

@@ -96,6 +96,11 @@ export default function RootLayout() {
                 contentStyle: { backgroundColor: colors.bgRaised },
               }}
             />
+            {/* TikTok-style text tool: full screen over a still of the video. */}
+            <Stack.Screen
+              name="editor/text"
+              options={{ presentation: 'fullScreenModal', animation: 'fade', contentStyle: { backgroundColor: '#000000' } }}
+            />
             <Stack.Screen name="export/[projectId]" options={{ presentation: 'modal' }} />
           </Stack.Protected>
 

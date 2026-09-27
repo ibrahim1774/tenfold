@@ -26,6 +26,9 @@ import { FrameCanvas } from '@/editor/FrameCanvas';
 import { ActionBar, Panel, ToolBar, type ToolId } from '@/editor/Panel';
 import { clearPreviewRequest, usePreviewBus } from '@/editor/previewBus';
 import { regionsOf, Timeline, toSource, type Region, type TimelineSelection } from '@/editor/Timeline';
+import { TextCanvas, type OverlayPatch } from '@/editor/TextCanvas';
+import { copyOverlaysToBatch, isWholeClip, removeOverlay, retimeOverlay, setWholeClip, updateOverlay } from '@/editor/textOverlays';
+import { overlayWindow } from '@/editor/textLayout';
 import { restorableSec, trimClip } from '@/editor/trim';
 import {
   captionText,
@@ -49,6 +52,7 @@ import {
   type FillerLevel,
   type SilenceLevel,
   type TenfoldPreviewViewRef,
+  type TextOverlay,
   type Thumbnail,
   type ZoomMode,
 } from '@/engine';
@@ -56,12 +60,13 @@ import { commitDoc, redoDoc, undoDoc, useEditHistory } from '@/state/history';
 import { docFromAnalysis, formatDuration, useLibrary } from '@/state/library';
 import { tourTarget } from '@/tour/targets';
 
-type Tool = Exclude<ToolId, 'captions'> | null;
+type Tool = Exclude<ToolId, 'captions' | 'text'> | null;
 
-const TOOLS: { id: ToolId; icon: 'scissors' | 'text.quote' | 'captions.bubble' | 'plus.magnifyingglass' | 'crop' | 'waveform'; label: string }[] = [
+const TOOLS: { id: ToolId; icon: 'scissors' | 'text.quote' | 'captions.bubble' | 'textformat' | 'plus.magnifyingglass' | 'crop' | 'waveform'; label: string }[] = [
   { id: 'cuts', icon: 'scissors', label: 'Cuts' },
   { id: 'words', icon: 'text.quote', label: 'Words' },
   { id: 'captions', icon: 'captions.bubble', label: 'Captions' },
+  { id: 'text', icon: 'textformat', label: 'Text' },
   { id: 'zoom', icon: 'plus.magnifyingglass', label: 'Zoom' },
   { id: 'crop', icon: 'crop', label: 'Frame' },
   { id: 'audio', icon: 'waveform', label: 'Audio' },
@@ -94,6 +99,7 @@ const FILLERS: { v: FillerLevel; l: string }[] = [
  * the engine does ("w" + first word index) so selection keeps working until the app is rebuilt.
  */
 const NO_CARDS: CaptionCard[] = [];
+const NO_TEXTS: TextOverlay[] = [];
 
 function withCaptionIds(p: EditPlan): EditPlan {
   const fill = (c: CaptionCard): CaptionCard => (c.id ? c : { ...c, id: `w${c.words[0]?.index ?? 0}` });
@@ -129,7 +135,9 @@ export default function EditorScreen() {
   const [levelsError, setLevelsError] = useState<string | null>(null);
   // One selection at a time. A clip selection is tied to the document it was made on, so any edit (or
   // undo) clears it; a caption is selected by its stable id and stays selected through its own edits.
-  const [selection, setSelection] = useState<{ kind: 'region'; region: Region; key: string } | { kind: 'caption'; id: string } | null>(null);
+  const [selection, setSelection] = useState<
+    { kind: 'region'; region: Region; key: string } | { kind: 'caption'; id: string } | { kind: 'text'; id: string } | null
+  >(null);
   // Caption group whose text is being retyped in place.
   const [editingCaption, setEditingCaption] = useState<string | null>(null);
   // Shape reported by the native preview, remembered with the aspect setting that produced it.
@@ -173,9 +181,11 @@ export default function EditorScreen() {
 
   const docJSON = useMemo(() => (doc ? JSON.stringify(doc) : ''), [doc]);
   // What the native preview renders: UI-only fields left out, so a split doesn't rebuild the player.
+  // Text overlays are left out too: TextCanvas draws them over the preview (live while dragged) with the
+  // engine's own layout numbers, and the export burns them in.
   const previewJSON = useMemo(() => {
     if (!doc) return '';
-    const { splits: _splits, levels: _levels, ...rest } = doc;
+    const { splits: _splits, levels: _levels, textOverlays: _texts, ...rest } = doc;
     return JSON.stringify(rest);
   }, [doc]);
 
@@ -295,11 +305,16 @@ export default function EditorScreen() {
   const selectedCard = selection?.kind === 'caption' ? (allCards.find((c) => c.id === selection.id) ?? null) : null;
   // The React Compiler (app.json) memoises this, so playback ticks don't re-render the timeline's tracks.
   const selectedCardId = selectedCard?.id ?? null;
+  const texts = doc?.textOverlays ?? NO_TEXTS;
+  const selectedText = selection?.kind === 'text' ? (texts.find((o) => o.id === selection.id) ?? null) : null;
+  const selectedTextId = selectedText?.id ?? null;
   const timelineSelection: TimelineSelection = selected
     ? { kind: 'region', region: selected }
     : selectedCardId
       ? { kind: 'caption', id: selectedCardId }
-      : null;
+      : selectedTextId
+        ? { kind: 'text', id: selectedTextId }
+        : null;
   const onSelect = useCallback(
     (s: TimelineSelection) => {
       setEditingCaption(null);
@@ -308,7 +323,7 @@ export default function EditorScreen() {
       else if (s.kind === 'region') setSelection({ kind: 'region', region: s.region, key: docJSON });
       else {
         setPlaying(false);
-        setSelection({ kind: 'caption', id: s.id });
+        setSelection({ kind: s.kind, id: s.id });
       }
     },
     [docJSON],
@@ -343,6 +358,18 @@ export default function EditorScreen() {
       return true;
     },
     [projectId, segments, commit],
+  );
+
+  const onRetimeText = useCallback(
+    (id: string, edge: { start?: number; end?: number }) => {
+      const latest = useLibrary.getState().docs[projectId];
+      if (!latest || !plan) return false;
+      const next = retimeOverlay(latest, id, edge, plan.compDuration);
+      if (!next) return false;
+      commit(next);
+      return true;
+    },
+    [projectId, plan, commit],
   );
 
   // Caption actions (contextual tool bar). Each reads the saved document, so it is one undo step.
@@ -397,6 +424,72 @@ export default function EditorScreen() {
       if (timer) clearTimeout(timer);
     };
   }, []);
+
+  // Text overlays: the TikTok-style editor is its own full-screen route over a still of this frame.
+  const openTextEditor = (overlayId?: string, focus?: 'style') => {
+    setPlaying(false);
+    // The filmstrip frame nearest the playhead, as the backdrop to type over.
+    const src = sourceAt(time);
+    let poster: string | undefined = project?.posterUri ?? undefined;
+    let best = Infinity;
+    for (const t of thumbs) {
+      const d = Math.abs(t.time - src);
+      if (d < best) {
+        best = d;
+        poster = t.uri;
+      }
+    }
+    // The output's shape, as the preview frame is sized (below).
+    const a = aspectOf(useLibrary.getState().docs[projectId]?.crop ?? { auto916: true });
+    const ratio = rendered && rendered.aspect === a ? rendered.value : aspectRatioValue(a, project?.media ?? undefined);
+    const params: { projectId: string; ratio: string; overlayId?: string; poster?: string; focus?: string } = { projectId, ratio: String(ratio) };
+    if (overlayId) params.overlayId = overlayId;
+    if (poster) params.poster = poster;
+    if (focus) params.focus = focus;
+    router.push({ pathname: '/editor/text', params });
+  };
+  const onGrabText = (id: string) => {
+    setPlaying(false);
+    setNotice(null);
+    setEditingCaption(null);
+    setSelection({ kind: 'text', id });
+  };
+  const onOpenText = (id: string) => {
+    setSelection({ kind: 'text', id });
+    openTextEditor(id);
+  };
+  const onCommitText = (id: string, patch: OverlayPatch) => {
+    const latest = useLibrary.getState().docs[projectId];
+    const next = latest ? updateOverlay(latest, id, patch) : null;
+    if (!next) return false;
+    commit(next);
+    return true;
+  };
+  const deleteText = (id: string) => {
+    const latest = useLibrary.getState().docs[projectId];
+    const next = latest ? removeOverlay(latest, id) : null;
+    if (next) commit(next);
+    setSelection(null);
+  };
+  const textWholeClip = (id: string) => {
+    const latest = useLibrary.getState().docs[projectId];
+    const next = latest ? setWholeClip(latest, id) : null;
+    if (next) commit(next);
+  };
+
+  // Same text on every other clip of the batch (replacing theirs); one undo step per clip.
+  const copyTextToBatch = () => {
+    if (!batch) return;
+    const { docs } = useLibrary.getState();
+    const copies = copyOverlaysToBatch(docs, projectId, batch.projectIds, () => newId('t'));
+    const ids = Object.keys(copies);
+    ids.forEach((pid) => commitDoc(pid, copies[pid]));
+    const n = docs[projectId]?.textOverlays?.length ?? 0;
+    setNotice({
+      text: ids.length ? `Copied ${plural(n, 'text', 'texts')} to ${plural(ids.length, 'other clip', 'other clips')}.` : 'No other clip in this batch is ready to edit yet.',
+      key: docJSON,
+    });
+  };
 
   const splitAtPlayhead = () => {
     if (!doc) return;
@@ -474,19 +567,24 @@ export default function EditorScreen() {
   };
 
   // Tenfold's edit for this video again, from its analysis and the edits checked for it.
+  // Text the user placed is theirs, not part of Tenfold's edit: it stays.
   const reapplyEdit = () => {
     if (!doc || !analysis || !batch || !project) return;
-    commit({ ...docFromAnalysis(analysis, batch, editsOf(project, batch)), wordOverrides: doc.wordOverrides });
+    const fresh: EditDocument = { ...docFromAnalysis(analysis, batch, editsOf(project, batch)), wordOverrides: doc.wordOverrides };
+    commit(doc.textOverlays ? { ...fresh, textOverlays: doc.textOverlays } : fresh);
   };
 
   const openMenu = () => {
     setPlaying(false);
     // "Reset caption edits" only when there are some (split, merge, hide or retime).
     const hasCaptionEdits = !!useLibrary.getState().docs[projectId]?.captionEdits;
+    // "Copy text" only with text to copy and other clips in the batch to copy it to.
+    const canCopyText = !!useLibrary.getState().docs[projectId]?.textOverlays?.length && (batch?.projectIds.length ?? 0) > 1;
     const items: { title: string; run: () => void }[] = [
       { title: 'Revert to original', run: revertToOriginal },
       { title: 'Re-apply Tenfold’s edit', run: reapplyEdit },
       ...(hasCaptionEdits ? [{ title: 'Reset caption edits', run: resetCaptions }] : []),
+      ...(canCopyText ? [{ title: 'Copy text to all clips in batch', run: copyTextToBatch }] : []),
       { title: 'Video info', run: showInfo },
     ];
     ActionSheetIOS.showActionSheetWithOptions(
@@ -637,6 +735,10 @@ export default function EditorScreen() {
       router.push({ pathname: '/editor/captions', params: { projectId } });
       return;
     }
+    if (id === 'text') {
+      openTextEditor();
+      return;
+    }
     setEditingWord(null);
     setTool(tool === id ? null : id);
   };
@@ -650,7 +752,7 @@ export default function EditorScreen() {
             title={project.title}
             right={
               <>
-                <IconButton icon="ellipsis" label="More: revert, re-apply edit, reset caption edits, video info" size={44} iconScale={0.45} onPress={openMenu} />
+                <IconButton icon="ellipsis" label="More: revert, re-apply edit, reset caption edits, copy text to the batch, video info" size={44} iconScale={0.45} onPress={openMenu} />
                 <GradientButton
                   title="Export"
                   height={44}
@@ -707,6 +809,21 @@ export default function EditorScreen() {
               onError={(e) => setPreviewError(e.nativeEvent.message)}
             />
           </FrameCanvas>
+          {/* Text sits on the canvas, not on the video: it doesn't move when the video is pinched. */}
+          <View style={[styles.overlay, { width: frameW, height: frameH }]} pointerEvents="box-none">
+            <TextCanvas
+              overlays={texts}
+              width={frameW}
+              height={frameH}
+              time={time}
+              total={total}
+              selectedId={selectedTextId}
+              onGrab={onGrabText}
+              onOpen={onOpenText}
+              onCommit={onCommitText}
+              onDelete={deleteText}
+            />
+          </View>
           <View style={[styles.overlay, { width: frameW, height: frameH }]} pointerEvents="none">
             {!playing && previewReady && (
               <View style={styles.bigPlay}>
@@ -760,8 +877,25 @@ export default function EditorScreen() {
           showsVerticalScrollIndicator={false}
           automaticallyAdjustKeyboardInsets>
           <View ref={tourTarget('editor.tools')} style={[styles.gutter, styles.toolRow]}>
-            {/* A selected caption swaps the project tools for what can be done to it. */}
-            {selectedCard ? (
+            {/* A selected caption or text swaps the project tools for what can be done to it. */}
+            {selectedText ? (
+              <ActionBar
+                label="Text actions"
+                actions={[
+                  { id: 'edit', icon: 'character.cursor.ibeam', label: 'Edit', onPress: () => openTextEditor(selectedText.id) },
+                  { id: 'style', icon: 'textformat', label: 'Style', onPress: () => openTextEditor(selectedText.id, 'style') },
+                  {
+                    id: 'duration',
+                    icon: 'arrow.left.and.right',
+                    label: 'Whole clip',
+                    onPress: () => textWholeClip(selectedText.id),
+                    disabled: isWholeClip(selectedText),
+                  },
+                  { id: 'delete', icon: 'trash', label: 'Delete', onPress: () => deleteText(selectedText.id), danger: true },
+                  { id: 'done', icon: 'checkmark', label: 'Done', onPress: () => onSelect(null) },
+                ]}
+              />
+            ) : selectedCard ? (
               <ActionBar
                 label="Caption actions"
                 actions={[
@@ -785,6 +919,7 @@ export default function EditorScreen() {
               compDuration={plan.compDuration}
               cards={plan.cards}
               hiddenCards={plan.hiddenCards ?? NO_CARDS}
+              texts={texts}
               envelopeDb={analysis.envelopeDb}
               thumbs={thumbs}
               splits={compSplits}
@@ -798,12 +933,13 @@ export default function EditorScreen() {
               onSelect={onSelect}
               onTrimRegion={onTrimRegion}
               onRetimeCaption={onRetimeCaption}
+              onRetimeText={onRetimeText}
             />
           )}
 
           {plan && (
             <View ref={tourTarget('editor.editbar')} style={[styles.gutter, styles.editBar]}>
-              {!selectedCard && (
+              {!selectedCard && !selectedText && (
                 <>
                   <EditAction icon="scissors" label="Split" onPress={splitAtPlayhead} />
                   <EditAction icon="trash" label="Delete" onPress={deleteSelected} disabled={!selected} danger />
@@ -816,12 +952,34 @@ export default function EditorScreen() {
                 style={styles.editHint}
                 numberOfLines={2}
                 accessibilityLiveRegion="polite">
-                {shownNotice ?? (selected ? 'Clip selected. Drag its ends to trim.' : selectedCard ? 'Caption selected. Drag its ends to change when it shows.' : '')}
+                {shownNotice ??
+                  (selected
+                    ? 'Clip selected. Drag its ends to trim.'
+                    : selectedCard
+                      ? 'Caption selected. Drag its ends to change when it shows.'
+                      : selectedText
+                        ? 'Text selected. Drag its ends to change when it shows.'
+                        : '')}
               </AppText>
             </View>
           )}
 
           <View style={[styles.gutter, styles.panel]}>
+            {selectedText && (
+              <Panel title="Text" detail={textTiming(selectedText, total)}>
+                <PressableScale
+                  haptic={false}
+                  scaleTo={0.98}
+                  onPress={() => openTextEditor(selectedText.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Text: ${selectedText.text}`}
+                  accessibilityHint="Edits the text."
+                  style={styles.captionTextBox}>
+                  <AppText variant="body">{selectedText.text}</AppText>
+                </PressableScale>
+              </Panel>
+            )}
+
             {selectedCard && (
               <Panel
                 title={hiddenIds.has(selectedCard.id) ? 'Caption (hidden)' : 'Caption'}
@@ -855,7 +1013,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {!selectedCard && tool === null && (
+            {!selectedCard && !selectedText && tool === null && (
               <Panel title="This edit" animate={false}>
                 <AppText variant="bodyStrong" tabular>
                   {summary}
@@ -893,7 +1051,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {!selectedCard && tool === 'words' && (
+            {!selectedCard && !selectedText && tool === 'words' && (
               <Panel title="Words" detail="Tap a word to cut or restore it. Hold it to fix the spelling.">
                 {words.length === 0 ? (
                   <AppText variant="label" color={colors.textSecondary}>
@@ -959,7 +1117,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {!selectedCard && tool === 'cuts' && (
+            {!selectedCard && !selectedText && tool === 'cuts' && (
               <Panel title="Cuts" detail="Pauses, filler words and retakes taken out of this video.">
                 <View style={styles.statRow}>
                   <Stat value={String(acceptedPauses)} label="Pauses" />
@@ -1010,7 +1168,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {!selectedCard && tool === 'zoom' && (
+            {!selectedCard && !selectedText && tool === 'zoom' && (
               <Panel title="Zoom" detail="Punches in at each cut to hide the jump. Dynamic also zooms on new sentences.">
                 <ChipGroup>
                   {ZOOMS.map((z) => (
@@ -1035,7 +1193,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {!selectedCard && tool === 'crop' && (
+            {!selectedCard && !selectedText && tool === 'crop' && (
               <Panel
                 title="Frame"
                 detail={
@@ -1110,7 +1268,7 @@ export default function EditorScreen() {
               </Panel>
             )}
 
-            {!selectedCard && tool === 'audio' && (
+            {!selectedCard && !selectedText && tool === 'audio' && (
               <Panel title="Audio" detail="The sound recorded with the clip.">
                 <ToggleRow title="Mute original audio" value={muted} onChange={(v) => commit({ ...doc, audio: { mode: v ? 'mute' : 'original' } })} />
               </Panel>
@@ -1120,6 +1278,13 @@ export default function EditorScreen() {
       </View>
     </View>
   );
+}
+
+/** "Whole clip" or "1.2–4.0 s" (output time). */
+function textTiming(o: TextOverlay, total: number) {
+  if (isWholeClip(o)) return 'Whole clip · drag its ends in the timeline to time it';
+  const w = overlayWindow(o, total);
+  return `${w.start.toFixed(1)}–${w.end.toFixed(1)} s`;
 }
 
 function EditAction({ icon, label, onPress, disabled, danger }: { icon: 'scissors' | 'trash'; label: string; onPress: () => void; disabled?: boolean; danger?: boolean }) {

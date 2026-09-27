@@ -1,5 +1,6 @@
 import { calls, control, running } from './mockEngine';
 import { runCaptionEditTests } from './captionEdits';
+import { runTextOverlayTests } from './textOverlays';
 import { AppState } from './rnMock';
 import { importIntoBatch } from '@/batch/importClips';
 import { cancelBatch, queueExports, retryProject, setPaused, startBatch, startQueue, useQueueUI } from '@/batch/queue';
@@ -227,7 +228,21 @@ async function main() {
 
   await onboardingSection(check);
 
+  console.log('• text overlays reach the export unchanged');
+  useEntitlements.setState({ isPro: true });
+  const tb = newBatch(1);
+  startBatch(tb);
+  check(await until(() => statuses(tb).every((s) => s === 'ready')), 'ready to export');
+  const tpid = lib().batches[tb].projectIds[0];
+  const title = { id: 'x1', text: 'POV: day 1', style: 'retro' as const, box: 'filled' as const, color: '#FFF3D6', align: 'center' as const, size: 0.08, x: 0.5, y: 0.2, rotation: 5, start: 1 };
+  lib().setDoc(tpid, { ...lib().docs[tpid], textOverlays: [title] });
+  queueExports([tpid]);
+  check(await until(() => statuses(tb).every((s) => s === 'done')), 'exported');
+  const sent = calls.filter((c) => c.fn === 'export' && c.id === tpid).at(-1)?.doc;
+  check(JSON.stringify(sent?.textOverlays) === JSON.stringify([title]), `export received the overlays (${JSON.stringify(sent?.textOverlays)})`);
+
   runCaptionEditTests(check);
+  runTextOverlayTests(check);
 
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);

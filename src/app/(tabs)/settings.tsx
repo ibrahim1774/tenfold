@@ -177,7 +177,7 @@ export default function SettingsScreen() {
           ))}
         </Group>
 
-        <Group title="Video" footer="Keep HDR turns off captions and zooms.">
+        <Group title="Video" footer="Keep HDR turns off captions, text and zooms.">
           <Row icon="sun.max" title="Keep HDR" toggle={{ value: keepHDR, onChange: setKeepHDR }} last />
         </Group>
 

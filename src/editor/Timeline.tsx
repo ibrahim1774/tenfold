@@ -8,25 +8,30 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { AppText } from '@/design/components';
 import { colors } from '@/design/tokens';
-import type { CaptionCard, CompSegment, Thumbnail } from '@/engine/types';
+import type { CaptionCard, CompSegment, TextOverlay, Thumbnail } from '@/engine/types';
+import { overlayWindow } from './textLayout';
+import { MIN_OVERLAY_SEC } from './textOverlays';
 
 const PPS = 46; // points per second of composition time
 const FRAME_W = 34;
 const ENVELOPE_STEP = 0.02; // seconds per envelope frame (Swift Envelope.frameSec)
 const MIN_CAPTION_SEC = 0.3; // CaptionGrouper.minRetimeSec
 const MIN_CLIP_SEC = 0.2; // src/editor/trim.ts
+const TEXT_ROW = 30; // height of one row of text bars
 
 /** A stretch of the composition between two edit points (a cut or a user split), in composition seconds. */
 export type Region = { start: number; end: number };
 
-/** One thing is selected at a time: a clip (region) or a caption group (by its stable id). */
-export type TimelineSelection = { kind: 'region'; region: Region } | { kind: 'caption'; id: string } | null;
+/** One thing is selected at a time: a clip (region), a caption group (by its stable id) or a text overlay. */
+export type TimelineSelection = { kind: 'region'; region: Region } | { kind: 'caption'; id: string } | { kind: 'text'; id: string } | null;
 
 export type TimelineProps = {
   segments: CompSegment[];
   compDuration: number;
   cards: CaptionCard[]; // composition time
   hiddenCards: CaptionCard[]; // hidden caption groups (shown faded so they can be shown again)
+  /** Text overlays, timed in output (composition) seconds like everything else on the strip. */
+  texts: TextOverlay[];
   envelopeDb: number[]; // source time
   thumbs: Thumbnail[]; // source time
   splits: number[]; // composition time, strictly inside kept segments
@@ -43,6 +48,8 @@ export type TimelineProps = {
   onTrimRegion: (region: Region, side: 'start' | 'end', delta: number) => boolean;
   /** A caption's edges were moved (composition seconds). True if the document changed. */
   onRetimeCaption: (card: CaptionCard, edge: { start?: number; end?: number }) => boolean;
+  /** A text overlay's edges were moved (output seconds). True if the document changed. */
+  onRetimeText: (id: string, edge: { start?: number; end?: number }) => boolean;
 };
 
 export function toSource(segs: CompSegment[], comp: number) {
@@ -83,6 +90,7 @@ export function Timeline({
   compDuration,
   cards,
   hiddenCards,
+  texts,
   envelopeDb,
   thumbs,
   splits,
@@ -96,6 +104,7 @@ export function Timeline({
   onSelect,
   onTrimRegion,
   onRetimeCaption,
+  onRetimeText,
 }: TimelineProps) {
   const scroll = useRef<ScrollView>(null);
   const [viewW, setViewW] = useState(0);
@@ -170,6 +179,7 @@ export function Timeline({
                   total={total}
                   cards={cards}
                   hiddenCards={hiddenCards}
+                  texts={texts}
                   envelopeDb={envelopeDb}
                   thumbs={thumbs}
                   muted={muted}
@@ -177,6 +187,7 @@ export function Timeline({
                   onSelect={onSelect}
                   onTrimRegion={onTrimRegion}
                   onRetimeCaption={onRetimeCaption}
+                  onRetimeText={onRetimeText}
                 />
               </View>
             </ScrollView>
@@ -215,6 +226,7 @@ type TracksProps = {
   total: number;
   cards: CaptionCard[];
   hiddenCards: CaptionCard[];
+  texts: TextOverlay[];
   envelopeDb: number[];
   thumbs: Thumbnail[];
   muted: boolean;
@@ -222,6 +234,7 @@ type TracksProps = {
   onSelect: (selection: TimelineSelection) => void;
   onTrimRegion: TimelineProps['onTrimRegion'];
   onRetimeCaption: TimelineProps['onRetimeCaption'];
+  onRetimeText: TimelineProps['onRetimeText'];
 };
 
 const same = (a: Region | null, b: Region) => !!a && Math.abs(a.start - b.start) < 1e-3 && Math.abs(a.end - b.end) < 1e-3;
@@ -236,6 +249,7 @@ const TimelineTracks = memo(function TimelineTracks({
   total,
   cards,
   hiddenCards,
+  texts,
   envelopeDb,
   thumbs,
   muted,
@@ -243,10 +257,12 @@ const TimelineTracks = memo(function TimelineTracks({
   onSelect,
   onTrimRegion,
   onRetimeCaption,
+  onRetimeText,
 }: TracksProps) {
   const x = (t: number) => pad + t * PPS;
   const selectedRegion = selection?.kind === 'region' ? selection.region : null;
   const selectedCaption = selection?.kind === 'caption' ? selection.id : null;
+  const selectedText = selection?.kind === 'text' ? selection.id : null;
 
   const ticks = useMemo(() => {
     const step = total > 40 ? 10 : total > 16 ? 5 : 2;
@@ -280,6 +296,24 @@ const TimelineTracks = memo(function TimelineTracks({
     for (const t of thumbs) if (Math.abs(t.time - sourceT) < Math.abs(best.time - sourceT)) best = t;
     return best.uri;
   };
+
+  // Text bars in rows, so overlays that overlap in time don't cover each other.
+  const textRows = useMemo(() => {
+    const rowEnds: number[] = [];
+    const out: { o: TextOverlay; start: number; end: number; row: number }[] = [];
+    const items = texts.map((o) => ({ o, ...overlayWindow(o, total) })).sort((a, b) => a.start - b.start);
+    for (const it of items) {
+      let row = rowEnds.findIndex((e) => e <= it.start + 1e-6);
+      if (row < 0) {
+        row = rowEnds.length;
+        rowEnds.push(0);
+      }
+      rowEnds[row] = it.end;
+      out.push({ ...it, row });
+    }
+    return { items: out, count: rowEnds.length };
+  }, [texts, total]);
+  const selText = textRows.items.find((t) => t.o.id === selectedText) ?? null;
 
   const selRegion = regions.find((r) => same(selectedRegion, r)) ?? null;
   const selCardIndex = selectedCaption ? allCards.findIndex((c) => c.id === selectedCaption) : -1;
@@ -440,6 +474,57 @@ const TimelineTracks = memo(function TimelineTracks({
         )}
       </View>
 
+      {textRows.count > 0 && (
+        <View style={[styles.textTrack, { height: textRows.count * TEXT_ROW + 4 }]}>
+          {textRows.items.map(({ o, start, end, row }) => {
+            const isSel = o.id === selectedText;
+            return (
+              <Pressable
+                key={o.id}
+                onPress={() => onSelect(isSel ? null : { kind: 'text', id: o.id })}
+                accessibilityRole={isSel ? 'adjustable' : 'button'}
+                accessibilityLabel={`Text: ${o.text}`}
+                accessibilityValue={{ text: `${secs(start)} to ${secs(end)}` }}
+                accessibilityState={{ selected: isSel }}
+                accessibilityHint={isSel ? 'Swipe up or down to lengthen or shorten it.' : 'Selects the text to edit it.'}
+                accessibilityActions={isSel ? [{ name: 'increment' }, { name: 'decrement' }] : undefined}
+                onAccessibilityAction={(e) => {
+                  if (e.nativeEvent.actionName === 'increment') onRetimeText(o.id, { end: Math.min(total, end + 0.5) });
+                  else if (e.nativeEvent.actionName === 'decrement') onRetimeText(o.id, { end: Math.max(start + MIN_OVERLAY_SEC, end - 0.5) });
+                }}
+                style={[
+                  styles.captionChip,
+                  { top: 4 + row * TEXT_ROW, left: x(start), width: Math.max(28, (end - start) * PPS - 4) },
+                  isSel && styles.captionSelected,
+                ]}>
+                <SymbolView name="textformat" size={12} tintColor={colors.textPrimary} />
+                <AppText variant="caption" style={styles.captionText} numberOfLines={1}>
+                  {o.text.replace(/\n/g, ' ')}
+                </AppText>
+              </Pressable>
+            );
+          })}
+          {selText && (
+            <EdgeFrame
+              key={`text-${selText.o.id}-${selText.start.toFixed(3)}-${selText.end.toFixed(3)}`}
+              left={x(selText.start)}
+              width={Math.max(28, (selText.end - selText.start) * PPS - 4)}
+              top={4 + selText.row * TEXT_ROW}
+              height={26}
+              radius={8}
+              color={colors.accent}
+              // Anywhere inside the video, never shorter than MIN_OVERLAY_SEC.
+              startRange={[-selText.start * PPS, Math.max(0, selText.end - selText.start - MIN_OVERLAY_SEC) * PPS]}
+              endRange={[-Math.max(0, selText.end - selText.start - MIN_OVERLAY_SEC) * PPS, Math.max(0, total - selText.end) * PPS]}
+              scrollGesture={scrollGesture}
+              onCommit={(side, dx) =>
+                onRetimeText(selText.o.id, side === 'start' ? { start: selText.start + dx / PPS } : { end: selText.end + dx / PPS })
+              }
+            />
+          )}
+        </View>
+      )}
+
       <View style={[styles.wave, { marginLeft: pad, width: total * PPS }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         {bars.map((b, i) => (
           <View key={i} style={[styles.bar, { left: b.left, height: muted ? 2 : b.h }]} />
@@ -546,6 +631,7 @@ const styles = StyleSheet.create({
   },
   handleGrip: { width: 3, height: 16, borderRadius: 1.5, backgroundColor: '#3A3A3F' },
   captionTrack: { height: 34, marginTop: 4 },
+  textTrack: { marginTop: 2 },
   captionChip: {
     position: 'absolute',
     top: 4,

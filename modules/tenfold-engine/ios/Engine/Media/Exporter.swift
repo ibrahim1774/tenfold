@@ -28,7 +28,7 @@ public struct ExportResult: Codable, Sendable {
 /// Single-pass HEVC export with the caption layer tree burned in (spec §4.12).
 public enum Exporter {
   public static func export(
-    built: BuiltComposition, plan: EditPlan, captions: CaptionSettings, options: ExportOptions, to url: URL,
+    built: BuiltComposition, plan: EditPlan, captions: CaptionSettings, overlays: [TextOverlay] = [], options: ExportOptions, to url: URL,
     progress: @escaping @Sendable (Double) -> Void
   ) async throws {
     guard let vc = built.videoComposition.mutableCopy() as? AVMutableVideoComposition else {
@@ -41,8 +41,10 @@ public enum Exporter {
     videoLayer.frame = parent.bounds
     parent.addSublayer(videoLayer)
     var caps = captions
+    // Core Animation isn't colour managed over HDR: Keep HDR drops everything drawn on top (captions and text).
     if options.keepHDR { caps.enabled = false }
-    parent.addSublayer(CaptionLayerBuilder.build(plan: plan, captions: caps, render: built.renderSize, contentsScale: 1, watermark: options.watermark))
+    let texts = options.keepHDR ? [] : overlays
+    parent.addSublayer(CaptionLayerBuilder.build(plan: plan, captions: caps, render: built.renderSize, contentsScale: 1, watermark: options.watermark, overlays: texts))
     vc.animationTool = AVVideoCompositionCoreAnimationTool(postProcessingAsVideoLayer: videoLayer, in: parent)
 
     let preset = options.quality == .uhd ? AVAssetExportPresetHEVC3840x2160 : AVAssetExportPresetHEVCHighestQuality
