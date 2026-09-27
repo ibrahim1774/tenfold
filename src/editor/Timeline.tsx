@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
 import { AppText } from '@/design/components';
-import { colors, fonts } from '@/design/tokens';
+import { colors } from '@/design/tokens';
 import type { CaptionCard, CompSegment, Thumbnail } from '@/engine/types';
 
 const PPS = 46; // points per second of composition time
@@ -36,6 +36,18 @@ export function toSource(segs: CompSegment[], comp: number) {
 }
 
 /** Edit points → regions the user can tap to select. */
+/** Ruler label: "0s", "15s", "1:05". */
+function tickLabel(t: number) {
+  if (t < 60) return `${t}s`;
+  return `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, '0')}`;
+}
+
+/** "1:05" for VoiceOver values and labels. */
+function clock(t: number) {
+  const s = Math.max(0, Math.round(t));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
 export function regionsOf(segments: CompSegment[], splits: number[], total: number): Region[] {
   const points = [...new Set([0, ...segments.map((s) => s.compStart), ...splits, total])].sort((a, b) => a - b);
   const out: Region[] = [];
@@ -138,7 +150,22 @@ export function Timeline({
             </View>
           </ScrollView>
         )}
-        <View pointerEvents="none" style={[styles.playhead, { left: pad - 6 }]}>
+        {/* VoiceOver: swipe up or down on the playhead to move it by a second. */}
+        <View
+          pointerEvents="none"
+          style={[styles.playhead, { left: pad - 6 }]}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel="Playhead"
+          accessibilityValue={{ text: `${clock(time)} of ${clock(total)}` }}
+          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+          onAccessibilityAction={(e) => {
+            const t = Math.max(0, Math.min(total, time + (e.nativeEvent.actionName === 'increment' ? 1 : -1)));
+            onScrubStart();
+            lastScrub.current = t;
+            scroll.current?.scrollTo({ x: t * PPS, animated: false });
+            onScrubEnd(t);
+          }}>
           <SymbolView name="arrowtriangle.down.fill" size={12} tintColor="#FFFFFF" />
           <View style={styles.playLine} />
         </View>
@@ -211,7 +238,9 @@ const TimelineTracks = memo(function TimelineTracks({
       <View style={styles.ruler}>
         {ticks.out.map((t) => (
           <View key={t} style={[styles.tick, { left: x(t) }]}>
-            <AppText style={styles.tickText}>{t === 0 ? '0s' : t >= 60 ? `${Math.floor(t / 60)}m${t % 60 ? `${t % 60}` : ''}` : `${t}s`}</AppText>
+            <AppText variant="caption" color={colors.ruler} tabular>
+              {tickLabel(t)}
+            </AppText>
           </View>
         ))}
         {ticks.out.slice(0, -1).flatMap((t) =>
@@ -231,7 +260,8 @@ const TimelineTracks = memo(function TimelineTracks({
               onPress={() => onSelect(isSel ? null : r)}
               accessibilityRole="button"
               accessibilityState={{ selected: isSel }}
-              accessibilityLabel={`Clip from ${r.start.toFixed(1)} to ${r.end.toFixed(1)} seconds`}
+              accessibilityLabel={`Clip from ${clock(r.start)} to ${clock(r.end)}`}
+              accessibilityHint={isSel ? 'Deselects the clip.' : 'Selects the clip for delete.'}
               style={[styles.clip, { left: x(r.start) + 1, width: w }, isSel && styles.clipSelected]}>
               {Array.from({ length: n }).map((_, k) => {
                 const uri = frameFor(toSource(segments, r.start + ((k + 0.5) * fw) / PPS));
@@ -257,18 +287,18 @@ const TimelineTracks = memo(function TimelineTracks({
         )}
       </View>
 
-      <View style={styles.captionTrack}>
+      <View style={styles.captionTrack} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         {cards.map((c, i) => (
           <View key={i} style={[styles.captionChip, { left: x(c.start), width: Math.max(28, (c.end - c.start) * PPS - 4) }]}>
             <SymbolView name="textformat" size={12} tintColor={colors.textPrimary} />
-            <AppText style={styles.captionText} numberOfLines={1}>
+            <AppText variant="caption" style={styles.captionText} numberOfLines={1}>
               {c.words.map((w) => w.text).join(' ')}
             </AppText>
           </View>
         ))}
       </View>
 
-      <View style={[styles.wave, { marginLeft: pad, width: total * PPS }]}>
+      <View style={[styles.wave, { marginLeft: pad, width: total * PPS }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         {bars.map((b, i) => (
           <View key={i} style={[styles.bar, { left: b.left, height: muted ? 2 : b.h }]} />
         ))}
@@ -282,7 +312,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   ruler: { height: 24 },
   tick: { position: 'absolute', top: 2 },
-  tickText: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, color: colors.ruler },
   dot: { position: 'absolute', top: 9, width: 2, height: 2, borderRadius: 1, backgroundColor: colors.ruler },
   clipTrack: { height: 56, justifyContent: 'center' },
   clip: { position: 'absolute', top: 6, height: 44, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.cardHigh },
@@ -315,7 +344,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  captionText: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, color: colors.textPrimary, flexShrink: 1 },
+  captionText: { flexShrink: 1 },
   wave: { height: 48, marginTop: 4, borderRadius: 10, backgroundColor: 'rgba(28,27,35,0.6)', justifyContent: 'center' },
   bar: { position: 'absolute', width: 2, borderRadius: 1, backgroundColor: colors.waveform },
   playhead: { position: 'absolute', top: 12, bottom: 0, width: 12, alignItems: 'center' },

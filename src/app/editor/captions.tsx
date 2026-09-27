@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CAPTION_COLORS, CAPTION_FONTS, CAPTION_FORMATS, CAPTION_PRESETS, captionSettingsFromPreset, presetById } from '@/captions/presets';
-import { AppText, Chip, GradientButton, IconButton, OptionLabel, PressableScale, StyleTile, Thumb, ToggleRow } from '@/design/components';
+import { AppText, Chip, ChipGroup, GradientButton, IconButton, OptionLabel, PressableScale, StyleTile, Thumb, ToggleRow } from '@/design/components';
 import { colors, fonts, radii, spacing } from '@/design/tokens';
 import { Engine, type CaptionFont, type CaptionSettings, type CaptionStyleId } from '@/engine';
 import { useEntitlements } from '@/state/entitlements';
@@ -83,104 +83,151 @@ export default function CaptionStyleSheet() {
     router.back();
   };
 
+  const applyTitle = projectId ? 'Apply to this video' : 'Apply to this batch';
+
   return (
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <AppText variant="title">Caption style</AppText>
-      <ToggleRow title="Captions" subtitle="Word-by-word, synced to speech" value={enabled} onChange={setEnabled} />
+      <View style={styles.head}>
+        <AppText variant="title" accessibilityRole="header">
+          Captions
+        </AppText>
+        <AppText variant="label" color={colors.textMuted}>
+          {batchId ? 'Word-by-word captions for every video in this batch.' : 'Word-by-word captions, synced to speech.'}
+        </AppText>
+      </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tiles}>
-        {CAPTION_PRESETS.map((p, i) => {
-          const locked = !isPro && !p.free;
-          return (
-            <StyleTile
-              key={p.id}
-              name={p.name}
-              seed={i + 3}
-              sample={sample}
-              highlight={styleId === p.id ? color : p.colors.active}
-              animation={p.animation}
-              fontFamily={CAPTION_FONTS.find((f) => f.id === (styleId === p.id ? font : p.font))?.family}
-              uppercase={styleId === p.id ? uppercase : p.uppercase}
-              maxWords={styleId === p.id ? maxWords : p.maxWords}
-              locked={locked}
-              selected={styleId === p.id}
-              width={104}
-              onPress={() => (locked ? router.push('/paywall') : pickStyle(p.id))}
+      <ToggleRow title="Show captions" value={enabled} onChange={setEnabled} />
+
+      <View style={styles.group}>
+        <OptionLabel>Style</OptionLabel>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tiles} style={styles.bleed}>
+          {CAPTION_PRESETS.map((p, i) => {
+            const locked = !isPro && !p.free;
+            return (
+              <StyleTile
+                key={p.id}
+                name={p.name}
+                seed={i + 3}
+                sample={sample}
+                highlight={styleId === p.id ? color : p.colors.active}
+                animation={p.animation}
+                fontFamily={CAPTION_FONTS.find((f) => f.id === (styleId === p.id ? font : p.font))?.family}
+                uppercase={styleId === p.id ? uppercase : p.uppercase}
+                maxWords={styleId === p.id ? maxWords : p.maxWords}
+                locked={locked}
+                selected={styleId === p.id}
+                width={104}
+                onPress={() => (locked ? router.push('/paywall') : pickStyle(p.id))}
+              />
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      <View style={styles.group}>
+        <OptionLabel>Words on screen</OptionLabel>
+        <ChipGroup>
+          {CAPTION_FORMATS.map((f) => (
+            <Chip key={f.maxWords} label={f.name} selected={maxWords === f.maxWords} onPress={() => setMaxWords(f.maxWords)} />
+          ))}
+        </ChipGroup>
+      </View>
+
+      <View style={styles.group}>
+        <OptionLabel>Font</OptionLabel>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} style={styles.bleed}>
+          {CAPTION_FONTS.map((f) => (
+            <Chip key={f.id} label={f.name} selected={font === f.id} onPress={() => setFont(f.id)} />
+          ))}
+        </ScrollView>
+      </View>
+
+      <View style={styles.group}>
+        <OptionLabel>{usesHighlight(styleId) ? 'Highlight colour' : 'Text colour'}</OptionLabel>
+        <View style={styles.dots}>
+          {CAPTION_COLORS.map((c) => (
+            <PressableScale
+              key={c}
+              haptic={false}
+              scaleTo={0.9}
+              hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel={COLOR_NAMES[c] ?? c}
+              accessibilityState={{ selected: color === c }}
+              onPress={() => setColor(c)}
+              style={[styles.dot, { backgroundColor: c }, color === c && styles.dotSelected]}
             />
-          );
-        })}
-      </ScrollView>
-
-      <OptionLabel>Words on screen</OptionLabel>
-      <View style={styles.row}>
-        {CAPTION_FORMATS.map((f) => (
-          <Chip key={f.maxWords} label={f.name} selected={maxWords === f.maxWords} onPress={() => setMaxWords(f.maxWords)} />
-        ))}
+          ))}
+        </View>
       </View>
 
-      <OptionLabel>Font</OptionLabel>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        {CAPTION_FONTS.map((f) => (
-          <Chip key={f.id} label={f.name} selected={font === f.id} onPress={() => setFont(f.id)} />
-        ))}
-      </ScrollView>
-
-      <OptionLabel>{usesHighlight(styleId) ? 'Highlight colour' : 'Text colour'}</OptionLabel>
-      <View style={styles.row}>
-        {CAPTION_COLORS.map((c) => (
-          <PressableScale
-            key={c}
-            accessibilityLabel={`Colour ${c}`}
-            accessibilityState={{ selected: color === c }}
-            onPress={() => setColor(c)}
-            style={[styles.dot, { backgroundColor: c }, color === c && styles.dotSelected]}
-          />
-        ))}
-      </View>
-
-      <OptionLabel>Size</OptionLabel>
-      <View style={styles.stepper}>
-        <IconButton icon="minus" label="Smaller" onPress={() => setSize((s) => Math.max(0.7, +(s - 0.1).toFixed(1)))} />
-        <AppText variant="bodyStrong">{Math.round(size * 100)}%</AppText>
-        <IconButton icon="plus" label="Larger" onPress={() => setSize((s) => Math.min(1.5, +(s + 0.1).toFixed(1)))} />
-      </View>
-
-      <OptionLabel>Position</OptionLabel>
-      <View style={styles.frameRow}>
-        <Thumb seed={0} style={styles.miniFrame}>
-          <View style={[styles.zone, { top: 0, height: '12%' }]} />
-          <View style={[styles.zone, { bottom: 0, height: '30%' }]} />
-          <View style={[styles.handle, { top: `${posY * 100 - 4}%` }]}>
-            <AppText style={[styles.handleText, { color }]}>Aa</AppText>
-          </View>
-        </Thumb>
-        <View style={styles.posButtons}>
-          <IconButton icon="arrow.up" label="Move captions up" onPress={() => setPosY((y) => Math.max(0.12, y - 0.04))} />
-          <IconButton icon="arrow.down" label="Move captions down" onPress={() => setPosY((y) => Math.min(0.7, y + 0.04))} />
-          <AppText variant="caption" color={colors.textMuted} style={styles.zoneHint}>
-            Shaded areas are covered by TikTok and Reels buttons.
+      <View style={styles.group}>
+        <OptionLabel>Size</OptionLabel>
+        <View style={styles.stepper}>
+          <IconButton icon="minus" label="Smaller" onPress={() => setSize((s) => Math.max(0.7, +(s - 0.1).toFixed(1)))} disabled={size <= 0.7} />
+          <AppText variant="bodyStrong" tabular style={styles.stepperValue} accessibilityLabel={`Size ${Math.round(size * 100)} percent`}>
+            {Math.round(size * 100)}%
           </AppText>
+          <IconButton icon="plus" label="Larger" onPress={() => setSize((s) => Math.min(1.5, +(s + 0.1).toFixed(1)))} disabled={size >= 1.5} />
+        </View>
+      </View>
+
+      <View style={styles.group}>
+        <OptionLabel>Position</OptionLabel>
+        <View style={styles.frameRow}>
+          <Thumb seed={0} style={styles.miniFrame}>
+            <View style={[styles.zone, { top: 0, height: '12%' }]} />
+            <View style={[styles.zone, { bottom: 0, height: '30%' }]} />
+            <View style={[styles.handle, { top: `${posY * 100 - 4}%` }]}>
+              <AppText style={[styles.handleText, { color }]}>Aa</AppText>
+            </View>
+          </Thumb>
+          <View style={styles.posButtons}>
+            <View style={styles.posRow}>
+              <IconButton icon="arrow.up" label="Move captions up" onPress={() => setPosY((y) => Math.max(0.12, y - 0.04))} disabled={posY <= 0.12} />
+              <IconButton icon="arrow.down" label="Move captions down" onPress={() => setPosY((y) => Math.min(0.7, y + 0.04))} disabled={posY >= 0.7} />
+            </View>
+            <AppText variant="caption" color={colors.textMuted}>
+              Shaded areas are covered by TikTok and Reels buttons.
+            </AppText>
+          </View>
         </View>
       </View>
 
       <ToggleRow title="All caps" value={uppercase} onChange={setUppercase} />
-      <GradientButton title="Apply" icon={false} shape="pill" onPress={apply} />
+      <GradientButton title={applyTitle} shape="pill" onPress={apply} style={styles.apply} />
     </ScrollView>
   );
 }
 
+const COLOR_NAMES: Record<string, string> = {
+  '#FFE14D': 'Yellow',
+  '#7C4DFF': 'Violet',
+  '#FF3DCB': 'Pink',
+  '#4DD8FF': 'Cyan',
+  '#FF7A59': 'Coral',
+  '#5BE3A5': 'Green',
+  '#FFFFFF': 'White',
+};
+
 const styles = StyleSheet.create({
-  content: { padding: spacing.xl, gap: spacing.md },
-  tiles: { gap: 10, paddingVertical: 4 },
-  row: { flexDirection: 'row', gap: 10 },
+  content: { paddingHorizontal: spacing.xl, paddingTop: spacing.xxl, gap: spacing.xl },
+  head: { gap: 2 },
+  group: { gap: spacing.sm },
+  bleed: { marginHorizontal: -spacing.xl },
+  tiles: { gap: 10, paddingVertical: 4, paddingHorizontal: spacing.xl },
+  row: { flexDirection: 'row', gap: 8, paddingHorizontal: spacing.xl },
+  dots: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   dot: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)' },
-  dotSelected: { borderColor: '#FFFFFF', borderWidth: 3 },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  dotSelected: { borderColor: colors.textPrimary, borderWidth: 3 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+  stepperValue: { minWidth: 52, textAlign: 'center' },
   frameRow: { flexDirection: 'row', gap: spacing.lg },
   miniFrame: { width: 110, aspectRatio: 9 / 16, borderRadius: radii.thumb },
   zone: { position: 'absolute', left: 0, right: 0, backgroundColor: 'rgba(255,90,110,0.22)' },
   handle: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   handleText: { fontFamily: fonts.bold, fontSize: 16 },
-  posButtons: { flex: 1, gap: 10 },
-  zoneHint: { marginTop: 4 },
+  posButtons: { flex: 1, gap: spacing.md },
+  posRow: { flexDirection: 'row', gap: spacing.md },
+  apply: { marginTop: spacing.sm },
 });

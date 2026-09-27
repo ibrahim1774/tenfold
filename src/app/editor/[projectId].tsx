@@ -1,31 +1,29 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Alert, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { ActionSheetIOS, ActivityIndicator, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorText } from '@/batch/queue';
 import {
   AppText,
   Background,
-  Card,
   Chip,
   ChipGroup,
+  GradientButton,
   IconButton,
   OptionLabel,
   OutlineButton,
   PressableScale,
   ScreenHeader,
-  SuggestionCard,
   ToggleRow,
-  ToolButton,
 } from '@/design/components';
-import { colors, radii, spacing } from '@/design/tokens';
+import { colors, radii, spacing, type as typeScale } from '@/design/tokens';
 import { editsOf } from '@/batch/edits';
 import { ASPECTS, aspectOf, aspectRatioValue } from '@/editor/aspect';
 import { fillUserScale, type Placement } from '@/editor/frame';
 import { FrameCanvas } from '@/editor/FrameCanvas';
+import { Panel, ToolBar, type ToolId } from '@/editor/Panel';
 import { regionsOf, Timeline, toSource, type Region } from '@/editor/Timeline';
 import {
   Engine,
@@ -43,7 +41,26 @@ import {
 import { commitDoc, redoDoc, undoDoc, useEditHistory } from '@/state/history';
 import { docFromAnalysis, formatDuration, useLibrary } from '@/state/library';
 
-type Tool = 'cuts' | 'words' | 'zoom' | 'crop' | 'audio' | null;
+type Tool = Exclude<ToolId, 'captions'> | null;
+
+const TOOLS: { id: ToolId; icon: 'scissors' | 'text.quote' | 'captions.bubble' | 'plus.magnifyingglass' | 'crop' | 'waveform'; label: string }[] = [
+  { id: 'cuts', icon: 'scissors', label: 'Cuts' },
+  { id: 'words', icon: 'text.quote', label: 'Words' },
+  { id: 'captions', icon: 'captions.bubble', label: 'Captions' },
+  { id: 'zoom', icon: 'plus.magnifyingglass', label: 'Zoom' },
+  { id: 'crop', icon: 'crop', label: 'Frame' },
+  { id: 'audio', icon: 'waveform', label: 'Audio' },
+];
+
+const ZOOMS: { v: ZoomMode; l: string }[] = [
+  { v: 'off', l: 'Off' },
+  { v: 'subtle', l: 'Subtle' },
+  { v: 'dynamic', l: 'Dynamic' },
+];
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+/** "14 s", "3.2 s": whole seconds once there are enough of them. */
+const seconds = (s: number) => `${s >= 10 ? Math.round(s) : s.toFixed(1)} s`;
 
 const SILENCE: { v: SilenceLevel; l: string }[] = [
   { v: 'off', l: 'Off' },
@@ -79,7 +96,11 @@ export default function EditorScreen() {
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [previewReady, setPreviewReady] = useState(false);
-  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
+  // Word whose spelling is being fixed in place (Words panel).
+  const [editingWord, setEditingWord] = useState<number | null>(null);
+  // Why Split / Delete didn't happen, shown under the timeline until the next edit or scrub.
+  const [notice, setNotice] = useState<{ text: string; key: string } | null>(null);
+  const [levelsError, setLevelsError] = useState<string | null>(null);
   // Selection is tied to the document it was made on, so any edit (or undo) clears it.
   const [selection, setSelection] = useState<{ region: Region; key: string } | null>(null);
   // Shape reported by the native preview, remembered with the aspect setting that produced it.
@@ -187,21 +208,23 @@ export default function EditorScreen() {
     }
   };
 
-  const editWord = (i: number) => {
-    if (!doc) return;
-    const current = overrides.get(i) ?? words[i]?.text ?? '';
-    Alert.prompt(
-      'Fix this word',
-      'The caption uses your spelling.',
-      (text) => {
-        if (text == null) return;
-        const rest = doc.wordOverrides.filter((o) => o.wordIndex !== i);
-        const trimmed = text.trim();
-        commit({ ...doc, wordOverrides: trimmed === words[i]?.text ? rest : [...rest, { wordIndex: i, text: trimmed }] });
-      },
-      'plain-text',
-      current,
-    );
+  const startEditingWord = (i: number) => {
+    setPlaying(false);
+    setEditingWord(i);
+  };
+
+  // Saves a spelling fix typed in place. Empty (or the transcribed spelling) shows the transcribed word.
+  const saveWord = (i: number, raw: string) => {
+    setEditingWord(null);
+    const latest = useLibrary.getState().docs[projectId];
+    const original = words[i]?.text;
+    if (!latest || original == null) return;
+    const text = raw.trim();
+    const before = latest.wordOverrides.find((o) => o.wordIndex === i)?.text;
+    const after = text === '' || text === original ? undefined : text;
+    if (before === after) return;
+    const rest = latest.wordOverrides.filter((o) => o.wordIndex !== i);
+    commit({ ...latest, wordOverrides: after == null ? rest : [...rest, { wordIndex: i, text: after }] });
   };
 
   const sourceAt = (comp: number) => {
@@ -213,7 +236,10 @@ export default function EditorScreen() {
   const activeWord = words.findIndex((w) => srcTime >= w.start && srcTime <= w.end);
 
   // Scrubbing: the native view keeps only the newest seek target while one is in flight, so send every move.
-  const onScrubStart = useCallback(() => setPlaying(false), []);
+  const onScrubStart = useCallback(() => {
+    setPlaying(false);
+    setNotice(null);
+  }, []);
   const onScrub = useCallback((t: number) => {
     setTime(t);
     preview.current?.seek(t).catch(() => {});
@@ -240,7 +266,7 @@ export default function EditorScreen() {
     if (!doc) return;
     const seg = segments.find((g) => time > g.compStart + 0.15 && time < g.compEnd - 0.15);
     if (!seg || compSplits.some((c) => Math.abs(c - time) < 0.15)) {
-      Alert.alert('Can’t split here', 'Move the playhead inside a clip, away from its edges.');
+      setNotice({ text: 'Can’t split here. Move the playhead inside a clip, away from its edges.', key: docJSON });
       return;
     }
     setPlaying(false);
@@ -250,7 +276,7 @@ export default function EditorScreen() {
   const deleteSelected = () => {
     if (!doc || !selected || !plan) return;
     if (regionsOf(segments, compSplits, plan.compDuration).length <= 1) {
-      Alert.alert('Can’t delete the whole video', 'Split it first, then delete the part you don’t want.');
+      setNotice({ text: 'Can’t delete the whole video. Split it first, then delete the part you don’t want.', key: docJSON });
       return;
     }
     const start = toSource(segments, selected.start + 1e-4);
@@ -277,26 +303,21 @@ export default function EditorScreen() {
       });
       const latest = useLibrary.getState().docs[projectId];
       if (request !== levelsRequest.current || !latest) return;
+      setLevelsError(null);
       commit({ ...latest, levels: next, cuts: [...latest.cuts.filter((c) => c.reason === 'manual'), ...suggested] });
     } catch (e) {
-      Alert.alert('Couldn’t update cuts', errorText(e));
+      if (request === levelsRequest.current) setLevelsError(`Couldn’t update cuts: ${errorText(e)} Try the level again.`);
     }
   };
 
+  // Details live in a form sheet; the output size is only known here, from the live preview.
   const showInfo = () => {
-    const t = analysis?.transcript;
-    const lines = [
-      `Speech engine: ${t ? `${t.engine === 'apple' ? 'Apple (on device)' : t.engine}, ${t.language}` : 'none'}`,
-      t ? `Word timing: ${t.wordTimingIsExact ? 'per word' : 'per phrase (estimated)'}` : '',
-      t ? `Timed runs: ${t.stats.runCount}, ${(t.stats.singleWordRunRatio * 100).toFixed(0)}% single words` : '',
-      t ? `Filler words found: ${t.stats.lexicalFillerCount}` : '',
-      t ? `Transcribed in ${t.stats.elapsedSec.toFixed(1)} s` : '',
-      analysis ? `Speech coverage: ${(analysis.speechCoverage * 100).toFixed(0)}%` : '',
-      rendered ? `Output frame: ${rendered.size} (${rendered.aspect === 'original' ? 'original shape' : rendered.aspect})` : '',
-      project?.media ? `${Math.round(project.media.fps)} fps · ${project.media.isHDR ? 'HDR source, exported as SDR' : 'SDR'}` : '',
-      ...(analysis?.warnings ?? []),
-    ].filter(Boolean);
-    Alert.alert(project?.title ?? 'Video info', lines.join('\n'));
+    const params: { projectId: string; frame?: string; aspect?: string } = { projectId };
+    if (rendered) {
+      params.frame = rendered.size;
+      params.aspect = rendered.aspect;
+    }
+    router.push({ pathname: '/editor/info', params });
   };
 
   // Back to the untouched clip: no cuts, captions, zoom or reframing. One undoable step.
@@ -324,7 +345,7 @@ export default function EditorScreen() {
     setPlaying(false);
     const options = ['Revert to original', 'Re-apply Tenfold’s edit', 'Video info', 'Cancel'];
     ActionSheetIOS.showActionSheetWithOptions(
-      { options, cancelButtonIndex: 3, title: project?.title, message: 'Undo reverses either change.' },
+      { options, cancelButtonIndex: 3, destructiveButtonIndex: 0, title: project?.title, message: 'Undo reverses either change.' },
       (i) => {
         if (i === 0) revertToOriginal();
         else if (i === 1) reapplyEdit();
@@ -345,6 +366,27 @@ export default function EditorScreen() {
 
   if (!doc || !analysis) {
     const stillWorking = ['queued', 'analyzing'].includes(project.status);
+    if (doc && !loadError) {
+      // The layout is known: show its shape while the analysis loads.
+      const skeletonH = Math.min(460, screenH * 0.46);
+      const skeletonAspect = aspectRatioValue(aspectOf(doc.crop), project.media ?? undefined);
+      return (
+        <View style={[styles.flex, { paddingTop: insets.top + 4 }]}>
+          <Background />
+          <View style={styles.gutter}>
+            <ScreenHeader title={project.title} />
+          </View>
+          <View style={[styles.gutter, styles.previewSlot, { height: skeletonH }]}>
+            <View style={[styles.bone, { width: Math.min(screenW - spacing.gutter * 2, skeletonH * skeletonAspect), aspectRatio: skeletonAspect }]} />
+          </View>
+          <View style={[styles.gutter, styles.skeletonTools]}>
+            {TOOLS.map((t) => (
+              <View key={t.id} style={[styles.bone, styles.skeletonTool]} />
+            ))}
+          </View>
+        </View>
+      );
+    }
     return (
       <View style={[styles.flex, styles.center, { paddingTop: insets.top }]}>
         <Background />
@@ -357,9 +399,9 @@ export default function EditorScreen() {
           </>
         ) : (
           <>
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={colors.textPrimary} />
             <AppText variant="label" color={colors.textSecondary}>
-              {doc ? 'Loading…' : 'Still analysing this clip…'}
+              Still analysing this clip.
             </AppText>
           </>
         )}
@@ -371,13 +413,16 @@ export default function EditorScreen() {
   const candidates = doc.cuts.filter((c) => !c.accepted && c.reason === 'filler' && c.confidence < 0.9);
   const acceptedFillers = doc.cuts.filter((c) => c.accepted && c.reason === 'filler').length;
   const acceptedPauses = doc.cuts.filter((c) => c.accepted && c.reason === 'silence').length;
+  const acceptedManual = doc.cuts.filter((c) => c.accepted && c.reason === 'manual').length;
+  const anyAccepted = acceptedFillers + acceptedPauses + acceptedManual > 0;
   const total = plan?.compDuration ?? project.media?.durationSec ?? 0;
   const muted = doc.audio.mode === 'mute';
   const aspect = aspectOf(doc.crop);
   // Size the preview frame to the output's shape so there are no bars around the video.
   const frameAspect = rendered && rendered.aspect === aspect ? rendered.value : aspectRatioValue(aspect, project.media ?? undefined);
   const maxW = screenW - spacing.gutter * 2;
-  const maxH = Math.min(460, screenH * 0.46);
+  // While a word is being retyped the preview shrinks, so the Words panel stays visible above the keyboard.
+  const maxH = editingWord != null ? 120 : Math.min(460, screenH * 0.46);
   const frameW = Math.round(Math.min(maxW, maxH * frameAspect));
   const frameH = Math.round(frameW / frameAspect);
   // Manual placement on the canvas (see src/editor/frame.ts). Automatic framing reads as Fill.
@@ -415,7 +460,33 @@ export default function EditorScreen() {
     silence: batch?.preset.analysis.silence ?? 'medium',
     fillers: batch?.preset.analysis.fillers ?? 'standard',
   };
-  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const removedSec = plan?.removedSec ?? 0;
+  // Facts about this edit, e.g. "Removed 14 s · 6 filler words · 3 pauses".
+  const summary = !anyAccepted && analysis.noSpeech
+    ? doc.captions.enabled
+      ? 'No speech found in this clip, so nothing was cut.'
+      : 'No speech found in this clip, so nothing was cut and captions are off.'
+    : anyAccepted
+      ? [
+          `Removed ${seconds(removedSec)}`,
+          acceptedFillers > 0 ? plural(acceptedFillers, 'filler word', 'filler words') : '',
+          acceptedPauses > 0 ? plural(acceptedPauses, 'pause', 'pauses') : '',
+          acceptedManual > 0 ? plural(acceptedManual, 'cut by hand', 'cuts by hand') : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : 'Nothing removed. The video plays at its full length.';
+  const shownNotice = notice && notice.key === docJSON ? notice.text : null;
+
+  const onTool = (id: ToolId) => {
+    if (id === 'captions') {
+      setPlaying(false);
+      router.push({ pathname: '/editor/captions', params: { projectId } });
+      return;
+    }
+    setEditingWord(null);
+    setTool(tool === id ? null : id);
+  };
 
   return (
     <View style={styles.flex}>
@@ -423,13 +494,14 @@ export default function EditorScreen() {
       <View style={[styles.flex, { paddingTop: insets.top + 4 }]}>
         <View style={styles.gutter}>
           <ScreenHeader
-            title="Tenfold Editor"
+            title={project.title}
             right={
               <>
-                <IconButton icon="ellipsis" label="More: revert to original, video info" size={40} iconScale={0.5} onPress={openMenu} />
-                <OutlineButton
+                <IconButton icon="ellipsis" label="More: revert, re-apply edit, video info" size={44} iconScale={0.45} onPress={openMenu} />
+                <GradientButton
                   title="Export"
-                  height={40}
+                  height={44}
+                  shape="pill"
                   onPress={() => {
                     setPlaying(false);
                     router.push({ pathname: '/export/[projectId]', params: { projectId } });
@@ -485,7 +557,7 @@ export default function EditorScreen() {
           <View style={[styles.overlay, { width: frameW, height: frameH }]} pointerEvents="none">
             {!playing && previewReady && (
               <View style={styles.bigPlay}>
-                <SymbolView name="play.fill" size={26} tintColor="#FFFFFF" />
+                <SymbolView name="play.fill" size={26} tintColor={colors.textPrimary} />
               </View>
             )}
             {previewError && (
@@ -495,52 +567,47 @@ export default function EditorScreen() {
             )}
             {!previewReady && (
               <View style={styles.previewLoading}>
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={colors.textPrimary} />
               </View>
             )}
             <View style={styles.badge}>
-              <AppText variant="caption" style={styles.tabular}>
+              <AppText variant="caption" tabular>
                 {untouched ? 'Original' : `${formatDuration(sourceDuration)} → ${formatDuration(total)}`}
               </AppText>
             </View>
           </View>
         </View>
 
-          <View style={[styles.gutter, styles.transport]}>
-            <View style={styles.transportSide}>
-              <IconButton icon="arrow.uturn.backward" label="Undo" tone="ghost" size={36} iconScale={0.6} onPress={undo} disabled={!canUndo} />
-              <IconButton icon="arrow.uturn.forward" label="Redo" tone="ghost" size={36} iconScale={0.6} onPress={redo} disabled={!canRedo} />
-            </View>
-            <PressableScale
-              onPress={() => setPlaying((p) => !p)}
-              accessibilityRole="button"
-              accessibilityLabel={playing ? 'Pause' : 'Play'}
-              scaleTo={0.9}
-              style={styles.play}>
-              <SymbolView name={playing ? 'pause.fill' : 'play.fill'} size={26} tintColor="#FFFFFF" />
-            </PressableScale>
-            <View style={[styles.transportSide, styles.transportRight]}>
-              <AppText variant="caption" color={colors.textSecondary}>
-                {formatDuration(time)} / {formatDuration(total)}
-              </AppText>
-            </View>
+        <View style={[styles.gutter, styles.transport]}>
+          <View style={styles.transportSide}>
+            <IconButton icon="arrow.uturn.backward" label="Undo" tone="ghost" size={44} iconScale={0.45} onPress={undo} disabled={!canUndo} />
+            <IconButton icon="arrow.uturn.forward" label="Redo" tone="ghost" size={44} iconScale={0.45} onPress={redo} disabled={!canRedo} />
           </View>
+          <PressableScale
+            onPress={() => setPlaying((p) => !p)}
+            haptic={false}
+            accessibilityRole="button"
+            accessibilityLabel={playing ? 'Pause' : 'Play'}
+            scaleTo={0.9}
+            style={styles.play}>
+            <SymbolView name={playing ? 'pause.fill' : 'play.fill'} size={26} tintColor={colors.textPrimary} />
+          </PressableScale>
+          <View style={[styles.transportSide, styles.transportRight]}>
+            <AppText variant="label" tabular accessibilityLabel={`${formatDuration(time)} of ${formatDuration(total)}`}>
+              {formatDuration(time)}
+              <AppText variant="label" tabular color={colors.textMuted}>
+                {` / ${formatDuration(total)}`}
+              </AppText>
+            </AppText>
+          </View>
+        </View>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
-          <View style={[styles.gutter, styles.tools]}>
-            <ToolButton icon="scissors" label="Cuts" active={tool === 'cuts'} onPress={() => setTool(tool === 'cuts' ? null : 'cuts')} />
-            <ToolButton icon="text.quote" label="Words" active={tool === 'words'} onPress={() => setTool(tool === 'words' ? null : 'words')} />
-            <ToolButton
-              icon="captions.bubble"
-              label="Captions"
-              onPress={() => {
-                setPlaying(false);
-                router.push({ pathname: '/editor/captions', params: { projectId } });
-              }}
-            />
-            <ToolButton icon="plus.magnifyingglass" label="Zoom" active={tool === 'zoom'} onPress={() => setTool(tool === 'zoom' ? null : 'zoom')} />
-            <ToolButton icon="crop" label="Frame" active={tool === 'crop'} onPress={() => setTool(tool === 'crop' ? null : 'crop')} />
-            <ToolButton icon="waveform" label="Audio" active={tool === 'audio'} onPress={() => setTool(tool === 'audio' ? null : 'audio')} />
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+          showsVerticalScrollIndicator={false}
+          automaticallyAdjustKeyboardInsets>
+          <View style={[styles.gutter, styles.toolRow]}>
+            <ToolBar tools={TOOLS} active={tool} onPress={onTool} />
           </View>
 
           {plan && (
@@ -565,174 +632,192 @@ export default function EditorScreen() {
             <View style={[styles.gutter, styles.editBar]}>
               <EditAction icon="scissors" label="Split" onPress={splitAtPlayhead} />
               <EditAction icon="trash" label="Delete" onPress={deleteSelected} disabled={!selected} danger />
-              <AppText variant="caption" color={colors.textMuted} style={styles.editHint} numberOfLines={2}>
-                {selected ? 'Clip selected. Delete removes it, undo brings it back.' : 'Drag the strip to scrub. Tap a clip to select it.'}
+              <AppText
+                variant="caption"
+                color={shownNotice ? colors.textPrimary : colors.textMuted}
+                style={styles.editHint}
+                numberOfLines={3}
+                accessibilityLiveRegion="polite">
+                {shownNotice ?? (selected ? 'Clip selected. Delete removes it, undo brings it back.' : 'Drag the strip to scrub. Tap a clip to select it.')}
               </AppText>
             </View>
           )}
 
           <View style={[styles.gutter, styles.panel]}>
-            {tool === null && !suggestionDismissed && (
-              <Animated.View entering={FadeInDown.duration(300)}>
-                <SuggestionCard
-                  title="Tenfold suggestion"
-                  body={
-                    analysis.noSpeech
-                      ? 'No speech found in this clip, so nothing was cut and captions are off.'
-                      : candidates.length > 0
-                        ? `Cut ${plural(acceptedFillers, 'filler word', 'filler words')} and ${plural(acceptedPauses, 'pause', 'pauses')}. ${plural(candidates.length, 'more spot sounds', 'more spots sound')} like filler.`
-                        : `Cut ${plural(acceptedFillers, 'filler word', 'filler words')} and ${plural(acceptedPauses, 'pause', 'pauses')}, saving ${(plan?.removedSec ?? 0).toFixed(1)} s.`
-                  }
-                  primary={candidates.length > 0 ? 'Cut them' : 'Review'}
-                  secondary={candidates.length > 0 ? 'Review' : 'Dismiss'}
-                  onPrimary={() =>
-                    candidates.length > 0
-                      ? commit({ ...doc, cuts: doc.cuts.map((c) => (candidates.some((x) => x.id === c.id) ? { ...c, accepted: true } : c)) })
-                      : setTool('words')
-                  }
-                  onSecondary={() => (candidates.length > 0 ? setTool('words') : setSuggestionDismissed(true))}
-                />
-              </Animated.View>
+            {tool === null && (
+              <Panel title="This edit" animate={false}>
+                <AppText variant="bodyStrong" tabular>
+                  {summary}
+                </AppText>
+                {!analysis.noSpeech && candidates.length > 0 && (
+                  <>
+                    <AppText variant="label" color={colors.textSecondary}>
+                      {candidates.length === 1 ? '1 more spot sounds like a filler word.' : `${candidates.length} more spots sound like filler words.`}
+                    </AppText>
+                    <View style={styles.buttonRow}>
+                      <OutlineButton
+                        title={candidates.length === 1 ? 'Cut it' : `Cut ${candidates.length}`}
+                        height={44}
+                        style={styles.flex}
+                        onPress={() => commit({ ...doc, cuts: doc.cuts.map((c) => (candidates.some((x) => x.id === c.id) ? { ...c, accepted: true } : c)) })}
+                      />
+                      <OutlineButton title="Review words" height={44} style={styles.flex} onPress={() => setTool('words')} />
+                    </View>
+                  </>
+                )}
+              </Panel>
             )}
 
             {tool === 'words' && (
-              <Animated.View entering={FadeIn.duration(200)}>
-                <Card style={styles.panelCard}>
-                  <View style={styles.panelHead}>
-                    <AppText variant="bodyStrong">Transcript</AppText>
-                    <AppText variant="caption" color={colors.textMuted}>
-                      Tap a word to cut or restore it. Hold to fix its spelling.
-                    </AppText>
-                  </View>
-                  {words.length === 0 ? (
-                    <AppText variant="label" color={colors.textSecondary}>
-                      No words were transcribed for this clip.
-                    </AppText>
-                  ) : (
-                    <View style={styles.words}>
-                      {words.map((w, i) => {
-                        const cut = cutForWord(i);
-                        const removed = !!cut?.accepted;
-                        const candidate = !!cut && !cut.accepted && cut.reason !== 'manual';
-                        const text = overrides.get(i) ?? w.text;
+              <Panel title="Words" detail="Tap a word to cut or restore it. Hold it to fix the spelling.">
+                {words.length === 0 ? (
+                  <AppText variant="label" color={colors.textSecondary}>
+                    No words were transcribed for this clip.
+                  </AppText>
+                ) : (
+                  <View style={styles.words}>
+                    {words.map((w, i) => {
+                      const cut = cutForWord(i);
+                      const removed = !!cut?.accepted;
+                      const candidate = !!cut && !cut.accepted && cut.reason !== 'manual';
+                      const text = overrides.get(i) ?? w.text;
+                      if (editingWord === i) {
                         return (
-                          <PressableScale
+                          <TextInput
                             key={i}
-                            scaleTo={0.9}
-                            onPress={() => toggleWord(i)}
-                            onLongPress={() => editWord(i)}
-                            accessibilityLabel={`${text}${removed ? ', removed' : candidate ? ', possible filler' : ''}`}
-                            style={[
-                              styles.word,
-                              i === activeWord && !removed && styles.wordActive,
-                              removed && styles.wordRemoved,
-                              candidate && styles.wordCandidate,
-                            ]}>
-                            <AppText
-                              variant="chip"
-                              color={removed ? colors.danger : i === activeWord ? colors.textInverse : colors.chipText}
-                              style={removed && styles.strike}>
-                              {text}
-                            </AppText>
-                          </PressableScale>
+                            autoFocus
+                            defaultValue={text}
+                            selectTextOnFocus
+                            autoCorrect={false}
+                            autoCapitalize="none"
+                            returnKeyType="done"
+                            keyboardAppearance="dark"
+                            selectionColor={colors.violet}
+                            accessibilityLabel={`Spelling of “${w.text}”`}
+                            accessibilityHint="Done saves it. Leave it empty to use the transcribed word."
+                            onEndEditing={(e) => saveWord(i, e.nativeEvent.text)}
+                            style={[styles.word, styles.wordInput]}
+                          />
                         );
-                      })}
-                    </View>
-                  )}
-                </Card>
-              </Animated.View>
+                      }
+                      return (
+                        <PressableScale
+                          key={i}
+                          haptic={false}
+                          scaleTo={0.94}
+                          hitSlop={{ top: 5, bottom: 5 }}
+                          onPress={() => toggleWord(i)}
+                          onLongPress={() => startEditingWord(i)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${text}${removed ? ', removed' : candidate ? ', possible filler' : ''}`}
+                          accessibilityHint={removed ? 'Restores the word.' : 'Cuts the word.'}
+                          accessibilityActions={[{ name: 'fixSpelling', label: 'Fix spelling' }]}
+                          onAccessibilityAction={(e) => e.nativeEvent.actionName === 'fixSpelling' && startEditingWord(i)}
+                          style={[
+                            styles.word,
+                            i === activeWord && !removed && styles.wordActive,
+                            removed && styles.wordRemoved,
+                            candidate && styles.wordCandidate,
+                          ]}>
+                          <AppText
+                            variant="chip"
+                            color={removed ? colors.danger : i === activeWord ? colors.textInverse : colors.chipText}
+                            style={removed && styles.strike}>
+                            {text}
+                          </AppText>
+                        </PressableScale>
+                      );
+                    })}
+                  </View>
+                )}
+              </Panel>
             )}
 
             {tool === 'cuts' && (
-              <Animated.View entering={FadeIn.duration(200)}>
-                <Card style={styles.panelCard}>
-                  <View style={styles.statRow}>
-                    <Stat value={acceptedPauses} label="Pauses" />
-                    <Stat value={acceptedFillers} label="Fillers" />
-                    <Stat value={doc.cuts.filter((c) => c.accepted && c.reason === 'manual').length} label="Manual" />
-                    <Stat value={plan?.removedSec ?? 0} label="Sec saved" decimals />
-                  </View>
+              <Panel title="Cuts" detail="Pauses and filler words taken out of this video.">
+                <View style={styles.statRow}>
+                  <Stat value={String(acceptedPauses)} label="Pauses" />
+                  <Stat value={String(acceptedFillers)} label="Filler words" />
+                  <Stat value={String(acceptedManual)} label="By hand" />
+                  <Stat value={removedSec.toFixed(1)} label="Seconds" />
+                </View>
+                <View style={styles.group}>
                   <OptionLabel>Pause cutting</OptionLabel>
                   <ChipGroup>
                     {SILENCE.map((o) => (
-                      <Chip
-                        key={o.v}
-                        label={o.l}
-                        selected={currentLevels.silence === o.v}
-                        onPress={() => applyLevels({ ...currentLevels, silence: o.v })}
-                      />
+                      <Chip key={o.v} label={o.l} selected={currentLevels.silence === o.v} onPress={() => applyLevels({ ...currentLevels, silence: o.v })} />
                     ))}
                   </ChipGroup>
+                </View>
+                <View style={styles.group}>
                   <OptionLabel>Filler words</OptionLabel>
                   <ChipGroup>
                     {FILLERS.map((o) => (
-                      <Chip
-                        key={o.v}
-                        label={o.l}
-                        selected={currentLevels.fillers === o.v}
-                        onPress={() => applyLevels({ ...currentLevels, fillers: o.v })}
-                      />
+                      <Chip key={o.v} label={o.l} selected={currentLevels.fillers === o.v} onPress={() => applyLevels({ ...currentLevels, fillers: o.v })} />
                     ))}
                   </ChipGroup>
+                </View>
+                {levelsError && (
+                  <AppText variant="label" color={colors.danger}>
+                    {levelsError}
+                  </AppText>
+                )}
+                {anyAccepted && (
                   <OutlineButton
-                    title="Restore everything"
+                    title="Restore all cuts"
                     icon="arrow.counterclockwise"
                     height={44}
                     onPress={() => commit({ ...doc, cuts: doc.cuts.map((c) => ({ ...c, accepted: false })) })}
                   />
-                </Card>
-              </Animated.View>
+                )}
+              </Panel>
             )}
 
             {tool === 'zoom' && (
-              <Animated.View entering={FadeIn.duration(200)}>
-                <Card style={styles.panelCard}>
-                  <OptionLabel>Punch-in zoom</OptionLabel>
-                  <ChipGroup>
-                    {(['off', 'subtle', 'dynamic'] as ZoomMode[]).map((z) => (
-                      <Chip
-                        key={z}
-                        label={z[0].toUpperCase() + z.slice(1)}
-                        selected={doc.zoom.mode === z}
-                        onPress={() => commit({ ...doc, zoom: { ...doc.zoom, mode: z } })}
-                      />
-                    ))}
-                  </ChipGroup>
-                  {doc.zoom.mode !== 'off' && (
-                    <>
-                      <OptionLabel>Strength</OptionLabel>
-                      <ChipGroup>
-                        {([1, 2, 3] as const).map((n) => (
-                          <Chip
-                            key={n}
-                            label={n === 1 ? 'Gentle' : n === 2 ? 'Normal' : 'Strong'}
-                            selected={doc.zoom.intensity === n}
-                            onPress={() => commit({ ...doc, zoom: { ...doc.zoom, intensity: n } })}
-                          />
-                        ))}
-                      </ChipGroup>
-                    </>
-                  )}
-                  <AppText variant="caption" color={colors.textMuted}>
-                    Subtle zooms at every cut to hide the jump. Dynamic also punches in at new sentences.
-                  </AppText>
-                </Card>
-              </Animated.View>
+              <Panel title="Zoom" detail="Punches in at each cut to hide the jump. Dynamic also zooms on new sentences.">
+                <ChipGroup>
+                  {ZOOMS.map((z) => (
+                    <Chip key={z.v} label={z.l} selected={doc.zoom.mode === z.v} onPress={() => commit({ ...doc, zoom: { ...doc.zoom, mode: z.v } })} />
+                  ))}
+                </ChipGroup>
+                {doc.zoom.mode !== 'off' && (
+                  <View style={styles.group}>
+                    <OptionLabel>Strength</OptionLabel>
+                    <ChipGroup>
+                      {([1, 2, 3] as const).map((n) => (
+                        <Chip
+                          key={n}
+                          label={n === 1 ? 'Gentle' : n === 2 ? 'Normal' : 'Strong'}
+                          selected={doc.zoom.intensity === n}
+                          onPress={() => commit({ ...doc, zoom: { ...doc.zoom, intensity: n } })}
+                        />
+                      ))}
+                    </ChipGroup>
+                  </View>
+                )}
+              </Panel>
             )}
 
             {tool === 'crop' && (
-              <Animated.View entering={FadeIn.duration(200)}>
-                <Card style={styles.panelCard}>
+              <Panel
+                title="Frame"
+                detail={
+                  frameMode === 'custom'
+                    ? `Placed by hand at ${Math.round(placement.scale * 100)}%. Double-tap the video for Fit or Fill.`
+                    : 'Pinch the video to zoom, drag to move. Double-tap for Fit or Fill.'
+                }>
+                <View style={styles.group}>
                   <OptionLabel>Canvas</OptionLabel>
                   <View style={styles.aspects}>
                     {ASPECTS.map((a) => {
                       const on = aspect === a.id;
                       const r = aspectRatioValue(a.id, project.media ?? undefined);
-                      const box = r >= 1 ? { width: 26, height: 26 / r } : { width: 26 * r, height: 26 };
+                      const box = r >= 1 ? { width: 24, height: 24 / r } : { width: 24 * r, height: 24 };
                       return (
                         <PressableScale
                           key={a.id}
-                          scaleTo={0.94}
+                          haptic={false}
+                          scaleTo={0.96}
                           onPress={() => {
                             if (on) return;
                             // A new canvas starts with the whole video visible (Fit); pinch in to fill.
@@ -745,13 +830,15 @@ export default function EditorScreen() {
                           <View style={styles.aspectIcon}>
                             <View style={[styles.aspectBox, box, on && styles.aspectBoxOn]} />
                           </View>
-                          <AppText variant="label" color={on ? colors.textPrimary : colors.textSecondary}>
+                          <AppText variant="caption" color={on ? colors.textPrimary : colors.textSecondary} numberOfLines={1}>
                             {a.label}
                           </AppText>
                         </PressableScale>
                       );
                     })}
                   </View>
+                </View>
+                <View style={styles.group}>
                   <OptionLabel>Video</OptionLabel>
                   <View style={styles.segment}>
                     {(
@@ -765,6 +852,7 @@ export default function EditorScreen() {
                       return (
                         <PressableScale
                           key={m.id}
+                          haptic={false}
                           scaleTo={0.96}
                           onPress={() => !on && setFrame(m.id)}
                           accessibilityRole="button"
@@ -781,22 +869,14 @@ export default function EditorScreen() {
                       );
                     })}
                   </View>
-                  <AppText variant="caption" color={colors.textMuted}>
-                    {frameMode === 'custom'
-                      ? `Placed by hand · ${Math.round(placement.scale * 100)}%. Double-tap the video for Fit or Fill.`
-                      : 'Pinch the video to zoom, drag to move. Double-tap for Fit or Fill.'}
-                  </AppText>
-                </Card>
-              </Animated.View>
+                </View>
+              </Panel>
             )}
 
             {tool === 'audio' && (
-              <Animated.View entering={FadeIn.duration(200)}>
-                <Card style={styles.panelCard}>
-                  <ToggleRow title="Mute original audio" value={muted} onChange={(v) => commit({ ...doc, audio: { mode: v ? 'mute' : 'original' } })} />
-                  <ToggleRow title="Normalize loudness" subtitle="Coming soon" value={false} onChange={() => {}} disabled />
-                </Card>
-              </Animated.View>
+              <Panel title="Audio" detail="The sound recorded with the clip.">
+                <ToggleRow title="Mute original audio" value={muted} onChange={(v) => commit({ ...doc, audio: { mode: v ? 'mute' : 'original' } })} />
+              </Panel>
             )}
           </View>
         </ScrollView>
@@ -811,24 +891,27 @@ function EditAction({ icon, label, onPress, disabled, danger }: { icon: 'scissor
     <PressableScale
       onPress={onPress}
       disabled={disabled}
-      scaleTo={0.92}
+      haptic={false}
+      scaleTo={0.94}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       accessibilityLabel={label}
       style={[styles.editAction, disabled && styles.editActionOff]}>
-      <SymbolView name={icon} size={16} tintColor={tint} />
-      <AppText variant="label" color={tint}>
+      <SymbolView name={icon} size={15} weight="regular" tintColor={tint} />
+      <AppText variant="chip" color={tint}>
         {label}
       </AppText>
     </PressableScale>
   );
 }
 
-function Stat({ value, label, decimals }: { value: number; label: string; decimals?: boolean }) {
+function Stat({ value, label }: { value: string; label: string }) {
   return (
-    <View style={styles.stat}>
-      <AppText variant="title">{decimals ? value.toFixed(1) : value}</AppText>
-      <AppText variant="caption" color={colors.textSecondary}>
+    <View style={styles.stat} accessible accessibilityLabel={`${label}: ${value}`}>
+      <AppText variant="title" tabular>
+        {value}
+      </AppText>
+      <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}>
         {label}
       </AppText>
     </View>
@@ -842,38 +925,33 @@ const styles = StyleSheet.create({
   gutter: { paddingHorizontal: spacing.gutter },
   previewSlot: { alignItems: 'center', justifyContent: 'center' },
   overlay: { position: 'absolute', alignSelf: 'center' },
-  tabular: { fontVariant: ['tabular-nums'] },
+  bone: { borderRadius: radii.card, borderCurve: 'continuous', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  skeletonTools: { flexDirection: 'row', gap: 4, marginTop: 72 },
+  skeletonTool: { flex: 1, height: 56, borderRadius: 14 },
+  group: { gap: spacing.sm },
+  buttonRow: { flexDirection: 'row', gap: spacing.md },
   segment: { flexDirection: 'row', gap: 8 },
   segmentItem: {
     flex: 1,
+    minHeight: 52,
     alignItems: 'center',
-    paddingVertical: 10,
+    justifyContent: 'center',
+    paddingVertical: 8,
     borderRadius: 14,
+    borderCurve: 'continuous',
     backgroundColor: colors.chipFill,
   },
-  segmentOn: { backgroundColor: '#FFFFFF' },
-  preview: {
-    borderRadius: radii.card,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-    backgroundColor: '#000000',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  segmentOn: { backgroundColor: colors.chipSelectedFill },
   previewLoading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   badge: {
     position: 'absolute',
-    top: 14,
-    left: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(28,27,35,0.75)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    top: 12,
+    left: 12,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(10,9,14,0.6)',
   },
   previewErrorBox: {
     position: 'absolute',
@@ -881,59 +959,60 @@ const styles = StyleSheet.create({
     right: 10,
     bottom: 10,
     padding: 10,
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: 'rgba(120,20,30,0.85)',
   },
   bigPlay: {
     position: 'absolute',
     alignSelf: 'center',
     top: '50%',
-    marginTop: -32,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    marginTop: -30,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     paddingLeft: 4,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  editBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: spacing.md },
+  transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md },
+  transportSide: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
+  transportRight: { justifyContent: 'flex-end' },
+  play: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
+  toolRow: { marginTop: spacing.sm, marginBottom: spacing.lg },
+  editBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
   editAction: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    height: 38,
+    height: 44,
     paddingHorizontal: 14,
-    borderRadius: 19,
+    borderRadius: 22,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
   },
   editActionOff: { opacity: 0.5 },
-  editHint: { flex: 1 },
-  aspects: { flexDirection: 'row', gap: 8 },
+  editHint: { flex: 1, marginLeft: spacing.xs },
+  aspects: { flexDirection: 'row', gap: 6 },
   aspect: {
     flex: 1,
+    minHeight: 60,
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 10,
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 8,
     borderRadius: 14,
+    borderCurve: 'continuous',
     backgroundColor: colors.chipFill,
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  aspectOn: { borderColor: '#FFFFFF', backgroundColor: colors.cardHigh },
-  aspectIcon: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  aspectOn: { borderColor: colors.textPrimary, backgroundColor: colors.cardHigh },
+  aspectIcon: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
   aspectBox: { borderRadius: 3, borderWidth: 1.5, borderColor: colors.textSecondary },
-  aspectBoxOn: { borderColor: '#FFFFFF' },
-  transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.lg },
-  transportSide: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
-  transportRight: { justifyContent: 'flex-end' },
-  play: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
-  tools: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.lg, marginBottom: spacing.xl },
+  aspectBoxOn: { borderColor: colors.textPrimary },
   panel: { marginTop: spacing.xl },
-  panelCard: { gap: spacing.md },
-  panelHead: { gap: 2 },
   words: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   word: {
     height: 34,
@@ -944,10 +1023,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  wordActive: { backgroundColor: '#FFFFFF' },
+  wordInput: {
+    ...typeScale.chip,
+    lineHeight: undefined,
+    minWidth: 64,
+    paddingVertical: 0,
+    color: colors.textPrimary,
+    backgroundColor: colors.cardHigh,
+    borderColor: colors.violet,
+  },
+  wordActive: { backgroundColor: colors.chipSelectedFill },
   wordRemoved: { backgroundColor: colors.dangerSoft },
   wordCandidate: { borderColor: colors.danger, borderStyle: 'dashed' },
   strike: { textDecorationLine: 'line-through' },
   statRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  stat: { alignItems: 'center', flex: 1 },
+  stat: { alignItems: 'center', flex: 1, gap: 2 },
 });

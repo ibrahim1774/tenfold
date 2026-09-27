@@ -53,6 +53,16 @@ export default function RootLayout() {
                 contentStyle: { backgroundColor: colors.bgRaised },
               }}
             />
+            <Stack.Screen
+              name="editor/info"
+              options={{
+                presentation: 'formSheet',
+                sheetAllowedDetents: [0.5, 1],
+                sheetGrabberVisible: true,
+                sheetCornerRadius: 28,
+                contentStyle: { backgroundColor: colors.bgRaised },
+              }}
+            />
             <Stack.Screen name="export/[projectId]" options={{ presentation: 'modal' }} />
           </Stack.Protected>
 
