@@ -219,7 +219,7 @@ export default function SettingsScreen() {
           <View style={styles.privacy}>
             <SymbolView name="lock.shield" size={19} tintColor={colors.textSecondary} weight="regular" />
             <AppText variant="label" color={colors.textSecondary} style={styles.flex}>
-              Nothing leaves your phone. No account, no uploads, no analytics.
+              Your videos never leave your phone. No account, no uploads. Anonymous paywall and purchase events go to Superwall, as the privacy policy explains.
             </AppText>
             <View style={[styles.divider, { left: ROW_PAD }]} />
           </View>

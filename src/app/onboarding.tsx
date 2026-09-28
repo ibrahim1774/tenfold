@@ -192,7 +192,7 @@ export default function OnboardingScreen() {
             <>
               <GradientButton title={HAS_DEMO ? 'See it happen' : 'Get started'} shape="pill" onPress={next} />
               <AppText variant="caption" color={colors.textMuted} style={styles.center}>
-                No account. Nothing leaves your iPhone.
+                No account. Your videos never leave your iPhone.
               </AppText>
             </>
           )}
