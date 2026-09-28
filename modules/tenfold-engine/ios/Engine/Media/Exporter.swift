@@ -61,7 +61,13 @@ public enum Exporter {
         if case .exporting(let p) = state { progress(p.fractionCompleted) }
       }
     }
-    defer { watcher.cancel() }
+    defer {
+      watcher.cancel()
+      // Export runs on a thread with no run loop, so the implicit Core Animation transaction opened for
+      // the caption / text / watermark layers is never committed and keeps the whole layer tree alive
+      // (about 8 MB per export, found by scripts/stress-render.sh). Flush it once the render is done.
+      CATransaction.flush()
+    }
     try await session.export(to: url, as: .mp4)
     progress(1)
   }

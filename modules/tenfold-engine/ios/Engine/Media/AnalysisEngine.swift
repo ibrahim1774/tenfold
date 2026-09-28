@@ -13,7 +13,9 @@ public enum AnalysisEngine {
     guard let v = try await asset.loadTracks(withMediaType: .video).first else {
       throw EngineError.message("This file has no video.")
     }
-    let (natural, transform, fps, traits) = try await v.load(.naturalSize, .preferredTransform, .nominalFrameRate, .mediaCharacteristics)
+    let (natural, transform, fps, traits, decodable) = try await v.load(.naturalSize, .preferredTransform, .nominalFrameRate, .mediaCharacteristics, .isDecodable)
+    // e.g. HEVC tagged "hev1": it probes fine but every frame read fails, so refuse it at import, not at export.
+    guard decodable else { throw EngineError.message("This video's format can't be played on iPhone.") }
     let rect = CGRect(origin: .zero, size: natural).applying(transform)
     let hasAudio = !(try await asset.loadTracks(withMediaType: .audio)).isEmpty
     return MediaInfo(

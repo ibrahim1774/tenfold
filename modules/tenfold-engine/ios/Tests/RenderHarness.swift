@@ -840,10 +840,61 @@ final class ClipCounter: @unchecked Sendable {
   }
 }
 
+/// Files that probe must refuse with a clear message (import), instead of failing later at export.
+func probeSuite(src: URL, outDir: URL, check: (Bool, String) -> Void) async throws {
+  print("• probe refuses undecodable video")
+  // Same clip with its sample entry retagged "hev1" (as ffmpeg writes HEVC): readable, not decodable.
+  var data = try Data(contentsOf: src)
+  let from = Data("avc1".utf8), to = Data("hev1".utf8)
+  var retagged = 0
+  while let r = data.range(of: from) {
+    data.replaceSubrange(r, with: to)
+    retagged += 1
+  }
+  let bad = outDir.appendingPathComponent("harness-undecodable.mov")
+  try data.write(to: bad)
+  defer { try? FileManager.default.removeItem(at: bad) }
+  check(retagged > 0, "retagged the sample entry (\(retagged))")
+  do {
+    let m = try await AnalysisEngine.probe(bad)
+    check(false, "undecodable video refused at probe (got \(m))")
+  } catch {
+    check(error.localizedDescription == "This video's format can't be played on iPhone.", "undecodable video refused at probe: \(error.localizedDescription)")
+  }
+  let media = try await AnalysisEngine.probe(src)
+  check(media.width > 0, "the untouched clip still probes")
+}
+
+/// Repeated exports must not keep their caption / watermark layer trees alive (no run loop on the export
+/// thread: see Exporter's CATransaction.flush). Before the fix each export added about 8 MB.
+func exportMemorySuite(src: URL, media: MediaInfo, outDir: URL, check: (Bool, String) -> Void) async throws {
+  print("• memory across repeated exports")
+  let words = (0..<8).map { Word(text: "word\($0)", start: Double($0) * 0.2, end: Double($0) * 0.2 + 0.15) }
+  let analysis = Analysis(media: media, transcript: Transcript(words: words, language: "en", engine: "fake", wordTimingIsExact: true), envelopeDb: [], noiseFloorDb: -60, speechThresholdDb: -38, speechCoverage: 1, noSpeech: false, cuts: [], faces: [], warnings: [])
+  var doc = EditDocument()
+  doc.zoom = ZoomSettings(mode: .off)
+  doc.textOverlays = [TextOverlay(id: "t", text: "Memory", box: "filled", color: "#7C4DFF", size: 0.06, x: 0.5, y: 0.2)]
+  let plan = EditPlanner.plan(doc: doc, analysis: analysis)
+  let out = outDir.appendingPathComponent("harness-memory.mp4")
+  defer { try? FileManager.default.removeItem(at: out) }
+  var after: [Double] = []
+  for _ in 0..<14 {
+    let built = try await CompositionBuilder.build(source: src, media: media, plan: plan, doc: doc, faces: [], quality: .hd)
+    try await Exporter.export(built: built, plan: plan, captions: doc.captions, overlays: doc.textOverlays ?? [], options: ExportOptions(quality: .hd, watermark: true, saveToPhotos: false), to: out) { _ in }
+    after.append(footprintMB())
+  }
+  let growth = after[13] - after[3]
+  print(String(format: "  footprint after export 4: %.0f MB, after 14: %.0f MB", after[3], after[13]))
+  check(growth < 30, String(format: "10 more exports grow memory by %.0f MB (< 30)", growth))
+}
+
 @main
 struct RenderHarness {
   static func main() async {
     setbuf(stdout, nil)
+    if let i = CommandLine.arguments.firstIndex(of: "--stress") {
+      await stressMain(Array(CommandLine.arguments[(i + 1)...]))
+    }
     if CommandLine.arguments.contains("--orientation") {
       let outDir = URL(fileURLWithPath: CommandLine.arguments[1])
       var failed = false
@@ -876,6 +927,21 @@ struct RenderHarness {
       print(failed ? "\nCLIP SUITE FAILED" : "\nclip suite passed")
       exit(failed ? 1 : 0)
     }
+    if CommandLine.arguments.contains("--probe") {
+      do {
+        let id = "harness-probe-\(Int(Date().timeIntervalSince1970))"
+        let src = ProjectStore.dir(id).appendingPathComponent("source.mov")
+        try await makeClip(src, seconds: 1)
+        try await probeSuite(src: src, outDir: outDir, check: check)
+        try await exportMemorySuite(src: src, media: try await AnalysisEngine.probe(src), outDir: outDir, check: check)
+        ProjectStore.delete(id)
+      } catch {
+        print("  FAIL threw \(error)")
+        failed = true
+      }
+      print(failed ? "\nPROBE SUITE FAILED" : "\nprobe suite passed")
+      exit(failed ? 1 : 0)
+    }
     if CommandLine.arguments.contains("--audio") {
       // Only the audio lanes (quick; also handy when disk space is short).
       do {
@@ -899,6 +965,8 @@ struct RenderHarness {
       try await makeClip(src)
       let media = try await AnalysisEngine.probe(src)
       check(abs(media.durationSec - 6) < 0.1 && media.hasAudio && media.width == 720, "probe \(media)")
+      try await probeSuite(src: src, outDir: outDir, check: check)
+      try await exportMemorySuite(src: src, media: media, outDir: outDir, check: check)
       try ProjectStore.write(ProjectMeta(id: id, title: "Harness", sourceFile: "source.mov", createdAt: 0, media: media, posterFile: nil), id, "meta.json")
 
       print("• analyze")
