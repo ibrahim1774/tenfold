@@ -13,6 +13,7 @@
       "supportsTablet": false,
       "infoPlist": {
         "NSPhotoLibraryAddUsageDescription": "Tenfold saves your finished videos to Photos.",
+        "NSPhotoLibraryUsageDescription": "Tenfold opens videos you choose from Photos so it can edit them. Nothing is uploaded.",
         "NSSpeechRecognitionUsageDescription": "Tenfold transcribes your videos on your iPhone to add captions and cut silences.",
         "NSCameraUsageDescription": "Tenfold uses the camera to record clips for your batches. Recordings stay on your iPhone.",
         "NSMicrophoneUsageDescription": "Tenfold records sound with your clips and your voiceovers so it can add captions, cut pauses and mix your sound. Audio stays on your iPhone.",
@@ -23,7 +24,8 @@
           "instagram"
         ],
         "EXDevMenuShowFloatingActionButton": false
-      }
+      },
+      "buildNumber": "2"
     },
     "plugins": [
       "expo-router",
