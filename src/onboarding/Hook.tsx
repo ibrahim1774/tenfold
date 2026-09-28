@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.62)',
   },
   badgeText: { color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontVariant: ['tabular-nums'] },
-  fadeTop: { position: 'absolute', left: 0, right: 0, top: 0, height: 56 },
+  fadeTop: { position: 'absolute', left: 0, right: 0, top: 0, height: 110 },
   fadeBottom: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 120 },
   pill: {
     position: 'absolute',
