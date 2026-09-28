@@ -19,6 +19,7 @@ import { Demo } from '@/onboarding/Demo';
 import { hasSampleClip } from '@/onboarding/fileImport';
 import { Hook } from '@/onboarding/Hook';
 import { Language } from '@/onboarding/Language';
+import { Included } from '@/onboarding/Included';
 import { Payoff } from '@/onboarding/PayoffScreen';
 import { computePayoff } from '@/onboarding/savings';
 import { MAKES_Q, MINUTES_Q, PER_WEEK_Q, ROLE_Q } from '@/onboarding/questions';
@@ -28,10 +29,10 @@ import { tierOf, useEntitlements } from '@/state/entitlements';
 import { useOnboarding } from '@/state/onboarding';
 import { presetForContent, useSettings } from '@/state/settings';
 
-type StepId = 'hook' | 'demo' | 'role' | 'makes' | 'perWeek' | 'minutes' | 'payoff' | 'language' | 'ready';
+type StepId = 'hook' | 'included' | 'demo' | 'role' | 'makes' | 'perWeek' | 'minutes' | 'payoff' | 'language' | 'ready';
 // The demo step only exists when this build bundles the sample clip.
 const HAS_DEMO = hasSampleClip();
-const ALL_STEPS: StepId[] = ['hook', 'demo', 'role', 'makes', 'perWeek', 'minutes', 'payoff', 'language', 'ready'].filter(
+const ALL_STEPS: StepId[] = ['hook', 'included', 'demo', 'role', 'makes', 'perWeek', 'minutes', 'payoff', 'language', 'ready'].filter(
   (s) => s !== 'demo' || HAS_DEMO,
 ) as StepId[];
 const QUESTIONS: StepId[] = ['role', 'makes', 'perWeek', 'minutes'];
@@ -177,6 +178,7 @@ export default function OnboardingScreen() {
                   />
                 </>
               )}
+              {step === 'included' && <Included />}
               {step === 'payoff' && payoff && <Payoff payoff={payoff} />}
               {step === 'language' && <Language />}
               {step === 'ready' && <Ready />}
@@ -205,7 +207,7 @@ export default function OnboardingScreen() {
             </>
           )}
           {step === 'payoff' && <GradientButton title="Claim my time" shape="pill" onPress={next} />}
-          {step === 'language' && <GradientButton title="Continue" shape="pill" onPress={next} />}
+          {(step === 'included' || step === 'language') && <GradientButton title="Continue" shape="pill" onPress={next} />}
           {step === 'ready' && (
             <>
               <GradientButton title="Show me around" shape="pill" onPress={() => finish(true)} />

@@ -158,8 +158,8 @@ export default function PaywallScreen() {
           </AppText>
           <AppText variant="body" color={colors.textSecondary}>
             {trial
-              ? `Every plan starts with a ${TRIAL_DAYS}-day free trial. Everything still runs on your iPhone.`
-              : 'Change plans any time. Everything still runs on your iPhone.'}
+              ? `Cuts dead silences and filler words, adds captions, frames for vertical. Every plan starts with a ${TRIAL_DAYS}-day free trial.`
+              : 'Cuts dead silences and filler words, adds captions, frames for vertical. Change plans any time.'}
           </AppText>
         </View>
 
