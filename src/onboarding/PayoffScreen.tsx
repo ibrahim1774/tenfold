@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/design/components';
-import { colors, spacing } from '@/design/tokens';
+import { colors, fonts, spacing } from '@/design/tokens';
 
 import { formatMinutes, type Payoff as PayoffNumbers } from './savings';
 
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   hero: { gap: spacing.xs },
   numberRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
   // The one oversized figure on the screen, like the reference onboarding.
-  number: { fontSize: 104, lineHeight: 112, fontWeight: '800', color: colors.accent, letterSpacing: -2 },
+  number: { fontFamily: fonts.bold, fontSize: 104, lineHeight: 112, color: colors.accent, letterSpacing: -3 },
   unit: { marginBottom: 18 },
   maths: { marginTop: 'auto', gap: 2 },
 });

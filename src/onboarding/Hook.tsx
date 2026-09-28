@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/design/components';
 import { SAMPLE_FRAMES } from '@/design/sampleFrames';
-import { colors, spacing } from '@/design/tokens';
+import { colors, fonts, spacing } from '@/design/tokens';
 
 /**
  * First screen: a wall of ten finished takes (the batch idea at a glance), the promise underneath.
@@ -110,6 +110,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: colors.accent,
   },
-  pillText: { color: '#000000', fontWeight: '700' },
+  pillText: { color: '#000000', fontFamily: fonts.semiBold },
   text: { paddingHorizontal: spacing.gutter, paddingTop: spacing.xl, gap: spacing.md },
 });

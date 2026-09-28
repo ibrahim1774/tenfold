@@ -75,14 +75,16 @@ export const spacing = {
 } as const;
 
 /**
- * Interface text is the iPhone's own font (SF Pro): `fontFamily` undefined + a weight. Poppins and the
- * other bundled faces are for captions only (src/captions/presets.ts).
+ * Two faces. Headings, big figures, buttons and strong labels use Instrument Sans (OFL, bundled via
+ * expo-font; iOS names are the PostScript names). Running text, secondary text and small print stay on the
+ * iPhone's own SF Pro (`fontFamily` undefined + a weight) for legibility. Poppins and the other bundled
+ * faces are for captions only (src/captions/presets.ts).
  */
 export const fonts = {
   regular: undefined,
-  medium: undefined,
-  semiBold: undefined,
-  bold: undefined,
+  medium: 'InstrumentSans-Medium',
+  semiBold: 'InstrumentSans-SemiBold',
+  bold: 'InstrumentSans-Bold',
 } as const;
 
 export const weights = {
@@ -97,17 +99,17 @@ export const weights = {
  * 14 controls · 13 secondary · 12 small print. Legacy names map onto them.
  */
 export const type = {
-  display: { fontWeight: weights.bold, fontSize: 30, lineHeight: 36, letterSpacing: 0.2 },
-  title: { fontWeight: weights.semiBold, fontSize: 20, lineHeight: 25, letterSpacing: -0.2 },
+  display: { fontFamily: fonts.bold, fontSize: 30, lineHeight: 36, letterSpacing: -0.4 },
+  title: { fontFamily: fonts.semiBold, fontSize: 20, lineHeight: 25, letterSpacing: -0.2 },
   body: { fontWeight: weights.regular, fontSize: 15, lineHeight: 20 },
-  bodyStrong: { fontWeight: weights.semiBold, fontSize: 15, lineHeight: 20 },
+  bodyStrong: { fontFamily: fonts.semiBold, fontSize: 15, lineHeight: 20 },
   chip: { fontWeight: weights.medium, fontSize: 14, lineHeight: 18 },
   label: { fontWeight: weights.regular, fontSize: 13, lineHeight: 18 },
   caption: { fontWeight: weights.regular, fontSize: 12, lineHeight: 16 },
   // Legacy aliases (same sizes as above).
-  hero: { fontWeight: weights.bold, fontSize: 30, lineHeight: 36, letterSpacing: 0.2 },
-  section: { fontWeight: weights.semiBold, fontSize: 20, lineHeight: 25, letterSpacing: -0.2 },
-  cta: { fontWeight: weights.semiBold, fontSize: 15, lineHeight: 20 },
+  hero: { fontFamily: fonts.bold, fontSize: 30, lineHeight: 36, letterSpacing: -0.4 },
+  section: { fontFamily: fonts.semiBold, fontSize: 20, lineHeight: 25, letterSpacing: -0.2 },
+  cta: { fontFamily: fonts.semiBold, fontSize: 15, lineHeight: 20 },
 } as const;
 
 export const sizes = {
