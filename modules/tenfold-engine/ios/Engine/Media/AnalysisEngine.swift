@@ -9,7 +9,13 @@ public enum AnalysisEngine {
 
   public static func probe(_ url: URL) async throws -> MediaInfo {
     let asset = AVURLAsset(url: url)
-    let duration = try await asset.load(.duration).seconds
+    // A zero-length, truncated or non-video file fails here with AVFoundation's raw "Cannot Open".
+    let duration: Double
+    do {
+      duration = try await asset.load(.duration).seconds
+    } catch {
+      throw EngineError.message("This video file is damaged or incomplete.")
+    }
     guard let v = try await asset.loadTracks(withMediaType: .video).first else {
       throw EngineError.message("This file has no video.")
     }
