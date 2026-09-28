@@ -1,13 +1,13 @@
 import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { queueExports, STAGE_LABELS } from '@/batch/queue';
+import { queueExports, STAGE_LABELS, unpark, useQueueUI } from '@/batch/queue';
 import { AppText, Background, GradientButton, OutlineButton, ProgressRing } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
 import { usePaywallGate } from '@/monetization/superwall';
@@ -18,10 +18,22 @@ import { useSettings } from '@/state/settings';
 
 const RING = 176;
 
+const inFlightCount = (projects: ReturnType<typeof useLibrary.getState>['projects']) =>
+  Object.values(projects).filter((p) => p.status === 'exportQueued' || p.status === 'exporting').length;
+
+/** Exports left this month after the ones already queued or running (read fresh, e.g. after an upgrade). */
+function exportRoom() {
+  return exportsLeft(useEntitlements.getState()) - inFlightCount(useLibrary.getState().projects);
+}
+
 export default function ExportScreen() {
   const insets = useSafeAreaInsets();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const project = useLibrary((s) => s.projects[projectId]);
+  // Exports queued or running anywhere: the lane is shared, so they count against this month's limit.
+  const inFlight = useLibrary((s) => inFlightCount(s.projects));
+  const parkedHere = useQueueUI((s) => s.parked.includes(projectId));
+  const focused = useIsFocused();
   const ent = useEntitlements();
   const tier = tierOf(ent);
   const { uhd: uhdAllowed, watermark } = limitsFor(tier);
@@ -30,8 +42,11 @@ export default function ExportScreen() {
   // When this screen started an export (0 = not yet), to tell a fresh export from an older one.
   const [startedAt, setStartedAt] = useState(0);
   const busy = project?.status === 'exportQueued' || project?.status === 'exporting';
+  // Started here, then put back to ready without an error: the queue stopped at the monthly export limit
+  // while this video waited behind others. Back to the choices (the effect below shows export_limit).
+  const stoppedAtLimit = startedAt > 0 && project?.status === 'ready' && !project.error;
   // Also "started" when coming back to an export that's already running.
-  const started = startedAt > 0 || busy;
+  const started = (startedAt > 0 && !stoppedAtLimit) || busy;
   const finished = started && project?.status === 'done' && (project.exportedAt ?? 0) >= startedAt;
   const failed = started && !busy && !finished && !!project?.error;
   const can4K = (project?.media ? Math.min(project.media.width, project.media.height) : 0) >= 2160;
@@ -45,31 +60,45 @@ export default function ExportScreen() {
     }
   }, [finished]);
 
+  const exportNow = () => {
+    setStartedAt(Date.now());
+    queueExports([projectId]);
+  };
+  // export_limit: gated, the export starts once the plan has room for it.
+  const limitGate = () =>
+    gate({
+      placement: 'export_limit',
+      params: { tier },
+      allowed: () => exportRoom() > 0,
+      run: exportNow,
+    });
+
+  // This video was parked at the monthly limit: the export_limit paywall here, instead of a ring that
+  // never moves (and instead of on some other screen later).
+  useEffect(() => {
+    if (!focused || !parkedHere) return;
+    unpark([projectId]);
+    limitGate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused, parkedHere, projectId]);
+
   if (!project) return null;
 
-  const left = exportsLeft(ent);
+  // Shown while choosing, when this video isn't in flight itself.
+  const left = Math.max(0, exportsLeft(ent) - inFlight);
   const choosing = !started || failed;
   const saved = finished && !!project.savedToPhotos;
   const uhdSelected = uhdAllowed && can4K && exportQuality === 'uhd';
   const uhdTier = lowestTierWhere((l) => l.uhd) ?? 'pro';
   const cleanTier = lowestTierWhere((l) => !l.watermark) ?? 'starter';
 
-  const exportNow = () => {
-    setStartedAt(Date.now());
-    queueExports([projectId]);
-  };
   const start = () => {
-    if (exportsLeft(ent) > 0) {
+    if (exportRoom() > 0) {
       exportNow();
       return;
     }
-    // Out of exports this month: gated, the export starts once the plan allows it.
-    gate({
-      placement: 'export_limit',
-      params: { tier },
-      allowed: () => exportsLeft(useEntitlements.getState()) > 0,
-      run: exportNow,
-    });
+    // Out of exports this month (counting the ones already queued): gated.
+    limitGate();
   };
   const seePlans = (feature: string) => gate({ placement: 'settings_upgrade', params: { feature }, allowed: () => false });
 

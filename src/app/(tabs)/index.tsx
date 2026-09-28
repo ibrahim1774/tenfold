@@ -22,6 +22,7 @@ import { colors, motion, radii, spacing } from '@/design/tokens';
 import { importNewBatch, useImporting } from '@/batch/importClips';
 import { Engine, EngineEvents, engineAvailable } from '@/engine';
 import type { Batch } from '@/engine/types';
+import { hasSampleClip } from '@/onboarding/fileImport';
 import { BatchCard, openBatch, summarize, type BatchSummary } from '@/library/BatchCard';
 import { usePaywallGate } from '@/monetization/superwall';
 import { maxBatchSize, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
@@ -173,15 +174,17 @@ function FirstBatchCard({ limit }: { limit: number }) {
           </AppText>
         </PressableScale>
       )}
-      <PressableScale
-        haptic={false}
-        onPress={() => router.push('/demo')}
-        accessibilityRole="link"
-        style={styles.demoLink}>
-        <AppText variant="chip" color={colors.accentText}>
-          Replay the demo
-        </AppText>
-      </PressableScale>
+      {hasSampleClip() && (
+        <PressableScale
+          haptic={false}
+          onPress={() => router.push('/demo')}
+          accessibilityRole="link"
+          style={styles.demoLink}>
+          <AppText variant="chip" color={colors.accentText}>
+            Replay the demo
+          </AppText>
+        </PressableScale>
+      )}
     </Card>
   );
 }

@@ -9,7 +9,7 @@ import type { ReactNode } from 'react';
 
 import type { GateRequest, StoreActions } from './types';
 
-export type { GateRequest, Placement, PurchaseOutcome, RestoreOutcome, StoreActions } from './types';
+export type { GateRequest, Placement, PurchaseOutcome, RestoreOutcome, StoreActions, StorePrice } from './types';
 
 /** True when this build includes Superwall's native module. */
 export const superwallAvailable = requireOptionalNativeModule('SuperwallExpo') != null;

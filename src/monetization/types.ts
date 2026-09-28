@@ -27,4 +27,14 @@ export type StoreActions = {
   unavailableReason: string | null;
   purchase: (productId: string) => Promise<PurchaseOutcome>;
   restore: () => Promise<RestoreOutcome>;
+  /** The App Store's prices in the person's currency, by product id, once loaded. Missing ids: not loaded. */
+  prices?: Partial<Record<string, StorePrice>>;
+};
+
+export type StorePrice = {
+  price: number;
+  /** "$19.99", "19,99 €". */
+  localizedPrice: string;
+  /** The price spread over a month, in the same currency. */
+  monthlyPrice: string;
 };

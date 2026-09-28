@@ -3,13 +3,10 @@ import { StyleSheet, View } from 'react-native';
 import { AppText, Card } from '@/design/components';
 import { colors, spacing } from '@/design/tokens';
 
-import type { Payoff as PayoffNumbers } from './savings';
+import { payoffHeadline, type Payoff as PayoffNumbers } from './savings';
 
 export function Payoff({ payoff }: { payoff: PayoffNumbers }) {
-  const title =
-    payoff.hours === 0
-      ? 'Under an hour back a month'
-      : `About ${payoff.hours} ${payoff.hours === 1 ? 'hour' : 'hours'} back a month`;
+  const title = payoffHeadline(payoff);
   return (
     <View style={styles.wrap}>
       <AppText variant="display" tabular accessibilityRole="header">

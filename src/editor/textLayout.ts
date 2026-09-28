@@ -51,7 +51,11 @@ export const TEXT_COLORS = [
 
 export const HOOKS = ['POV:', 'Day 1', 'How to', 'Wait for it'];
 
-export const clampSize = (s: number) => (Number.isFinite(s) ? Math.min(MAX_SIZE, Math.max(MIN_SIZE, s)) : DEFAULT_SIZE);
+/** Also runs on the UI thread (TextCanvas's animated style), so it must stay a worklet. */
+export function clampSize(s: number): number {
+  'worklet';
+  return Number.isFinite(s) ? Math.min(MAX_SIZE, Math.max(MIN_SIZE, s)) : DEFAULT_SIZE;
+}
 
 export function rgb(hex: string): [number, number, number] | null {
   let h = hex.trim();

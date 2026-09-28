@@ -123,21 +123,22 @@ export function annualSavingPill(): number {
 
 export const money = (n: number) => `$${n.toFixed(2)}`;
 
-/** "$159.99 a year", "$19.99 a month". */
-export function priceLine(plan: Pick<TierInfo, 'price'>, billing: Billing): string {
+/** "$159.99 a year", "$19.99 a month". `localized`: the App Store's price text, used instead of the USD price. */
+export function priceLine(plan: Pick<TierInfo, 'price'>, billing: Billing, localized?: string): string {
   if (!plan.price) return 'Free';
-  return `${money(plan.price[billing])} a ${billing === 'annual' ? 'year' : 'month'}`;
+  return `${localized ?? money(plan.price[billing])} a ${billing === 'annual' ? 'year' : 'month'}`;
 }
 
 /** Annual price as a monthly figure, "$13.33 a month". */
-export function perMonth(plan: Pick<TierInfo, 'price'>): string | null {
-  return plan.price ? `${money(plan.price.annual / 12)} a month` : null;
+export function perMonth(plan: Pick<TierInfo, 'price'>, localized?: string): string | null {
+  return plan.price ? `${localized ?? money(plan.price.annual / 12)} a month` : null;
 }
 
 /** The renewal sentence under the button. `trial` false: already subscribed, so no second free trial. */
-export function renewalLine(plan: Pick<TierInfo, 'price'>, billing: Billing, trial = true): string {
+export function renewalLine(plan: Pick<TierInfo, 'price'>, billing: Billing, trial = true, localized?: string): string {
   if (!plan.price) return 'Free has no trial and no payment.';
-  const start = trial ? `Free for ${TRIAL_DAYS} days, then ${priceLine(plan, billing)}.` : `${priceLine(plan, billing)}.`;
+  const price = priceLine(plan, billing, localized);
+  const start = trial ? `Free for ${TRIAL_DAYS} days, then ${price}.` : `${price}.`;
   return `${start} Renews automatically until you cancel in Settings at least 24 hours before the end of the period.`;
 }
 

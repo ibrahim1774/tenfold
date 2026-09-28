@@ -9,16 +9,16 @@ import {
   useUser,
   type PaywallSkippedReason,
 } from 'expo-superwall';
-import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { tierRank } from '@/onboarding/plans';
+import { PRODUCT_IDS, tierRank } from '@/onboarding/plans';
 import { tierOf, useEntitlements } from '@/state/entitlements';
 import { useOnboarding } from '@/state/onboarding';
 import { useSettings } from '@/state/settings';
 
 import { SUPERWALL_IOS_KEY } from './keys';
 import { onboardingAttributes, tierFromEntitlements, tierFromStatus } from './tiers';
-import type { GateRequest, PurchaseOutcome, StoreActions } from './types';
+import type { GateRequest, PurchaseOutcome, StoreActions, StorePrice } from './types';
 
 const API_KEYS = { ios: SUPERWALL_IOS_KEY };
 
@@ -166,15 +166,37 @@ export function useLiveGate(): (req: GateRequest) => void {
 
 const OFFLINE = 'Couldn’t reach the App Store. Check your connection and try again.';
 
-/** Purchase and restore for the native fallback paywall. */
+// Store prices, fetched once per launch.
+let loadedPrices: Record<string, StorePrice> | null = null;
+
+/** Purchase, restore and localized prices for the native fallback paywall. */
 export function useLiveStore(): StoreActions {
-  const { purchase, restorePurchases, getEntitlements, ready } = useSuperwall((s) => ({
+  const { purchase, restorePurchases, getEntitlements, products, ready } = useSuperwall((s) => ({
     purchase: s.purchase,
     restorePurchases: s.restorePurchases,
     getEntitlements: s.getEntitlements,
+    products: s.products,
     ready: s.isConfigured,
   }));
+  const [prices, setPrices] = useState(loadedPrices);
+  useEffect(() => {
+    if (!ready || loadedPrices) return;
+    let alive = true;
+    const ids = Object.values(PRODUCT_IDS).flatMap((b) => [b.monthly, b.annual]);
+    products(ids)
+      .then((list) => {
+        const found: Record<string, StorePrice> = {};
+        for (const p of list) found[p.productIdentifier] = { price: p.price, localizedPrice: p.localizedPrice, monthlyPrice: p.monthlyPrice };
+        loadedPrices = found;
+        if (alive) setPrices(found);
+      })
+      .catch(() => {}); // the paywall keeps its USD prices
+    return () => {
+      alive = false;
+    };
+  }, [ready, products]);
   return {
+    prices: prices ?? undefined,
     // The module is in this build but Superwall hasn't configured (usually no connection on first launch).
     available: ready,
     unavailableReason: ready ? null : OFFLINE,

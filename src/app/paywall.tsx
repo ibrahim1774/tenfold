@@ -9,8 +9,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Background, GradientButton, IconButton } from '@/design/components';
 import { colors, motion, radii, spacing } from '@/design/tokens';
-import { useStoreActions } from '@/monetization/superwall';
+import { useStoreActions, type StorePrice } from '@/monetization/superwall';
 import {
+  annualSavingPercent,
   annualSavingPill,
   PLANS,
   perMonth,
@@ -45,7 +46,19 @@ export default function PaywallScreen() {
   // Apple gives one free trial per subscription group: subscribers switching plans don't get another.
   const trial = current === 'free';
   const plan = planFor(tier);
-  const saving = annualSavingPill();
+  // The App Store's prices in the person's currency, when all six loaded; otherwise USD everywhere (never mixed).
+  const local = store.prices;
+  const localized = PLANS.every((p) => local?.[PRODUCT_IDS[p.tier as PaidTier].monthly] && local?.[PRODUCT_IDS[p.tier as PaidTier].annual]);
+  const storePrice = (t: PaidTier, b: Billing) => (localized ? local?.[PRODUCT_IDS[t][b]] : undefined);
+  const saving = localized
+    ? Math.min(
+        ...PLANS.map((p) =>
+          annualSavingPercent({
+            price: { monthly: storePrice(p.tier as PaidTier, 'monthly')!.price, annual: storePrice(p.tier as PaidTier, 'annual')!.price },
+          }),
+        ),
+      )
+    : annualSavingPill();
 
   const close = () => {
     if (fromOnboarding) {
@@ -141,10 +154,12 @@ export default function PaywallScreen() {
       <ScrollView style={styles.flex} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
           <AppText variant="display" accessibilityRole="header">
-            Try Tenfold free for {TRIAL_DAYS} days
+            {trial ? `Try Tenfold free for ${TRIAL_DAYS} days` : 'Choose your plan'}
           </AppText>
           <AppText variant="body" color={colors.textSecondary}>
-            Every plan starts with a {TRIAL_DAYS}-day free trial. Everything still runs on your iPhone.
+            {trial
+              ? `Every plan starts with a ${TRIAL_DAYS}-day free trial. Everything still runs on your iPhone.`
+              : 'Change plans any time. Everything still runs on your iPhone.'}
           </AppText>
         </View>
 
@@ -180,6 +195,8 @@ export default function PaywallScreen() {
               key={p.tier}
               plan={p}
               billing={billing}
+              trial={trial}
+              localized={storePrice(p.tier as PaidTier, billing)}
               selected={tier === p.tier}
               current={current === p.tier}
               onPress={() => pickTier(p.tier as PaidTier)}
@@ -204,7 +221,7 @@ export default function PaywallScreen() {
           </Animated.View>
         ) : null}
         <AppText variant="caption" color={colors.textMuted} tabular style={styles.center}>
-          {renewalLine(plan, billing, trial)}
+          {renewalLine(plan, billing, trial, storePrice(tier, billing)?.localizedPrice)}
         </AppText>
 
         <Pressable onPress={close} accessibilityRole="button" style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
@@ -230,6 +247,8 @@ export default function PaywallScreen() {
 function PlanCard({
   plan,
   billing,
+  trial,
+  localized,
   selected,
   current,
   onPress,
@@ -237,13 +256,22 @@ function PlanCard({
 }: {
   plan: PlanInfo;
   billing: Billing;
+  trial: boolean;
+  /** The App Store's price for this plan and billing, when loaded. */
+  localized?: StorePrice;
   selected: boolean;
   current: boolean;
   onPress: () => void;
   onLongPress?: () => void;
 }) {
-  const price = priceLine(plan, billing);
-  const detail = plan.price ? (billing === 'annual' ? perMonth(plan) : `${TRIAL_DAYS} days free`) : null;
+  const price = priceLine(plan, billing, localized?.localizedPrice);
+  const detail = plan.price
+    ? billing === 'annual'
+      ? perMonth(plan, localized?.monthlyPrice)
+      : trial
+        ? `${TRIAL_DAYS} days free`
+        : null
+    : null;
   return (
     <Pressable
       onPress={onPress}

@@ -1,10 +1,10 @@
-import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect } from 'react';
 import { ActionSheetIOS, Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { cancelBatch, queueExports, retryProject, setPaused, STAGE_LABELS, startBatch, useQueueUI } from '@/batch/queue';
+import { cancelBatch, queueExports, retryProject, setPaused, STAGE_LABELS, startBatch, unpark, useQueueUI } from '@/batch/queue';
 import {
   AppText,
   Background,
@@ -59,16 +59,20 @@ export default function ProcessingScreen() {
   const allProjects = useLibrary((s) => s.projects);
   const deleteBatch = useLibrary((s) => s.deleteBatch);
   const ent = useEntitlements();
-  const limitReached = useQueueUI((s) => s.limitReached);
-  const setLimitReached = useQueueUI((s) => s.setLimitReached);
+  const parked = useQueueUI((s) => s.parked);
+  const focused = useIsFocused();
   const gate = usePaywallGate();
 
+  // The export lane stopped at the monthly limit with videos from this batch waiting: show export_limit here,
+  // only while this screen is on top (an export screen above it handles its own video).
+  const parkedHere = !!batch && parked.some((id) => batch.projectIds.includes(id));
   useEffect(() => {
-    if (limitReached) {
-      setLimitReached(false);
+    if (focused && parkedHere) {
+      const b = useLibrary.getState().batches[batchId];
+      if (b) unpark(b.projectIds);
       gate(exportLimitGate(batchId));
     }
-  }, [limitReached, setLimitReached, gate, batchId]);
+  }, [focused, parkedHere, gate, batchId]);
 
   if (!batch) {
     return (

@@ -39,8 +39,31 @@ export function stageProgress(stage: string, fraction: number): number {
   return a + (b - a) * Math.max(0, Math.min(1, fraction));
 }
 
-type QueueUI = { limitReached: boolean; setLimitReached: (v: boolean) => void };
-export const useQueueUI = create<QueueUI>((set) => ({ limitReached: false, setLimitReached: (limitReached) => set({ limitReached }) }));
+type QueueUI = {
+  /** The export lane stopped at this month's export limit. */
+  limitReached: boolean;
+  /** The videos it put back to `ready` when it stopped, so only their screens show the export_limit paywall. */
+  parked: string[];
+  setLimitReached: (v: boolean, parked?: string[]) => void;
+};
+export const useQueueUI = create<QueueUI>((set) => ({
+  limitReached: false,
+  parked: [],
+  setLimitReached: (limitReached, parked = []) => set({ limitReached, parked: limitReached ? parked : [] }),
+}));
+
+/** A screen showed the export_limit paywall for these parked videos: they no longer need one. */
+export function unpark(ids: readonly string[]) {
+  const ui = useQueueUI.getState();
+  if (!ui.limitReached) return;
+  const parked = ui.parked.filter((id) => !ids.includes(id));
+  ui.setLimitReached(parked.length > 0, parked);
+}
+
+// Exports became available again (an upgrade, a restore): the limit stop is over, so no paywall pops up later.
+useEntitlements.subscribe((s) => {
+  if (useQueueUI.getState().limitReached && exportsLeft(s) > 0) useQueueUI.getState().setLimitReached(false);
+});
 
 let analysisBusy = false;
 let exportBusy = false;
@@ -163,10 +186,12 @@ async function runExportLane() {
       }
       if (exportsLeft(useEntitlements.getState()) <= 0) {
         // This month's exports used up: park everything waiting and show the export_limit paywall.
+        const parked: string[] = [];
         for (let q = nextProject('exportQueued'); q; q = nextProject('exportQueued')) {
           lib().updateProject(q.id, { status: 'ready', stage: undefined, progress: 1 });
+          parked.push(q.id);
         }
-        useQueueUI.getState().setLimitReached(true);
+        useQueueUI.getState().setLimitReached(true, parked);
         break;
       }
       await exportOne(p);
@@ -266,7 +291,11 @@ export function queueExports(projectIds: string[]): number {
       n++;
     }
   }
-  if (n > 0) void runExportLane();
+  if (n > 0) {
+    // Videos queued again are no longer parked at the limit.
+    unpark(projectIds);
+    void runExportLane();
+  }
   return n;
 }
 

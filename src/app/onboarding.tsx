@@ -16,6 +16,7 @@ import { AppText, Background, GradientButton, IconButton } from '@/design/compon
 import { colors, motion, spacing } from '@/design/tokens';
 import { usePaywallGate } from '@/monetization/superwall';
 import { Demo } from '@/onboarding/Demo';
+import { hasSampleClip } from '@/onboarding/fileImport';
 import { Hook } from '@/onboarding/Hook';
 import { Language } from '@/onboarding/Language';
 import { Payoff } from '@/onboarding/PayoffScreen';
@@ -28,7 +29,11 @@ import { useOnboarding } from '@/state/onboarding';
 import { presetForContent, useSettings } from '@/state/settings';
 
 type StepId = 'hook' | 'demo' | 'role' | 'makes' | 'perWeek' | 'minutes' | 'payoff' | 'language' | 'ready';
-const ALL_STEPS: StepId[] = ['hook', 'demo', 'role', 'makes', 'perWeek', 'minutes', 'payoff', 'language', 'ready'];
+// The demo step only exists when this build bundles the sample clip.
+const HAS_DEMO = hasSampleClip();
+const ALL_STEPS: StepId[] = ['hook', 'demo', 'role', 'makes', 'perWeek', 'minutes', 'payoff', 'language', 'ready'].filter(
+  (s) => s !== 'demo' || HAS_DEMO,
+) as StepId[];
 const QUESTIONS: StepId[] = ['role', 'makes', 'perWeek', 'minutes'];
 
 function toggle<T>(list: readonly T[], v: T): T[] {
@@ -49,8 +54,11 @@ export default function OnboardingScreen() {
   // The payoff screen only exists when both of its answers were given.
   const stepsFor = (hasPayoff: boolean) => ALL_STEPS.filter((s) => s !== 'payoff' || hasPayoff);
   const steps = stepsFor(!!payoff);
-  // Position in the full order, so a step that just dropped out (payoff) still has a place.
+  // Position in the full order, so a step that just dropped out (payoff) still has a place. Drives Back.
   const at = Math.max(0, steps.indexOf(step === 'payoff' && !payoff ? 'language' : step));
+  // The progress bar counts the payoff screen whether or not it shows, so its total never changes mid-flow;
+  // a skipped payoff moves the bar on by two.
+  const shownAt = Math.max(0, ALL_STEPS.indexOf(step));
 
   const go = (to: StepId | undefined, d: 1 | -1) => {
     if (!to) return;
@@ -112,7 +120,7 @@ export default function OnboardingScreen() {
       {step !== 'hook' && (
         <View style={styles.topBar}>
           <IconButton icon="chevron.left" label="Back" size={44} tone="ghost" iconScale={0.45} onPress={back} />
-          <StepProgress step={at} total={steps.length - 1} />
+          <StepProgress step={shownAt} total={ALL_STEPS.length - 1} />
           {isQuestion ? (
             <Pressable onPress={skip} accessibilityRole="button" accessibilityLabel="Skip this question" style={({ pressed }) => [styles.skip, pressed && styles.pressed]}>
               <AppText variant="chip" color={colors.textSecondary}>
@@ -182,7 +190,7 @@ export default function OnboardingScreen() {
         <View style={styles.footer}>
           {step === 'hook' && (
             <>
-              <GradientButton title="See it happen" shape="pill" onPress={next} />
+              <GradientButton title={HAS_DEMO ? 'See it happen' : 'Get started'} shape="pill" onPress={next} />
               <AppText variant="caption" color={colors.textMuted} style={styles.center}>
                 No account. Nothing leaves your iPhone.
               </AppText>

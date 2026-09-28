@@ -12,6 +12,7 @@ import type { SFSymbol } from '@/design/symbols';
 import { colors, radii, spacing } from '@/design/tokens';
 import { Engine, engineAvailable } from '@/engine';
 import { usePaywallGate, useStoreActions } from '@/monetization/superwall';
+import { hasSampleClip } from '@/onboarding/fileImport';
 import { PRIVACY_URL, TERMS_URL } from '@/onboarding/plans';
 import { exportLimit, exportsResetDate, exportsUsedThisMonth, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
 import { useOnboarding } from '@/state/onboarding';
@@ -228,7 +229,9 @@ export default function SettingsScreen() {
 
         <Group title="About">
           <Row icon="bolt.horizontal" title="Video engine" value={engine ? 'Connected' : 'Update the app'} />
-          <Row icon="play.rectangle" title="Replay the demo" accessory="chevron" onPress={() => router.push('/demo')} />
+          {hasSampleClip() && (
+            <Row icon="play.rectangle" title="Replay the demo" accessory="chevron" onPress={() => router.push('/demo')} />
+          )}
           <Row icon="hand.point.up.left" title="Replay the tour" action onPress={replayTour} />
           <Row icon="arrow.counterclockwise" title="Replay onboarding" action onPress={replayOnboarding} last />
         </Group>

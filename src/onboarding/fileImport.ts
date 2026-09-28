@@ -42,6 +42,11 @@ const SAMPLE_CLIP_MODULE: number | null = null;
 
 export const SAMPLE_TITLE = 'Sample clip';
 
+/** Whether this build bundles the sample clip. Without it the demo (onboarding step, /demo) is hidden everywhere. */
+export function hasSampleClip(): boolean {
+  return SAMPLE_CLIP_MODULE != null;
+}
+
 /** URI of the bundled sample clip, or null when this build doesn't include one. */
 export function sampleClipUri(): string | null {
   if (SAMPLE_CLIP_MODULE == null) return null;

@@ -45,6 +45,7 @@ async function main() {
   useEntitlements.setState({ tier: 'free', isPro: false, exportsUsed: 0 });
   queueExports(lib().batches[b].projectIds);
   check(await until(() => useQueueUI.getState().limitReached), 'limit flag raised');
+  check(useQueueUI.getState().parked.length === 2, `parked ids recorded (${useQueueUI.getState().parked.length})`);
   check(statuses(b).filter((s) => s === 'done').length === 3, `3 exported (${statuses(b)})`);
   check(statuses(b).filter((s) => s === 'ready').length === 2, 'rest parked as ready');
   check(running.maxExport === 1, `one export at a time (max ${running.maxExport})`);
@@ -52,10 +53,26 @@ async function main() {
   check(exp.length === 3, `3 export calls (${exp.length})`);
 
   console.log('• pro: remaining export, no watermark');
-  useQueueUI.getState().setLimitReached(false);
   useEntitlements.setState({ isPro: true });
+  check(!useQueueUI.getState().limitReached && useQueueUI.getState().parked.length === 0, 'upgrade clears the limit flag');
   queueExports(lib().batches[b].projectIds);
   check(await until(() => statuses(b).every((s) => s === 'done')), `all done (${statuses(b)})`);
+
+  console.log('• one export left: a second single export queued behind the first is parked, by id');
+  b = newBatch(2);
+  startBatch(b);
+  await until(() => statuses(b).every((s) => s === 'ready'));
+  useEntitlements.setState({ tier: 'free', isPro: false, exportsUsed: 0 });
+  useEntitlements.getState().recordExport();
+  useEntitlements.getState().recordExport(); // 1 of 3 left
+  const [pa, pb] = lib().batches[b].projectIds;
+  queueExports([pa]);
+  queueExports([pb]);
+  check(await until(() => useQueueUI.getState().limitReached), 'limit flag raised');
+  check(lib().projects[pa].status === 'done' && lib().projects[pb].status === 'ready', `A exported, B back to ready (${statuses(b)})`);
+  check(useQueueUI.getState().parked.join() === pb, 'only B is parked');
+  useEntitlements.setState({ isPro: true });
+  check(!useQueueUI.getState().limitReached, 'upgrade clears the flag');
 
   console.log('• auto-export batch overlaps analysis N+1 with export N');
   calls.length = 0;
@@ -279,7 +296,7 @@ main();
 
 /* ---------- Onboarding, plans, tour (stage 2b) ---------- */
 // Imports are hoisted, so they can sit with the section they serve.
-import { computePayoff } from '@/onboarding/savings';
+import { computePayoff, formatMinutes, payoffHeadline } from '@/onboarding/savings';
 import { annualSavingPercent, planFor, PLANS, TRIAL_DAYS } from '@/onboarding/plans';
 import { exportsLeft as entExportsLeft, tierOf } from '@/state/entitlements';
 import { ONBOARDING_STORE_KEY, tourDue, useOnboarding } from '@/state/onboarding';
@@ -288,13 +305,26 @@ import kv from './kvMock';
 
 async function onboardingSection(check: (c: boolean, m: string) => void) {
   console.log('• payoff maths: hours back a month');
-  const a = computePayoff('3-5', '10-30'); // 4 × 4.33 = 17.32 videos; × (20 − 2) = 311.8 min
+  const a = computePayoff('3-5', '10-30'); // 4 × 4.33 ≈ 17 videos; × (20 − 2) = 306 min
   check(a?.hours === 5, `3-5 a week, 10-30 min → 5 h (${a?.hours})`);
   check(a?.lines.length === 2 && a.lines[0].includes('4.33') && a.lines[1].includes('2 min'), `maths shown (${a?.lines.join(' | ')})`);
-  const b = computePayoff('1-2', 'under10'); // 6.5 videos × 3 min = 19.5 min
+  const b = computePayoff('1-2', 'under10'); // 6 videos × 3 min = 18 min
   check(b?.hours === 0, `1-2 a week, under 10 min → 0 h, never negative (${b?.hours})`);
-  const c = computePayoff('6+', '60+'); // 25.98 × 58 = 1506.8 min
+  const c = computePayoff('6+', '60+'); // 26 × 58 = 1508 min
   check(c?.hours === 25, `6+ a week, 60+ min → 25 h (${c?.hours})`);
+  check(payoffHeadline(b!) === 'About 18 min back a month', `under an hour → minutes (${payoffHeadline(b!)})`);
+  check(payoffHeadline(a!) === 'About 5 hours back a month', `hours headline (${payoffHeadline(a!)})`);
+  check(formatMinutes(52) === '52 min' && formatMinutes(60) === '1 hour' && formatMinutes(65) === '1 hour 5 min' && formatMinutes(720) === '12 hours', 'duration formatting');
+  const d = computePayoff('3-5', 'under10'); // the case that printed "52 min, 0 hours"
+  check(d?.lines[1] === '17 × (5 min editing − 2 min checking) = 51 min', `3-5, under 10 reads naturally (${d?.lines[1]})`);
+  for (const w of ['1-2', '3-5', '6+'] as const) {
+    for (const mm of ['under10', '10-30', '30-60', '60+'] as const) {
+      const p = computePayoff(w, mm)!;
+      const text = [payoffHeadline(p), ...p.lines].join(' | ');
+      const adds = p.videosPerMonth * (p.minutesPerVideo - 2) === p.savedMinutes && p.lines[1].endsWith(`= ${formatMinutes(p.savedMinutes)}`);
+      check(!/\b0 hours?\b/.test(text) && adds, `${w}, ${mm}: ${text}`);
+    }
+  }
   check(computePayoff(null, '10-30') === null && computePayoff('3-5', null) === null && computePayoff(null, null) === null, 'a skipped answer → no payoff screen');
 
   console.log('• tiers: free 10, starter 20, pro 50, studio 100; isPro derived (any paid tier)');

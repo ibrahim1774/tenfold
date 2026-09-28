@@ -150,7 +150,15 @@ export function Demo({ mode, onContinue }: { mode: DemoMode; onContinue: () => v
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} alwaysBounceVertical={false}>
         <View style={styles.head}>
           <AppText variant="display" accessibilityRole="header">
-            {phase.kind === 'done' ? 'Edited on this iPhone' : unavailable ? 'Sample clip missing' : 'Editing a real take'}
+            {phase.kind === 'done'
+              ? 'Edited on this iPhone'
+              : phase.kind === 'missing'
+                ? 'Sample clip missing'
+                : phase.kind === 'unsupported'
+                  ? 'Demo unavailable'
+                  : phase.kind === 'failed'
+                    ? 'Demo stopped'
+                    : 'Editing a real take'}
           </AppText>
           <AppText variant="body" color={colors.textSecondary}>
             {phase.kind === 'missing'
@@ -173,6 +181,14 @@ export function Demo({ mode, onContinue }: { mode: DemoMode; onContinue: () => v
           disabled={phase.kind === 'running'}
           onPress={phase.kind === 'failed' ? retry : onContinue}
         />
+        {/* A failed run never blocks the way on: skip the demo and carry on. */}
+        {phase.kind === 'failed' && (
+          <Pressable onPress={onContinue} accessibilityRole="button" style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
+            <AppText variant="bodyStrong" color={colors.textSecondary}>
+              {mode === 'onboarding' ? 'Continue' : 'Import clips'}
+            </AppText>
+          </Pressable>
+        )}
         <AppText variant="caption" color={colors.textMuted} style={styles.center}>
           {unavailable ? 'Nothing uploaded, no permissions needed.' : 'Real sample clip. Nothing uploaded, no permissions needed.'}
         </AppText>
@@ -322,4 +338,6 @@ const styles = StyleSheet.create({
   kept: { backgroundColor: colors.textSecondary },
   cut: { backgroundColor: colors.accent, marginLeft: spacing.sm },
   footer: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.md },
+  textButton: { minHeight: 44, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
+  pressed: { opacity: 0.6 },
 });
