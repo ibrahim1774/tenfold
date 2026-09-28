@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { importJoinedBatch, importNewBatch, useImporting } from '@/batch/importClips';
 import { AppText, Background, Card, Chip, ChipGroup, GradientButton, IconButton, ProgressBar, Thumb } from '@/design/components';
+import { sampleFrame } from '@/design/sampleFrames';
 import type { SFSymbol } from '@/design/symbols';
 import { colors, motion, radii, spacing } from '@/design/tokens';
 import { Engine, EngineEvents, engineAvailable } from '@/engine';
@@ -71,7 +72,7 @@ export default function ImportScreen() {
             <View
               key={i}
               style={[styles.stackCard, { transform: [{ rotate: `${(i - 1) * 6}deg` }, { translateX: (i - 1) * 30 }] }]}>
-              <Thumb seed={i + 4} style={styles.stackThumb} />
+              <Thumb seed={i + 4} source={sampleFrame(i + 1)} style={styles.stackThumb} />
             </View>
           ))}
         </View>

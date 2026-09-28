@@ -6,11 +6,28 @@ import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { thumbGradients } from '../tokens';
 
 /** Video thumbnail: a real frame when `uri` is given, otherwise a moody gradient keyed by `seed`. */
-export function Thumb({ seed, uri, style, children }: { seed: number; uri?: string | null; style?: StyleProp<ViewStyle>; children?: ReactNode }) {
+export function Thumb({
+  seed,
+  uri,
+  source,
+  style,
+  children,
+}: {
+  seed: number;
+  uri?: string | null;
+  /** A bundled image (require()), used when there is no uri. */
+  source?: number;
+  style?: StyleProp<ViewStyle>;
+  children?: ReactNode;
+}) {
   const g = thumbGradients[Math.abs(seed) % thumbGradients.length];
   return (
     <LinearGradient colors={g} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={[styles.base, style]}>
-      {uri ? <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} /> : null}
+      {uri ? (
+        <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+      ) : source != null ? (
+        <Image source={source} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} />
+      ) : null}
       <LinearGradient
         colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.45)']}
         locations={[0.55, 1]}

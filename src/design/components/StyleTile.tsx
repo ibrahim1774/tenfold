@@ -1,6 +1,7 @@
 import { StyleSheet, View, type TextStyle } from 'react-native';
 
 import type { CaptionAnimation } from '../../captions/presets';
+import { sampleFrame } from '../sampleFrames';
 import { colors, radii } from '../tokens';
 import { AppText } from './AppText';
 import { PressableScale } from './PressableScale';
@@ -68,7 +69,7 @@ export function StyleTile({
       accessibilityState={{ selected }}
       style={[styles.wrap, { width }]}>
       <View style={[styles.frame, selected && styles.frameSelected]}>
-        <Thumb seed={seed} style={styles.thumb}>
+        <Thumb seed={seed} source={sampleFrame(seed)} style={styles.thumb}>
           <View style={styles.captionWrap}>
             <View style={[styles.line, animation === 'box' && styles.box, animation === 'classic' && styles.classic]}>
               {words.map((w, i) =>

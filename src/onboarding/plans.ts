@@ -43,19 +43,19 @@ export const TIERS: Record<Tier, TierInfo> = {
   starter: {
     tier: 'starter',
     name: 'Starter',
-    price: { monthly: 19.99, annual: 159.99 },
-    limits: { exportsPerMonth: 100, batchSize: 20, allCaptionStyles: true, watermark: false, uhd: false },
+    price: { monthly: 9.99, annual: 79.99 },
+    limits: { exportsPerMonth: 30, batchSize: 20, allCaptionStyles: true, watermark: false, uhd: false },
   },
   pro: {
     tier: 'pro',
     name: 'Pro',
-    price: { monthly: 49.99, annual: 399.99 },
-    limits: { exportsPerMonth: 300, batchSize: 50, allCaptionStyles: true, watermark: false, uhd: true },
+    price: { monthly: 19.99, annual: 159.99 },
+    limits: { exportsPerMonth: 100, batchSize: 50, allCaptionStyles: true, watermark: false, uhd: true },
   },
   studio: {
     tier: 'studio',
     name: 'Studio',
-    price: { monthly: 89.99, annual: 719.99 },
+    price: { monthly: 49.99, annual: 399.99 },
     limits: { exportsPerMonth: Infinity, batchSize: 100, allCaptionStyles: true, watermark: false, uhd: true },
   },
 };

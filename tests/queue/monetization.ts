@@ -44,8 +44,8 @@ export function runMonetizationTests(check: Check) {
   console.log('• monetization: limits per tier come from the table');
   const expect: Record<Tier, { exports: number; batch: number; styles: boolean; watermark: boolean; uhd: boolean }> = {
     free: { exports: 3, batch: 10, styles: false, watermark: true, uhd: false },
-    starter: { exports: 100, batch: 20, styles: true, watermark: false, uhd: false },
-    pro: { exports: 300, batch: 50, styles: true, watermark: false, uhd: true },
+    starter: { exports: 30, batch: 20, styles: true, watermark: false, uhd: false },
+    pro: { exports: 100, batch: 50, styles: true, watermark: false, uhd: true },
     studio: { exports: Infinity, batch: 100, styles: true, watermark: false, uhd: true },
   };
   for (const tier of Object.keys(expect) as Tier[]) {
@@ -66,21 +66,21 @@ export function runMonetizationTests(check: Check) {
   check(PLANS.length === 3 && PLANS.every((p) => annualSavingPercent(p) === 33), `every plan saves 33% (${PLANS.map(annualSavingPercent).join(', ')})`);
   check(annualSavingPill() === 33, 'the Annual toggle shows 33%');
   check(
-    planFor('starter').price?.monthly === 19.99 && planFor('starter').price?.annual === 159.99 &&
-      planFor('pro').price?.monthly === 49.99 && planFor('pro').price?.annual === 399.99 &&
-      planFor('studio').price?.monthly === 89.99 && planFor('studio').price?.annual === 719.99,
+    planFor('starter').price?.monthly === 9.99 && planFor('starter').price?.annual === 79.99 &&
+      planFor('pro').price?.monthly === 19.99 && planFor('pro').price?.annual === 159.99 &&
+      planFor('studio').price?.monthly === 49.99 && planFor('studio').price?.annual === 399.99,
     'prices match the table',
   );
   check(PRODUCT_IDS.pro.annual === 'com.ibrahim.tenfold.pro.yearly' && PRODUCT_IDS.starter.monthly === 'com.ibrahim.tenfold.starter.monthly', 'product ids');
-  check(renewalLine(planFor('pro'), 'annual').startsWith('Free for 3 days, then $399.99 a year.'), `renewal line (${renewalLine(planFor('pro'), 'annual')})`);
+  check(renewalLine(planFor('pro'), 'annual').startsWith('Free for 3 days, then $159.99 a year.'), `renewal line (${renewalLine(planFor('pro'), 'annual')})`);
 
   console.log('• monetization: feature lists are written from the table');
   const free = featuresFor('free');
   check(free.includes('3 exports a month') && free.includes('Batches of 10') && free.includes('Small watermark') && free.includes('Free caption styles'), `free (${free.join(', ')})`);
   const starter = featuresFor('starter');
-  check(starter.includes('100 exports a month') && starter.includes('Batches of 20') && starter.includes('No watermark') && !starter.includes('4K export'), `starter (${starter.join(', ')})`);
+  check(starter.includes('30 exports a month') && starter.includes('Batches of 20') && starter.includes('No watermark') && !starter.includes('4K export'), `starter (${starter.join(', ')})`);
   const pro = featuresFor('pro');
-  check(pro.includes('300 exports a month') && pro.includes('Batches of 50') && pro.includes('4K export'), `pro (${pro.join(', ')})`);
+  check(pro.includes('100 exports a month') && pro.includes('Batches of 50') && pro.includes('4K export'), `pro (${pro.join(', ')})`);
   const studio = featuresFor('studio');
   check(studio.includes('Unlimited exports') && studio.includes('Batches of 100') && studio.includes('4K export'), `studio (${studio.join(', ')})`);
 
@@ -91,12 +91,12 @@ export function runMonetizationTests(check: Check) {
     return exportsLeft(useEntitlements.getState());
   };
   check(left('free', 0) === 3 && left('free', 2) === 1 && left('free', 3) === 0 && left('free', 9) === 0, 'free: 3 a month, never negative');
-  check(left('starter', 0) === 100 && left('starter', 40) === 60 && left('starter', 100) === 0, 'starter: 100 a month');
-  check(left('pro', 0) === 300 && left('pro', 299) === 1 && left('pro', 300) === 0, 'pro: 300 a month');
+  check(left('starter', 0) === 30 && left('starter', 12) === 18 && left('starter', 30) === 0, 'starter: 30 a month');
+  check(left('pro', 0) === 100 && left('pro', 99) === 1 && left('pro', 100) === 0, 'pro: 100 a month');
   check(left('studio', 0) === Infinity && left('studio', 5000) === Infinity, 'studio: unlimited');
-  check(left('starter', 100, '1999-1') === 100, 'a new month resets the count');
+  check(left('starter', 30, '1999-1') === 30, 'a new month resets the count');
   useEntitlements.setState({ tier: 'free', isPro: true, exportsUsed: 0, exportMonth: month });
-  check(exportsLeft(useEntitlements.getState()) === 300, 'legacy isPro: true counts as pro (300)');
+  check(exportsLeft(useEntitlements.getState()) === 100, 'legacy isPro: true counts as pro (100)');
 
   console.log('• monetization: onboarding answers become user attributes, nothing personal');
   const attrs = onboardingAttributes({ role: 'coach', videosPerWeek: '3-5', minutesPerVideo: null }, 'auto');

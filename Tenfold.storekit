@@ -23,7 +23,7 @@
         {
           "adHocOffers": [],
           "codeOffers": [],
-          "displayPrice": "159.99",
+          "displayPrice": "79.99",
           "familyShareable": false,
           "groupNumber": 3,
           "internalID": "6750121",
@@ -34,7 +34,7 @@
           },
           "localizations": [
             {
-              "description": "100 exports a month, batches of 20, no watermark.",
+              "description": "30 exports a month, batches of 20, no watermark.",
               "displayName": "Tenfold Starter Yearly",
               "locale": "en_US"
             }
@@ -48,7 +48,7 @@
         {
           "adHocOffers": [],
           "codeOffers": [],
-          "displayPrice": "19.99",
+          "displayPrice": "9.99",
           "familyShareable": false,
           "groupNumber": 3,
           "internalID": "6750099",
@@ -59,7 +59,7 @@
           },
           "localizations": [
             {
-              "description": "100 exports a month, batches of 20, no watermark.",
+              "description": "30 exports a month, batches of 20, no watermark.",
               "displayName": "Tenfold Starter Monthly",
               "locale": "en_US"
             }
@@ -73,7 +73,7 @@
         {
           "adHocOffers": [],
           "codeOffers": [],
-          "displayPrice": "399.99",
+          "displayPrice": "159.99",
           "familyShareable": false,
           "groupNumber": 2,
           "internalID": "6750077",
@@ -84,7 +84,7 @@
           },
           "localizations": [
             {
-              "description": "300 exports a month, batches of 50, 4K export, no watermark.",
+              "description": "100 exports a month, batches of 50, 4K export, no watermark.",
               "displayName": "Tenfold Pro Yearly",
               "locale": "en_US"
             }
@@ -98,7 +98,7 @@
         {
           "adHocOffers": [],
           "codeOffers": [],
-          "displayPrice": "49.99",
+          "displayPrice": "19.99",
           "familyShareable": false,
           "groupNumber": 2,
           "internalID": "6750055",
@@ -109,7 +109,7 @@
           },
           "localizations": [
             {
-              "description": "300 exports a month, batches of 50, 4K export, no watermark.",
+              "description": "100 exports a month, batches of 50, 4K export, no watermark.",
               "displayName": "Tenfold Pro Monthly",
               "locale": "en_US"
             }
@@ -123,7 +123,7 @@
         {
           "adHocOffers": [],
           "codeOffers": [],
-          "displayPrice": "719.99",
+          "displayPrice": "399.99",
           "familyShareable": false,
           "groupNumber": 1,
           "internalID": "6750033",
@@ -148,7 +148,7 @@
         {
           "adHocOffers": [],
           "codeOffers": [],
-          "displayPrice": "89.99",
+          "displayPrice": "49.99",
           "familyShareable": false,
           "groupNumber": 1,
           "internalID": "6750011",

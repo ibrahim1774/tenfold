@@ -9,6 +9,7 @@ import { CAPTION_FONTS, CAPTION_FORMATS, lookOf, presetById, withLook, type Capt
 import { ColorRow, CheckRow, NavRow, RowBody, SegmentRow, SettingsGroup, SwitchRow } from '@/captions/SettingsRows';
 import { useCaptionTarget } from '@/captions/useCaptionTarget';
 import { AppText, GradientButton, IconButton, Thumb } from '@/design/components';
+import { sampleFrame } from '@/design/sampleFrames';
 import { colors, radii, spacing } from '@/design/tokens';
 import type { CaptionBackground, CaptionOutline, CaptionSettings } from '@/engine';
 import { playCaptionSample } from '@/editor/previewBus';
@@ -175,7 +176,7 @@ export default function CaptionsSheet() {
             <AppText variant="body" style={styles.flex}>
               Position
             </AppText>
-            <Thumb seed={0} style={styles.miniFrame}>
+            <Thumb seed={0} source={sampleFrame(0)} style={styles.miniFrame}>
               <View style={[styles.zone, { top: 0, height: '12%' }]} />
               <View style={[styles.zone, { bottom: 0, height: '30%' }]} />
               <View style={[styles.handle, { top: `${settings.position.y * 100 - 5}%` }]}>
