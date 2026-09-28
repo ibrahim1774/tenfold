@@ -204,7 +204,8 @@ export default function OnboardingScreen() {
               </AppText>
             </>
           )}
-          {(step === 'payoff' || step === 'language') && <GradientButton title="Continue" shape="pill" onPress={next} />}
+          {step === 'payoff' && <GradientButton title="Claim my time" shape="pill" onPress={next} />}
+          {step === 'language' && <GradientButton title="Continue" shape="pill" onPress={next} />}
           {step === 'ready' && (
             <>
               <GradientButton title="Show me around" shape="pill" onPress={() => finish(true)} />

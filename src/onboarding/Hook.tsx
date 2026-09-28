@@ -60,7 +60,7 @@ export function Hook() {
       </View>
       <View style={styles.text}>
         <AppText variant="display" accessibilityRole="header">
-          Film ten. Post ten.
+          Edited and post-ready in minutes.
         </AppText>
         <AppText variant="body" color={colors.textSecondary}>
           Tenfold cuts pauses, fillers and retakes, adds captions and frames for vertical. On your phone, nothing uploaded.
