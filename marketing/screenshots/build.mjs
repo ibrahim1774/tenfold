@@ -27,8 +27,9 @@ const C = {
   text: '#FFFFFF',
   text2: '#9C9CA3',
   muted: '#6B6B72',
-  accent: '#FFB020',
-  accentSoft: 'rgba(255,176,32,0.16)',
+  // Black and white only (2026-09-29): the app's accent token is white.
+  accent: '#FFFFFF',
+  accentSoft: 'rgba(255,255,255,0.14)',
   danger: '#FF453A',
   dangerSoft: 'rgba(255,69,58,0.16)',
   success: '#30D158',
@@ -188,7 +189,7 @@ body.s67 .stage{zoom:0.977273;height:2861px}
 .head{position:absolute;left:96px;right:96px;top:168px;text-align:left;z-index:5}
 h1{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,sans-serif;font-size:96px;line-height:106px;font-weight:600;letter-spacing:-2px;color:#fff}
 h1 span{white-space:nowrap}
-h1 em{font-style:normal;color:${C.accent}}
+h1 em{font-style:normal;color:#8E8E93}
 .sub{margin-top:28px;font-size:40px;line-height:50px;color:#A0A3A8;font-weight:400;letter-spacing:-0.3px;white-space:nowrap}
 /* Phone: a flat device, tilted in 3D. The wrapper holds the perspective; the device carries the transform. */
 .pw{position:absolute;left:0;top:0;width:1320px;height:2868px;perspective:3400px;pointer-events:none}
@@ -290,7 +291,10 @@ const PH = SH * Z + 44;
 /**
  * One device. `cx`/`cy` place its centre on the 1320 x 2868 stage; `t` is the 3D tilt, applied about that centre.
  */
-function device({ screen, cx, cy, t, z = 1 }) {
+function device({ screen, cx, cy, t, z = 1, capture }) {
+  // A real simulator capture (captures/NAME.png, 1206 x 2622, same aspect as the screen) replaces the
+  // HTML screen. It already has its own status bar and home indicator, so only the island is drawn on top.
+  if (capture) screen = `<img src="../captures/${capture}.png" style="position:absolute;inset:0;width:100%;height:100%;display:block">`;
   return `<div class="phone" style="left:${cx - PW / 2}px;top:${cy - PH / 2}px;transform:${t};z-index:${z}">
       <div class="edge3d"></div>
       <div class="btnL" style="left:-5px;top:430px;height:120px"></div>
@@ -299,9 +303,9 @@ function device({ screen, cx, cy, t, z = 1 }) {
       <div class="btnR" style="right:-5px;top:640px;height:300px"></div>
       <div class="scr">
         ${screen}
-        ${statusBar()}
+        ${capture ? '' : statusBar()}
         <div class="island"></div>
-        <div class="home"></div>
+        ${capture ? '' : '<div class="home"></div>'}
       </div>
       <div class="glare"></div>
     </div>`;
@@ -569,7 +573,27 @@ ICONS.share = '<path d="M12 3.5v11M8 7.3l4-3.8 4 3.8"/><path d="M8.5 10H7a2 2 0 
 const tilt = (ry, rx, rz, s) => `rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${rz}deg) scale(${s})`;
 
 // =============================================================================================
-// 01: Batch results
+// 01 and 02 are real simulator captures (captures/*.png, status bar set to 9:41).
+
+// 01: Batch setup with 10 clips, four edits picked (src/app/batch/setup.tsx)
+page({
+  n: '01',
+  slug: 'edits',
+  lines: ['Pick the edits', 'for all 10 at once'],
+  sub: 'Captions, filler words, pauses and more',
+  phones: [{ capture: 'edits', cx: 680, cy: 1610, t: tilt(-15, 7, 2.5, 0.94) }],
+});
+
+// 02: Onboarding, "What Tenfold does for you" (src/onboarding/Included.tsx), real looping video
+page({
+  n: '02',
+  slug: 'onboarding',
+  lines: ['Cuts the silences', 'and the ums'],
+  sub: 'No more trimming by hand',
+  phones: [{ capture: 'included', cx: 710, cy: 1605, t: tilt(-18, 6, 3, 0.94) }],
+});
+
+// 03: Batch results (mockup: the simulator can't transcribe, so real results show no cuts)
 {
   const cards = [
     ['Take 1', '0:52 → 0:37', 'a1', '50% 20%'],
@@ -597,54 +621,22 @@ const tilt = (ry, rx, rz, s) => `rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${r
       <div class="btn" style="height:52px;border-radius:26px">${ic('download', 18, '#000', 2)}<span>Export 10 videos</span></div>
     </div>`;
   page({
-    n: '01',
+    n: '03',
     slug: 'batch',
     lines: ['Edit 10 videos', 'at the same time'],
-    sub: 'Import your takes and it edits itself',
+    sub: 'Every take cut and captioned together',
     phones: [{ screen, cx: 680, cy: 1610, t: tilt(-15, 7, 2.5, 0.94) }],
   });
 }
 
-// 02: Onboarding demo, running (src/onboarding/Demo.tsx, DemoPending)
-{
-  const pct = 29;
-  const screen = `
-    <div class="abs row" style="top:${TOP + 4}px;left:0;right:0;height:44px;gap:8px;padding:0 12px">
-      <div class="ib">${ic('chevL', 20)}</div>
-      <div style="flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden"><div style="width:25%;height:100%;border-radius:2px;background:#fff"></div></div>
-      <div style="width:44px"></div>
-    </div>
-    <div class="abs col" style="top:${TOP + 4 + 44 + 12}px;left:20px;right:20px;gap:20px">
-      <div class="col" style="gap:8px"><div class="t30">Editing a real take</div><div class="t15 c2">A raw, unedited clip. Tenfold transcribes it, then cuts pauses, filler words and retakes.</div></div>
-      <div class="col" style="gap:16px;align-items:center">
-        <div style="position:relative;width:188px;height:334px;border-radius:14px;overflow:hidden;background:${C.card};border:1px solid ${C.border}">${foot('c2', '50% 30%')}</div>
-        <div class="card" style="align-self:stretch;padding:16px;display:flex;flex-direction:column;gap:12px">
-          <div class="row" style="gap:12px"><div class="t15b" style="flex:1">Transcribing</div><div class="t13 c2 tab">${pct}%</div></div>
-          <div style="height:4px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden"><div style="width:${pct}%;height:4px;border-radius:2px;background:${C.accent}"></div></div>
-        </div>
-      </div>
-    </div>
-    <div class="abs col" style="left:20px;right:20px;bottom:${BOTTOM + 12}px;gap:12px">
-      <div class="btn" style="height:52px;border-radius:26px;opacity:.4">Now with your video</div>
-      <div class="t12 cm" style="text-align:center">Real sample clip. Nothing uploaded, no permissions needed.</div>
-    </div>`;
-  page({
-    n: '02',
-    slug: 'demo',
-    lines: ['Cuts the silences', 'and the ums'],
-    sub: 'No more trimming by hand',
-    phones: [{ screen, cx: 710, cy: 1605, t: tilt(-18, 6, 3, 0.94) }],
-  });
-}
-
-// 03: Captions on the preview
+// 04: Captions on the preview
 {
   const strip = ['a2', 'a3', 'a1', 'a4'];
   const scroll = toolRow(toolBar('captions')) + timeline({ total: 34, time: 13.1, points: CUT_POINTS, cards: CARDS, seed: 3, strip });
   const cap = popCaption(['the', 'part', 'that', 'matters'], 3, { top: 262, size: 23 });
   const screen = editor({ title: 'Take 2', scroll, preview: cap, playButton: false, time: '0:13', frameContent: foot('a2', '50% 30%') });
   page({
-    n: '03',
+    n: '04',
     slug: 'captions',
     lines: ['Captions on', 'every word'],
     sub: 'Pick a style and it’s done',
@@ -652,7 +644,7 @@ const tilt = (ry, rx, rz, s) => `rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${r
   });
 }
 
-// 04: Join clips on the timeline
+// 05: Join clips on the timeline
 {
   const clips = [
     { s: 0, e: 2.6, title: 'Clip 1', strip: ['d2', 'd3'] },
@@ -671,73 +663,11 @@ const tilt = (ry, rx, rz, s) => `rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${r
   const cap = popCaption(['here’s', 'the', 'plan'], 1, { top: 300, size: 23 });
   const screen = editor({ title: 'Balcony update', scroll, preview: cap, playButton: false, time: '0:04', total: '0:08', badge: '0:09 → 0:08', frameContent: foot('e3', '45% 35%') });
   page({
-    n: '04',
+    n: '05',
     slug: 'timeline',
     lines: ['A real editor', 'when you want it'],
     sub: 'Trim, split and move clips around',
     phones: [{ screen, cx: 700, cy: 1610, t: tilt(-14, 8, 2, 0.94) }],
-  });
-}
-
-// 05: Home, exporting a batch + the finished export screen
-{
-  const batchCard = (title, facts, line, k, pos) => `<div style="flex:1;padding:6px;border-radius:14px;background:${C.card};border:1px solid ${C.border}">
-      <div style="position:relative;height:164px;border-radius:8px;overflow:hidden;background:${C.cardHigh}">${foot(k, pos)}
-        <div class="abs row" style="top:8px;right:8px;width:30px;height:30px;border-radius:15px;justify-content:center;background:rgba(0,0,0,.55)">${ic('check', 12, '#fff', 2)}</div>
-      </div>
-      <div class="col" style="padding:10px 10px 8px;gap:2px">
-        <div class="t15b ell">${title}</div><div class="t13 c2 tab ell">${facts}</div><div class="t12 cm tab ell">${line}</div>
-      </div>
-    </div>`;
-  const tab = (icon, label, on) => `<div class="col" style="flex:1;align-items:center;justify-content:center;gap:2px;padding-top:4px">${ic(icon, 24, on ? '#fff' : C.muted, 1.6)}<span style="font-size:10px;line-height:12px;color:${on ? '#fff' : C.muted}">${label}</span></div>`;
-  const home = `
-    <div class="abs col" style="top:${TOP + 12}px;left:20px;right:20px;gap:28px">
-      <div class="row" style="gap:12px;min-height:44px">
-        <div class="t30" style="flex:1">Tenfold</div>
-        <div class="row" style="gap:6px;height:44px;padding:0 16px;border-radius:22px;border:1px solid ${C.border};background:${C.card}">${ic('crownFill', 15, '#FFC24D', 1.4)}<span class="t14">Pro</span></div>
-      </div>
-      <div class="col" style="gap:8px">
-        <div class="row" style="gap:8px">
-          <div class="btn" style="flex:1;height:52px;border-radius:12px">${ic('plus', 18, '#000', 2.2)}<span>New batch</span></div>
-          <div class="obtn" style="height:52px;padding:0 8px;width:112px">${ic('video', 17)}<span>Record</span></div>
-        </div>
-        <div class="t12 cm" style="text-align:center">Up to 50 clips per batch</div>
-      </div>
-      <div class="col" style="gap:12px">
-        <div class="t20">In progress</div>
-        <div class="card"><div class="row" style="gap:12px;padding:12px;min-height:76px">
-          <div style="position:relative;width:44px;height:60px;border-radius:10px;overflow:hidden;flex:none;background:${C.cardHigh}">${foot('b4', '50% 15%')}</div>
-          <div class="col" style="flex:1;gap:4px">
-            <div class="row" style="gap:8px"><div class="t15b" style="flex:1">Thursday talking heads</div><div class="t13 c2 tab">72%</div></div>
-            <div class="t13 c2 tab">Exporting 7 of 10</div>
-            <div style="height:3px;border-radius:1.5px;background:rgba(255,255,255,.14);overflow:hidden"><div style="width:72%;height:3px;border-radius:1.5px;background:${C.accent}"></div></div>
-          </div>
-          ${ic('chevR', 13, C.muted, 2)}
-        </div></div>
-      </div>
-      <div class="col" style="gap:12px">
-        <div class="row" style="justify-content:space-between"><div class="t20">Recent</div><div class="t13 c2">See all</div></div>
-        <div class="col" style="gap:12px">
-          <div class="row" style="gap:12px;align-items:stretch">${batchCard('Product takes', '5 clips · 3:40', 'Exported · 2h ago', 'a4', '50% 18%')}${batchCard('Weekly tips', '8 clips · 6:12', 'Exported · Yesterday', 'c3', '50% 22%')}</div>
-          <div class="row" style="gap:12px;align-items:stretch">${batchCard('Launch hooks', '6 clips · 2:58', 'Exported · Mon', 'd1', '50% 22%')}${batchCard('FAQ answers', '4 clips · 3:05', 'Exported · Sep 21', 'e1', '50% 25%')}</div>
-        </div>
-      </div>
-    </div>
-    <div class="abs" style="left:0;right:0;bottom:0;padding-bottom:${BOTTOM}px;background:${C.bgRaised};border-top:.5px solid ${C.borderStrong}">
-      <div class="row" style="height:50px">
-        ${tab('houseFill', 'Home', true)}${tab('filmStack', 'Library')}
-        <div class="col" style="flex:1;align-items:center;justify-content:center;gap:2px;padding-top:4px"><div class="row" style="width:30px;height:24px;border-radius:7px;background:#fff;justify-content:center">${ic('plus', 20, '#000', 2.2)}</div><span style="font-size:10px;line-height:12px;color:${C.muted}">New</span></div>
-        ${tab('gear', 'Settings')}
-      </div>
-    </div>`;
-  // One phone only, like the other images. (A second phone showing the "Saved to Photos"
-  // screen was dropped: it cluttered the layout and showed an "Open TikTok" button.)
-  page({
-    n: '05',
-    slug: 'export',
-    lines: ['10 videos', 'one tap'],
-    sub: 'Save them all to Photos at once',
-    phones: [{ screen: home, cx: 690, cy: 1610, t: tilt(-14, 6, 2.5, 0.94) }],
   });
 }
 

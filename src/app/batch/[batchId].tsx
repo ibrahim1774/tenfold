@@ -342,7 +342,10 @@ function ResultCard({ project: p, batch, saved }: { project: Project; batch: Bat
   const detail = clips > 1 ? `${clips} clips · ${status}` : status;
 
   return (
-    <PressableScale
+    // The width lives on a plain wrapper: PressableScale styles an inner view, so a percentage there would
+    // resolve against its own shrink-wrapped Pressable and the grid collapses to one narrow column.
+    <View style={styles.card}>
+      <PressableScale
       haptic={false}
       disabled={!openable && !retryable}
       accessibilityRole="button"
@@ -350,7 +353,7 @@ function ResultCard({ project: p, batch, saved }: { project: Project; batch: Bat
       accessibilityHint={retryable ? 'Tries this video again' : openable ? 'Opens the video to review and export' : undefined}
       accessibilityState={{ disabled: !openable && !retryable, busy: running || waiting }}
       onPress={() => (retryable ? retryProject(p.id) : router.push({ pathname: '/editor/[projectId]', params: { projectId: p.id } }))}
-      style={styles.card}>
+      style={styles.cardBody}>
       <Thumb seed={seedOf(p.id)} uri={p.posterUri} style={styles.poster}>
         {(running || waiting || retryable) && (
           <View style={[styles.posterCenter, styles.posterDim]}>
@@ -395,7 +398,8 @@ function ResultCard({ project: p, batch, saved }: { project: Project; batch: Bat
           {detail}
         </AppText>
       </View>
-    </PressableScale>
+      </PressableScale>
+    </View>
   );
 }
 
@@ -436,7 +440,8 @@ const styles = StyleSheet.create({
   onDevice: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
   actions: { flexDirection: 'row', gap: spacing.md },
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.md, rowGap: spacing.xl },
-  card: { width: '48%', flexGrow: 1, maxWidth: '50%', gap: spacing.sm },
+  card: { width: '48%', flexGrow: 1, maxWidth: '50%' },
+  cardBody: { gap: spacing.sm },
   cardText: { gap: 2 },
   poster: { width: '100%', aspectRatio: 9 / 13, borderRadius: radii.tile, borderCurve: 'continuous' },
   posterCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },

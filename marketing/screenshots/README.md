@@ -1,6 +1,6 @@
 # App Store screenshots
 
-Five portrait screenshots on a dark charcoal background (`#0F1114` → `#0A0B0D`). Each has a two-line headline at the top left: the first line is white and the second is amber `#FFB020`. Under it is a one-line grey subline (`#A0A3A8`). Below the text, an iPhone is tilted in 3D and shows a real Tenfold screen. The screens are drawn in HTML/CSS with the app's own tokens (`src/design/tokens.ts`). Their video areas show frames from licensed stock footage: see `FOOTAGE.md`.
+Five portrait screenshots on a dark charcoal background (`#0F1114` → `#0A0B0D`). Each has a two-line headline at the top left: the first line is white and the second is grey `#8E8E93` (black and white only since 2026-09-29; no amber). Under it is a one-line grey subline (`#A0A3A8`). Below the text, an iPhone is tilted in 3D and shows a real Tenfold screen. The screens are drawn in HTML/CSS with the app's own tokens (`src/design/tokens.ts`). Their video areas show frames from licensed stock footage: see `FOOTAGE.md`.
 
 The earlier ten-image set (flat centred phone, no footage) is in git history at commit `0d6b2ab`.
 
@@ -31,12 +31,16 @@ node marketing/screenshots/render.mjs 03 05   # only some pages (does not clear 
 
 ## What each image says
 
-| # | Headline (amber line second) | Subline | Screen |
-|---|---|---|---|
-| 01 | Import ten takes. / It edits itself. | Pauses, fillers and retakes, cut | Batch screen: ring at 100%, "6 of 6 ready", four result tiles with footage and "0:52 → 0:37" badges, "Export 6 videos" |
-| 02 | Post-ready / in minutes. | From raw clips to finished videos | Onboarding demo while it runs (`DemoPending`): "Editing a real take", the clip poster, a card showing "Transcribing 29%" with its progress bar, and the button disabled |
-| 03 | Captions on / every word. | 12 styles. Restyle any of them. | Editor: Pop caption "the part that matters" with the spoken word in yellow, Captions tool selected, timeline with a footage filmstrip |
-| 04 | A real editor, / when you want it. | Trim, split, reorder on a full timeline | Editor: three clips on the timeline (Clip 2 selected), "+" tile, Split / Delete / Done |
-| 05 | Ten videos, / one tap. | Export the whole batch to Photos | Home: "In progress · Exporting 7 of 10" at 72%, Recent batch cards with footage posters |
+01 and 02 are real simulator captures in `captures/` (iPhone 17 Pro simulator, status bar overridden to 9:41, 10 clips made from the licensed frames in `footage/`). 03–05 are HTML mockups: the simulator can't transcribe speech, so it can't show real cuts or captions.
 
-Screen 02 shows the demo exactly as the app draws it. `src/onboarding/Demo.tsx` has no progress ring and no stage dots, so neither is drawn.
+| # | Headline (grey line second) | Subline | Screen |
+|---|---|---|---|
+| 01 | Pick the edits / for all 10 at once | Captions, filler words, pauses and more | Capture: New batch with 10 clips, Captions, Filler words, Pauses and Reframe picked, "Generate 10 videos" |
+| 02 | Cuts the silences / and the ums | No more trimming by hand | Capture: onboarding "What Tenfold does for you", looping video with "um" struck out of the caption |
+| 03 | Edit 10 videos / at the same time | Every take cut and captioned together | Mockup: batch results, "10 of 10 ready", four tiles with "0:52 → 0:37" badges, "Export 10 videos" |
+| 04 | Captions on / every word | Pick a style and it's done | Mockup: editor with a Pop caption, Captions tool selected, footage filmstrip |
+| 05 | A real editor / when you want it | Trim, split and move clips around | Mockup: three clips on the timeline, Clip 2 selected |
+
+## App Preview video
+
+`../preview/app-preview-6.9.mp4` (29.3 s, 886 × 1920, 30 fps, H.264 High 4.0 ~10 Mbps, silent stereo AAC 256 kbps; Apple's 6.9"/6.7" App Preview spec). `../preview/tutorial.mp4` is a 62 s cut of the same simulator recording for social or the website. Both are in-app footage only: hook, "What Tenfold does for you", the savings estimate, Create, picking 10 clips, choosing edits, then the batch processing.
