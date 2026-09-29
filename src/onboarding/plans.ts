@@ -30,6 +30,8 @@ export type TierInfo = {
   name: string;
   /** USD; null = free. */
   price: Record<Billing, number> | null;
+  /** Starts with a TRIAL_DAYS free trial (App Store introductory offer on both billings). */
+  trial: boolean;
   limits: TierLimits;
 };
 
@@ -38,24 +40,29 @@ export const TIERS: Record<Tier, TierInfo> = {
     tier: 'free',
     name: 'Free',
     price: null,
+    trial: false,
     limits: { exportsPerMonth: 3, batchSize: 10, allCaptionStyles: false, watermark: true, uhd: false },
   },
   starter: {
     tier: 'starter',
     name: 'Starter',
     price: { monthly: 9.99, annual: 79.99 },
+    // No trial on Starter (2026-09-29): Pro and Studio start with 3 days free.
+    trial: false,
     limits: { exportsPerMonth: 30, batchSize: 20, allCaptionStyles: true, watermark: false, uhd: false },
   },
   pro: {
     tier: 'pro',
     name: 'Pro',
     price: { monthly: 19.99, annual: 159.99 },
+    trial: true,
     limits: { exportsPerMonth: 300, batchSize: 50, allCaptionStyles: true, watermark: false, uhd: true },
   },
   studio: {
     tier: 'studio',
     name: 'Studio',
     price: { monthly: 49.99, annual: 399.99 },
+    trial: true,
     limits: { exportsPerMonth: Infinity, batchSize: 100, allCaptionStyles: true, watermark: false, uhd: true },
   },
 };

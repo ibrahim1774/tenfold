@@ -415,8 +415,9 @@ async function onboardingSection(check: (c: boolean, m: string) => void) {
   check(useEntitlements.getState().tier === 'free' && !useEntitlements.getState().isPro, 'setPro(false) → free');
   useEntitlements.setState({ exportsUsed: 0 });
 
-  console.log('• plans: 3-day trial, annual saving is computed');
+  console.log('• plans: 3-day trial on Pro and Studio only, annual saving is computed');
   check(TRIAL_DAYS === 3, 'trial is 3 days');
+  check(!planFor('starter').trial && planFor('pro').trial && planFor('studio').trial, 'Starter has no trial; Pro and Studio do');
   check(['starter', 'pro', 'studio'].every((t) => annualSavingPercent(planFor(t as 'pro')) === 33), `annual saves 33% (${PLANS.map(annualSavingPercent).join(', ')})`);
   check(PLANS.map((p) => p.tier).join(',') === 'starter,pro,studio' && planFor('free').price === null, 'three paid plans; Free has no price');
 

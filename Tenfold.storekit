@@ -27,11 +27,7 @@
           "familyShareable": false,
           "groupNumber": 3,
           "internalID": "6750121",
-          "introductoryOffer": {
-            "internalID": "6750132",
-            "paymentMode": "free",
-            "subscriptionPeriod": "P3D"
-          },
+          "introductoryOffer": null,
           "localizations": [
             {
               "description": "30 exports a month, batches of 20, no watermark.",
@@ -52,11 +48,7 @@
           "familyShareable": false,
           "groupNumber": 3,
           "internalID": "6750099",
-          "introductoryOffer": {
-            "internalID": "6750110",
-            "paymentMode": "free",
-            "subscriptionPeriod": "P3D"
-          },
+          "introductoryOffer": null,
           "localizations": [
             {
               "description": "30 exports a month, batches of 20, no watermark.",

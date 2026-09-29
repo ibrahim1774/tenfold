@@ -158,7 +158,23 @@ for (const [name, productId, period, level, price, desc] of SUBS) {
     return `${added} territories priced (USA ${price})`;
   });
 
-  await step('3-day free trial', async () => {
+  // Starter has no trial (2026-09-29): remove any offer it has. Pro and Studio start with 3 days free.
+  const hasTrial = !productId.includes('.starter.');
+  if (!hasTrial)
+    await step('no free trial (Starter)', async () => {
+      const existing = await all(`/v1/subscriptions/${sid}/introductoryOffers?limit=200`);
+      let removed = 0;
+      for (const o of existing) {
+        try {
+          await api('DELETE', `/v1/subscriptionIntroductoryOffers/${o.id}`);
+          removed++;
+        } catch (e) {
+          console.log(`      !! remove offer ${o.id}: ${e.message}`);
+        }
+      }
+      return `${removed} of ${existing.length} removed`;
+    });
+  if (hasTrial) await step('3-day free trial', async () => {
     const existing = await all(`/v1/subscriptions/${sid}/introductoryOffers?include=territory&limit=200`);
     const done = new Set(existing.map((o) => o.relationships?.territory?.data?.id).filter(Boolean));
     let added = 0;

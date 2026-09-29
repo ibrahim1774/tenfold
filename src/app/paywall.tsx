@@ -52,11 +52,13 @@ export default function PaywallScreen() {
   const [busy, setBusy] = useState(false);
   const fromOnboarding = from === 'onboarding';
   // Apple gives one free trial per subscription group: subscribers switching plans don't get another.
-  const trial = current === 'free';
+  // Only plans with a trial offer it (Pro and Studio; Starter has none).
+  const eligible = current === 'free';
   // Already on this plan (same billing, or billing not known yet): nothing to buy.
   const onCurrentPlan = tier === current && (!currentBilling || billing === currentBilling);
   const billingSwitch = tier === current && !onCurrentPlan;
   const plan = planFor(tier);
+  const trial = eligible && plan.trial;
   // The App Store's prices in the person's currency, when all six loaded; otherwise USD everywhere (never mixed).
   const local = store.prices;
   const localized = PLANS.every((p) => local?.[PRODUCT_IDS[p.tier as PaidTier].monthly] && local?.[PRODUCT_IDS[p.tier as PaidTier].annual]);
@@ -170,7 +172,7 @@ export default function PaywallScreen() {
           />
           <View style={styles.heroText}>
             <AppText variant="display" accessibilityRole="header">
-              {trial ? `Try Tenfold free for ${TRIAL_DAYS} days` : 'Choose your plan'}
+              {trial ? `Try ${plan.name} free for ${TRIAL_DAYS} days` : 'Choose your plan'}
             </AppText>
           </View>
         </View>
@@ -216,7 +218,7 @@ export default function PaywallScreen() {
               key={p.tier}
               plan={p}
               billing={billing}
-              trial={trial}
+              trial={eligible && p.trial}
               localized={storePrice(p.tier as PaidTier, billing)}
               selected={tier === p.tier}
               current={current === p.tier}
@@ -234,7 +236,7 @@ export default function PaywallScreen() {
 
       <View style={styles.footer}>
         <GradientButton
-          title={busy ? 'Waiting for the App Store' : onCurrentPlan ? `Keep ${plan.name}` : billingSwitch ? `Switch to ${plan.name} ${billing === 'annual' ? 'Annual' : 'Monthly'}` : trial ? `Try ${plan.name} free` : `Switch to ${plan.name}`}
+          title={busy ? 'Waiting for the App Store' : onCurrentPlan ? `Keep ${plan.name}` : billingSwitch ? `Switch to ${plan.name} ${billing === 'annual' ? 'Annual' : 'Monthly'}` : trial ? `Try ${plan.name} free` : eligible ? `Get ${plan.name}` : `Switch to ${plan.name}`}
           shape="pill"
           disabled={busy}
           onPress={confirm}
