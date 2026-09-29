@@ -74,11 +74,11 @@ export function BatchEdits({ batch, clips, selections }: { batch: Batch; clips: 
 
       {empty ? (
         <AppText variant="caption" color={colors.textMuted}>
-          Add clips to choose what Tenfold does.
+          Add clips first.
         </AppText>
       ) : differing > 0 ? (
         <AppText variant="caption" color={colors.textSecondary} tabular>
-          {differing} {differing === 1 ? 'clip uses' : 'clips use'} different edits · Tap a clip to change it
+          {differing} {differing === 1 ? 'clip differs' : 'clips differ'} · tap a clip to change it
         </AppText>
       ) : null}
     </View>

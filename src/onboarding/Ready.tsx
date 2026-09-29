@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/design/components';
+import { TakesWall } from '@/design/TakesWall';
 import { colors, spacing } from '@/design/tokens';
 import { useOnboarding } from '@/state/onboarding';
 import { PRESET_OPTIONS } from '@/state/presets';
@@ -25,23 +26,25 @@ export function useSetupSummary(): string {
     .join(' · ');
 }
 
+/** Last step: the batch wall again, now framed as theirs, and one line of what was set up. */
 export function Ready() {
   const summary = useSetupSummary();
   return (
-    <View style={styles.wrap}>
-      <AppText variant="display" accessibilityRole="header">
-        Your first batch is ready to make.
-      </AppText>
-      <AppText variant="body" color={colors.textSecondary}>
-        {summary}
-      </AppText>
-      <AppText variant="label" color={colors.textMuted}>
-        You can change the preset before each batch, and in Settings.
-      </AppText>
+    <View style={styles.flex}>
+      <TakesWall badges={false} label="A batch of finished videos" style={styles.flex} />
+      <View style={styles.text}>
+        <AppText variant="display" accessibilityRole="header">
+          Your first batch is ready to make.
+        </AppText>
+        <AppText variant="label" color={colors.textSecondary} numberOfLines={2}>
+          {summary}
+        </AppText>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.gutter, gap: spacing.md },
+  flex: { flex: 1 },
+  text: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.sm },
 });

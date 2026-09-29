@@ -1,14 +1,12 @@
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 
 import {
   AppText,
   Background,
-  Card,
-  GlassSurface,
   GradientButton,
   IconButton,
   OutlineButton,
@@ -17,8 +15,8 @@ import {
   Thumb,
   seedOf,
 } from '@/design/components';
-import type { SFSymbol } from '@/design/symbols';
-import { colors, motion, radii, spacing } from '@/design/tokens';
+import { TakesWall } from '@/design/TakesWall';
+import { colors, motion, spacing } from '@/design/tokens';
 import { importNewBatch, useImporting } from '@/batch/importClips';
 import { Engine, EngineEvents, engineAvailable } from '@/engine';
 import type { Batch } from '@/engine/types';
@@ -29,6 +27,8 @@ import { maxBatchSize, tierOf, TIER_NAMES, useEntitlements } from '@/state/entit
 import { useLibrary } from '@/state/library';
 import { useSettings } from '@/state/settings';
 import { prepareSpeech } from '@/state/speech';
+
+const RECENT = 6;
 
 export default function HomeScreen() {
   const tier = useEntitlements((s) => tierOf(s));
@@ -41,7 +41,7 @@ export default function HomeScreen() {
     .sort((a, b) => b.createdAt - a.createdAt)
     .map((batch) => ({ batch, summary: summarize(batch, projects) }));
   const running = all.filter((b) => b.summary.status === 'processing');
-  const recent = all.filter((b) => b.summary.status !== 'processing').slice(0, 4);
+  const recent = all.filter((b) => b.summary.status !== 'processing').slice(0, RECENT);
   const empty = all.length === 0;
 
   return (
@@ -57,75 +57,70 @@ export default function HomeScreen() {
             Tenfold
           </AppText>
           <ProPill isPro={isPro} name={TIER_NAMES[tier]} />
-          {/* The old tab bar's centre +: on an empty Home the primary button imports instead. */}
-          {empty && <IconButton icon="plus" label="New batch" onPress={() => router.push('/import')} />}
+          {empty ? (
+            <MoreButton />
+          ) : (
+            <>
+              <IconButton icon="video" label="Record a clip" onPress={() => router.push('/record')} />
+              <IconButton icon="plus" label="New batch" onPress={() => router.push('/import')} />
+            </>
+          )}
         </View>
 
+        <SpeechLine />
+
         {empty ? (
-          <FirstBatchCard limit={limit} />
+          <FirstBatch limit={limit} />
         ) : (
-          <View style={styles.action}>
-            <View style={styles.actionRow}>
-              <GradientButton title="New batch" icon="plus" onPress={() => router.push('/import')} style={styles.flex} />
-              <OutlineButton title="Record" icon="video" onPress={() => router.push('/record')} style={styles.record} />
-            </View>
-            <AppText variant="caption" color={colors.textMuted} style={styles.center}>
-              Up to {limit} clips per batch
-            </AppText>
-          </View>
-        )}
+          <>
+            {running.length > 0 && (
+              <Animated.View layout={LinearTransition.duration(motion.base)} style={styles.section}>
+                {running.map(({ batch, summary }) => (
+                  <RunningRow key={batch.id} batch={batch} summary={summary} />
+                ))}
+              </Animated.View>
+            )}
 
-        <SpeechBanner />
-
-        {running.length > 0 && (
-          <Animated.View layout={LinearTransition.duration(motion.base)} style={styles.section}>
-            <AppText variant="title" accessibilityRole="header">
-              In progress
-            </AppText>
-            <Card padded={false}>
-              {running.map(({ batch, summary }, i) => (
-                <RunningRow key={batch.id} batch={batch} summary={summary} divider={i > 0} />
-              ))}
-            </Card>
-          </Animated.View>
-        )}
-
-        {recent.length > 0 && (
-          <Animated.View layout={LinearTransition.duration(motion.base)} style={styles.section}>
-            <View style={styles.sectionHead}>
-              <AppText variant="title" accessibilityRole="header">
-                Recent
-              </AppText>
-              <PressableScale
-                haptic={false}
-                onPress={() => router.navigate('/library')}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessibilityRole="link"
-                accessibilityLabel="See all batches">
-                <AppText variant="label" color={colors.textSecondary}>
-                  See all
-                </AppText>
-              </PressableScale>
-            </View>
-            <View style={styles.grid}>
-              {Array.from({ length: Math.ceil(recent.length / 2) }).map((_, row) => (
-                <View key={recent[row * 2].batch.id} style={styles.gridRow}>
-                  <BatchCard batch={recent[row * 2].batch} />
-                  {recent[row * 2 + 1] ? <BatchCard batch={recent[row * 2 + 1].batch} /> : <View style={styles.flex} />}
+            {recent.length > 0 && (
+              <Animated.View layout={LinearTransition.duration(motion.base)} style={styles.section}>
+                <View style={styles.sectionHead}>
+                  <AppText variant="title" accessibilityRole="header">
+                    Recent
+                  </AppText>
+                  {all.length > RECENT && (
+                    <PressableScale
+                      haptic={false}
+                      onPress={() => router.navigate('/library')}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                      accessibilityRole="link"
+                      accessibilityLabel="See all batches">
+                      <AppText variant="chip" color={colors.textSecondary}>
+                        See all
+                      </AppText>
+                    </PressableScale>
+                  )}
                 </View>
-              ))}
-            </View>
-          </Animated.View>
-        )}
+                <View style={styles.grid}>
+                  {Array.from({ length: Math.ceil(recent.length / 2) }).map((_, row) => (
+                    <View key={recent[row * 2].batch.id} style={styles.gridRow}>
+                      <BatchCard batch={recent[row * 2].batch} />
+                      {recent[row * 2 + 1] ? <BatchCard batch={recent[row * 2 + 1].batch} /> : <View style={styles.flex} />}
+                    </View>
+                  ))}
+                </View>
+              </Animated.View>
+            )}
 
-        {empty && <HowItWorks limit={limit} />}
+          </>
+        )}
       </ScrollView>
     </View>
   );
 }
 
-/** Empty Home: one card with the one thing to do first. */
-function FirstBatchCard({ limit }: { limit: number }) {
+/** Empty Home: the wall of finished takes, one line, and the one thing to do first. */
+function FirstBatch({ limit }: { limit: number }) {
+  const { height } = useWindowDimensions();
   const busy = useImporting((s) => s.busy);
   const [copying, setCopying] = useState<{ index: number; total: number } | null>(null);
   const available = engineAvailable();
@@ -149,46 +144,39 @@ function FirstBatchCard({ limit }: { limit: number }) {
         : 'Import clips';
 
   return (
-    <Card style={styles.firstCard}>
+    <View style={styles.first}>
+      <TakesWall pill={`Up to ${limit} at once`} style={[styles.wall, { height: Math.round(height * 0.42) }]} />
       <View style={styles.firstText}>
         <AppText variant="title" accessibilityRole="header">
           Make your first batch
         </AppText>
-        <AppText variant="body" color={colors.textSecondary}>
-          Up to {limit} talking clips at once: pauses cut, captions added, framed for vertical. All on this iPhone.
+        <AppText variant="label" color={colors.textSecondary}>
+          {available ? 'Pauses cut, captions on, framed for vertical.' : 'This build has no video engine. Install the latest build.'}
         </AppText>
       </View>
-      <GradientButton title={title} icon={busy ? false : 'photo.on.rectangle'} disabled={busy || !available} onPress={importClips} />
-      <OutlineButton title="Record a clip" icon="video" onPress={() => router.push('/record')} disabled={busy} />
-      <AppText variant="caption" color={colors.textMuted} style={styles.center} tabular>
-        {available ? 'Importing needs no permissions.' : 'This build doesn’t include the video engine. Install the latest build to import clips.'}
-      </AppText>
-      {available && Engine.canAddClips() && (
-        <PressableScale
-          haptic={false}
-          disabled={busy}
-          onPress={() => router.push({ pathname: '/import', params: { mode: 'multiple' } })}
-          accessibilityRole="link"
-          accessibilityHint="Picks several clips and joins them into one video."
-          style={styles.demoLink}>
-          <AppText variant="chip" color={colors.accentText}>
-            Join several clips into one video
-          </AppText>
-        </PressableScale>
-      )}
-      {hasSampleClip() && (
-        <PressableScale
-          haptic={false}
-          onPress={() => router.push('/demo')}
-          accessibilityRole="link"
-          style={styles.demoLink}>
-          <AppText variant="chip" color={colors.accentText}>
-            Replay the demo
-          </AppText>
-        </PressableScale>
-      )}
-    </Card>
+      <View style={styles.firstActions}>
+        <GradientButton title={title} icon={busy ? false : 'photo.on.rectangle'} disabled={busy || !available} onPress={importClips} />
+        <OutlineButton title="Record a clip" icon="video" onPress={() => router.push('/record')} disabled={busy} />
+      </View>
+    </View>
   );
+}
+
+/** The rarer ways in, kept out of the way: joining clips into one video, the bundled demo. */
+function MoreButton() {
+  const canJoin = engineAvailable() && Engine.canAddClips();
+  const demo = hasSampleClip();
+  if (!canJoin && !demo) return null;
+  const options = [
+    ...(canJoin ? [{ label: 'Join several clips into one video', run: () => router.push({ pathname: '/import', params: { mode: 'multiple' } }) }] : []),
+    ...(demo ? [{ label: 'Replay the demo', run: () => router.push('/demo') }] : []),
+  ];
+  const open = () =>
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options: [...options.map((o) => o.label), 'Cancel'], cancelButtonIndex: options.length },
+      (i) => options[i]?.run(),
+    );
+  return <IconButton icon="ellipsis" label="More options" onPress={open} />;
 }
 
 function ProPill({ isPro, name }: { isPro: boolean; name: string }) {
@@ -205,63 +193,61 @@ function ProPill({ isPro, name }: { isPro: boolean; name: string }) {
     );
   }
   return (
-    <PressableScale
+    <IconButton
+      icon="crown"
+      label="See plans"
       onPress={() => gate({ placement: 'settings_upgrade', params: { source: 'home' }, allowed: () => false })}
-      haptic={false}
-      accessibilityRole="button"
-      accessibilityLabel="See plans">
-      <GlassSurface interactive style={styles.proPill}>
-        <SymbolView name="crown" size={15} tintColor={colors.textPrimary} weight="medium" />
-        <AppText variant="chip">Upgrade</AppText>
-      </GlassSurface>
-    </PressableScale>
+    />
   );
 }
 
-/** On-device speech status. Apple manages the language assets; captions need them once. */
-function SpeechBanner() {
+/** On-device speech status, as one quiet line only when it needs attention. */
+function SpeechLine() {
   const { speech, speechProgress } = useSettings();
   if (speech === 'unsupported') {
     return (
-      <Card>
-        <AppText variant="label" color={colors.textSecondary}>
-          On-device speech isn’t available for your language on this iPhone, so captions are off. Cuts and zooms
-          still work.
-        </AppText>
-      </Card>
+      <AppText variant="label" color={colors.textMuted}>
+        Captions aren’t available in your language on this iPhone.
+      </AppText>
     );
   }
-  if (speech !== 'supported' && speech !== 'downloading') return null;
-  const downloading = speech === 'downloading';
-  const pct = Math.round(speechProgress * 100);
-  return (
-    <Card padded={false}>
-      <View style={styles.bannerRow}>
-        <View style={styles.bannerIcon}>
-          <SymbolView name="waveform" size={17} tintColor={colors.textPrimary} weight="regular" />
-        </View>
-        <View style={styles.flex}>
-          <AppText variant="bodyStrong">{downloading ? 'Setting up captions' : 'Turn on captions'}</AppText>
-          <AppText variant="label" color={colors.textSecondary} tabular>
-            {downloading ? `${pct}% · you can keep editing meanwhile` : 'iOS downloads its speech model once.'}
-          </AppText>
-        </View>
-        {!downloading && <OutlineButton title="Set up" height={44} onPress={prepareSpeech} style={styles.setUp} />}
+  if (speech === 'downloading') {
+    const pct = Math.round(speechProgress * 100);
+    return (
+      <View
+        style={styles.speech}
+        accessible
+        accessibilityRole="progressbar"
+        accessibilityLabel="Setting up captions"
+        accessibilityValue={{ min: 0, max: 100, now: pct }}>
+        <AppText variant="label" color={colors.textSecondary} tabular>
+          Setting up captions · {pct}%
+        </AppText>
+        <ProgressBar progress={speechProgress} height={2} />
       </View>
-      {downloading && (
-        <View
-          accessible
-          accessibilityRole="progressbar"
-          accessibilityLabel="Caption setup"
-          accessibilityValue={{ min: 0, max: 100, now: pct }}>
-          <ProgressBar progress={speechProgress} height={3} />
-        </View>
-      )}
-    </Card>
+    );
+  }
+  if (speech !== 'supported') return null;
+  return (
+    <Pressable
+      onPress={prepareSpeech}
+      accessibilityRole="button"
+      accessibilityLabel="Turn on captions"
+      accessibilityHint="Downloads Apple’s speech model once"
+      style={({ pressed }) => [styles.speechRow, pressed && styles.pressed]}>
+      <SymbolView name="waveform" size={15} tintColor={colors.textSecondary} weight="regular" />
+      <AppText variant="label" color={colors.textSecondary} style={styles.flex}>
+        Captions need a one-time download.
+      </AppText>
+      <AppText variant="chip" color={colors.accentText}>
+        Set up
+      </AppText>
+    </Pressable>
   );
 }
 
-function RunningRow({ batch, summary, divider }: { batch: Batch; summary: BatchSummary; divider: boolean }) {
+/** A batch being edited: its first take, what it's doing, and a thin bar. No box around it. */
+function RunningRow({ batch, summary }: { batch: Batch; summary: BatchSummary }) {
   const pct = Math.round(summary.progress * 100);
   return (
     <PressableScale
@@ -271,7 +257,7 @@ function RunningRow({ batch, summary, divider }: { batch: Batch; summary: BatchS
       accessibilityRole="button"
       accessibilityLabel={`${batch.title}. ${summary.line}.`}
       accessibilityValue={{ min: 0, max: 100, now: pct }}
-      style={[styles.runRow, divider && styles.divider]}>
+      style={styles.runRow}>
       <Thumb seed={seedOf(batch.id)} uri={summary.projects[0]?.posterUri} style={styles.runThumb} />
       <View style={[styles.flex, styles.runBody]}>
         <View style={styles.runHead}>
@@ -287,78 +273,28 @@ function RunningRow({ batch, summary, divider }: { batch: Batch; summary: BatchS
         </AppText>
         <ProgressBar progress={summary.progress} height={3} />
       </View>
-      <SymbolView name="chevron.right" size={13} tintColor={colors.textMuted} weight="regular" />
     </PressableScale>
-  );
-}
-
-function HowItWorks({ limit }: { limit: number }) {
-  const steps: { icon: SFSymbol; title: string; body: string }[] = [
-    { icon: 'photo.on.rectangle', title: `Pick up to ${limit} clips`, body: 'Talking-to-camera videos from Photos.' },
-    { icon: 'slider.horizontal.3', title: 'Choose the edits', body: 'Captions, cut pauses and filler words, zoom.' },
-    { icon: 'square.and.arrow.down', title: 'Generate and save', body: 'Every video is edited, then saved to Photos.' },
-  ];
-  return (
-    <View style={styles.section}>
-      <AppText variant="title" accessibilityRole="header">
-        How it works
-      </AppText>
-      <Card padded={false}>
-        {steps.map((s, i) => (
-          <View key={s.title} style={[styles.howRow, i > 0 && styles.divider]}>
-            <SymbolView name={s.icon} size={20} tintColor={colors.textSecondary} weight="regular" style={styles.howIcon} />
-            <View style={styles.flex}>
-              <AppText variant="bodyStrong">{s.title}</AppText>
-              <AppText variant="label" color={colors.textSecondary}>
-                {s.body}
-              </AppText>
-            </View>
-          </View>
-        ))}
-      </Card>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  center: { textAlign: 'center' },
-  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.xxl },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
+  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.xl },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
   proBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  action: { gap: spacing.sm },
-  actionRow: { flexDirection: 'row', gap: spacing.sm },
-  record: { paddingHorizontal: spacing.sm },
-  firstCard: { gap: spacing.md },
-  firstText: { gap: spacing.xs, marginBottom: spacing.xs },
-  demoLink: { minHeight: 44, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
-  proPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 44,
-    paddingHorizontal: 16,
-    borderRadius: radii.round,
-  },
-  section: { gap: spacing.md },
+  first: { gap: spacing.lg },
+  wall: { marginHorizontal: -spacing.gutter },
+  firstText: { gap: spacing.xs },
+  firstActions: { gap: spacing.md },
+  speech: { gap: spacing.sm },
+  speechRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
+  pressed: { opacity: 0.6 },
+  section: { gap: spacing.lg },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   grid: { gap: spacing.xl },
   gridRow: { flexDirection: 'row', gap: spacing.md },
-  bannerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
-  bannerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.cardHigh,
-  },
-  setUp: { paddingHorizontal: spacing.xs },
-  runRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, minHeight: 76 },
-  runThumb: { width: 44, height: 60, borderRadius: 10, borderCurve: 'continuous' },
+  runRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 76 },
+  runThumb: { width: 54, height: 72, borderRadius: 10, borderCurve: 'continuous' },
   runBody: { gap: spacing.xs },
   runHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
-  howRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md + 2 },
-  howIcon: { width: 24, height: 24 },
 });

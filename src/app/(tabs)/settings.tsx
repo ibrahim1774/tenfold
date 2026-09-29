@@ -170,7 +170,7 @@ export default function SettingsScreen() {
           />
         </Group>
 
-        <Group title="Speech" footer="Transcription runs on this iPhone. Audio never leaves it.">
+        <Group title="Speech">
           <Row icon="waveform" title="On-device speech" value={speechValue} last={speech === 'downloading'} />
           {speech === 'downloading' && (
             <View style={styles.progress}>
@@ -178,8 +178,7 @@ export default function SettingsScreen() {
               <View style={[styles.divider, { left: ROW_PAD + ICON_BOX + ICON_GAP }]} />
             </View>
           )}
-          <Row icon="globe" title="Language" value={languageName(speechLocale)} />
-          <Row icon="cpu" title="Engine" value="Apple SpeechAnalyzer" last={speech !== 'supported'} />
+          <Row icon="globe" title="Language" value={languageName(speechLocale)} last={speech !== 'supported'} />
           {speech === 'supported' && <Row icon="arrow.down.circle" title="Set up speech" action onPress={prepareSpeech} last />}
         </Group>
 
@@ -188,7 +187,7 @@ export default function SettingsScreen() {
             <Row
               key={p.id}
               title={p.name}
-              subtitle={p.blurb}
+              hint={p.blurb}
               selected={defaultPreset === p.id}
               onPress={() => {
                 if (defaultPreset === p.id) return;
@@ -214,20 +213,15 @@ export default function SettingsScreen() {
           {engine && <Row icon="trash" title="Clear exported files" danger onPress={clearExports} last />}
         </Group>
 
-        <Group title="Privacy">
-          <View style={styles.privacy}>
-            <SymbolView name="lock.shield" size={19} tintColor={colors.textSecondary} weight="regular" />
-            <AppText variant="label" color={colors.textSecondary} style={styles.flex}>
-              Your videos never leave your phone. No account, no uploads. Paywall and purchase events go to Superwall, and install and ad-measurement events to AppsFlyer, as the privacy policy explains.
-            </AppText>
-            <View style={[styles.divider, { left: ROW_PAD }]} />
-          </View>
+        <Group
+          title="Privacy"
+          footer="Videos never leave this iPhone. Purchase events go to Superwall, install and ad measurement to AppsFlyer.">
           <Row icon="hand.raised" title="Privacy policy" accessory="external" onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)} />
           <Row icon="doc.text" title="Terms of use" accessory="external" onPress={() => WebBrowser.openBrowserAsync(TERMS_URL)} last />
         </Group>
 
         <Group title="About">
-          <Row icon="bolt.horizontal" title="Video engine" value={engine ? 'Connected' : 'Update the app'} />
+          {!engine && <Row icon="bolt.horizontal" title="Video engine" value="Update the app" />}
           {hasSampleClip() && (
             <Row icon="play.rectangle" title="Replay the demo" accessory="chevron" onPress={() => router.push('/demo')} />
           )}
@@ -259,6 +253,8 @@ type RowProps = {
   icon?: SFSymbol;
   title: string;
   subtitle?: string;
+  /** VoiceOver hint when there's no visible subtitle. */
+  hint?: string;
   value?: string;
   /** Inline switch; the whole row is the switch for touch and VoiceOver. */
   toggle?: { value: boolean; onChange: (v: boolean) => void };
@@ -273,7 +269,7 @@ type RowProps = {
   last?: boolean;
 };
 
-function Row({ icon, title, subtitle, value, toggle, onPress, accessory, selected, action, danger, last }: RowProps) {
+function Row({ icon, title, subtitle, hint, value, toggle, onPress, accessory, selected, action, danger, last }: RowProps) {
   const tint = danger ? colors.danger : action ? ACTION : colors.textPrimary;
   const inset = icon ? ROW_PAD + ICON_BOX + ICON_GAP : ROW_PAD;
   const content = (pressed: boolean) => (
@@ -338,7 +334,7 @@ function Row({ icon, title, subtitle, value, toggle, onPress, accessory, selecte
       accessibilityRole={selected === undefined ? 'button' : 'radio'}
       accessibilityState={selected === undefined ? undefined : { checked: selected }}
       accessibilityLabel={title}
-      accessibilityHint={subtitle}>
+      accessibilityHint={subtitle ?? hint}>
       {({ pressed }) => content(pressed)}
     </Pressable>
   );
@@ -377,5 +373,4 @@ const styles = StyleSheet.create({
   },
   progress: { paddingLeft: ROW_PAD + ICON_BOX + ICON_GAP, paddingRight: ROW_PAD, paddingBottom: 14, marginTop: -4 },
   meter: { gap: spacing.sm, paddingLeft: ROW_PAD + ICON_BOX + ICON_GAP, paddingRight: ROW_PAD, paddingBottom: 12, marginTop: -2 },
-  privacy: { flexDirection: 'row', alignItems: 'center', gap: ICON_GAP, paddingHorizontal: ROW_PAD, paddingVertical: 14 },
 });

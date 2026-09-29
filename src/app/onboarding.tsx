@@ -151,13 +151,17 @@ export default function OnboardingScreen() {
           style={StyleSheet.absoluteFill}>
           {step === 'hook' ? (
             <Hook />
+          ) : step === 'included' ? (
+            <Included />
+          ) : step === 'ready' ? (
+            <Ready />
           ) : step === 'demo' ? (
             <Demo mode="onboarding" onContinue={next} />
           ) : (
             <ScrollView contentContainerStyle={onboardingStyles.pad} showsVerticalScrollIndicator={false} alwaysBounceVertical={false}>
               {step === 'role' && (
                 <>
-                  <StepHead title={ROLE_Q.title} body={ROLE_Q.reason} />
+                  <StepHead title={ROLE_Q.title} />
                   <ChoiceList choices={ROLE_Q.options} selected={ob.role ? [ob.role] : []} onToggle={ob.setRole} />
                 </>
               )}
@@ -169,7 +173,7 @@ export default function OnboardingScreen() {
               )}
               {step === 'perWeek' && (
                 <>
-                  <StepHead title={PER_WEEK_Q.title} body={PER_WEEK_Q.reason} />
+                  <StepHead title={PER_WEEK_Q.title} />
                   <ChoiceList
                     choices={PER_WEEK_Q.options}
                     selected={ob.videosPerWeek ? [ob.videosPerWeek] : []}
@@ -179,7 +183,7 @@ export default function OnboardingScreen() {
               )}
               {step === 'minutes' && (
                 <>
-                  <StepHead title={MINUTES_Q.title} body={MINUTES_Q.reason} />
+                  <StepHead title={MINUTES_Q.title} />
                   <ChoiceList
                     choices={MINUTES_Q.options}
                     selected={ob.minutesPerVideo ? [ob.minutesPerVideo] : []}
@@ -187,10 +191,8 @@ export default function OnboardingScreen() {
                   />
                 </>
               )}
-              {step === 'included' && <Included />}
               {step === 'payoff' && payoff && <Payoff payoff={payoff} />}
               {step === 'language' && <Language />}
-              {step === 'ready' && <Ready />}
             </ScrollView>
           )}
         </Animated.View>
@@ -211,16 +213,13 @@ export default function OnboardingScreen() {
                 }}
               />
               <AppText variant="caption" color={colors.textMuted} style={styles.center}>
-                No account. Your videos never leave your iPhone.
+                No account. Nothing leaves your iPhone.
               </AppText>
             </>
           )}
           {isQuestion && (
             <>
               <GradientButton title="Continue" shape="pill" disabled={!answered} onPress={continueQuestion} />
-              <AppText variant="caption" color={colors.textMuted} style={styles.center}>
-                {answered ? ' ' : 'Choose an answer, or skip this question.'}
-              </AppText>
             </>
           )}
           {step === 'payoff' && <GradientButton title="Claim my time" shape="pill" onPress={next} />}

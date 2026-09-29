@@ -2,13 +2,12 @@ import type { SFSymbol } from '../design/symbols';
 import type { MinutesPerVideo, Role, VideosPerWeek } from '../state/onboarding';
 import type { ContentType } from '../state/settings';
 
-// The four onboarding questions: title, the one-line reason we ask, and the answers.
+// The four onboarding questions: title, the answers, and (only where it prevents a mistake) one short line.
 
 type Opt<T extends string> = { v: T; label: string; detail?: string; icon?: SFSymbol };
 
 export const ROLE_Q = {
   title: 'Who’s behind the camera?',
-  reason: 'Used to sum up your setup at the end. It stays on this iPhone.',
   options: [
     { v: 'creator', label: 'Creator', icon: 'person.crop.square' },
     { v: 'coach', label: 'Coach or educator', icon: 'graduationcap' },
@@ -22,7 +21,7 @@ export const ROLE_Q = {
 // "Product videos" is the existing `ads` content type (it maps to the Punchy preset).
 export const MAKES_Q = {
   title: 'What do you make?',
-  reason: 'Sets your starting cuts, captions and zoom. Choose all that apply.',
+  reason: 'Choose all that apply.',
   options: [
     { v: 'talking', label: 'Talking to camera', detail: 'Tips, stories, opinions', icon: 'person.wave.2' },
     { v: 'podcast', label: 'Podcast clips', detail: 'Interviews and conversations', icon: 'mic' },
@@ -34,7 +33,6 @@ export const MAKES_Q = {
 
 export const PER_WEEK_Q = {
   title: 'How many videos a week?',
-  reason: 'With the next answer, this estimates the editing time Tenfold saves you.',
   options: [
     { v: '1-2', label: '1–2' },
     { v: '3-5', label: '3–5' },
@@ -44,7 +42,6 @@ export const PER_WEEK_Q = {
 
 export const MINUTES_Q = {
   title: 'How long do you edit one video?',
-  reason: 'Minutes from raw clip to ready to post. Used for the same estimate.',
   options: [
     { v: 'under10', label: 'Under 10 minutes' },
     { v: '10-30', label: '10–30 minutes' },

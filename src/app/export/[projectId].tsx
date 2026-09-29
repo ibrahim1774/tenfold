@@ -4,11 +4,22 @@ import { router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { queueExports, STAGE_LABELS, unpark, useQueueUI } from '@/batch/queue';
-import { AppText, Background, GradientButton, IconButton, OutlineButton, ProgressRing, ScreenHeader } from '@/design/components';
+import {
+  AppText,
+  Background,
+  GlassSurface,
+  GradientButton,
+  IconButton,
+  OutlineButton,
+  ProgressRing,
+  ScreenHeader,
+  Thumb,
+  seedOf,
+} from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
 import { usePaywallGate } from '@/monetization/superwall';
 import { limitsFor, lowestTierWhere } from '@/onboarding/plans';
@@ -16,7 +27,7 @@ import { exportsLeft, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitl
 import { useLibrary } from '@/state/library';
 import { useSettings } from '@/state/settings';
 
-const RING = 176;
+const RING = 96;
 
 const inFlightCount = (projects: ReturnType<typeof useLibrary.getState>['projects']) =>
   Object.values(projects).filter((p) => p.status === 'exportQueued' || p.status === 'exporting').length;
@@ -28,6 +39,7 @@ function exportRoom() {
 
 export default function ExportScreen() {
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const project = useLibrary((s) => s.projects[projectId]);
   // Exports queued or running anywhere: the lane is shared, so they count against this month's limit.
@@ -152,6 +164,7 @@ export default function ExportScreen() {
       <View style={styles.middle}>
         {choosing ? (
           <View style={styles.choose}>
+            {!failed && height >= 740 ? <Thumb seed={seedOf(project.id)} uri={project.posterUri} style={styles.poster} /> : null}
             {failed ? (
               <View style={styles.error} accessibilityRole="alert">
                 <SymbolView name="exclamationmark.triangle" size={17} tintColor={colors.danger} weight="regular" />
@@ -178,7 +191,7 @@ export default function ExportScreen() {
               />
               <QualityRow
                 title="4K"
-                subtitle={uhdAllowed && !can4K ? 'Needs a 4K source clip' : 'Sharper on large screens, bigger file'}
+                subtitle={uhdAllowed && !can4K ? 'Needs a 4K source clip' : 'Bigger file'}
                 selected={uhdSelected}
                 badge={uhdAllowed ? undefined : TIER_NAMES[uhdTier]}
                 disabled={uhdAllowed && !can4K}
@@ -214,16 +227,13 @@ export default function ExportScreen() {
           </View>
         ) : finished ? (
           <View style={styles.status}>
-            <View style={[styles.doneMark, !saved && styles.doneMarkMuted]}>
-              <SymbolView
-                name={saved ? 'checkmark' : 'square.and.arrow.up'}
-                size={34}
-                tintColor={saved ? colors.success : colors.textPrimary}
-                weight="regular"
-              />
-            </View>
-            <AppText variant="body" color={colors.textSecondary} style={styles.center}>
-              {saved ? 'Ready to post from your camera roll.' : 'Share the video to save it or post it.'}
+            <Thumb seed={seedOf(project.id)} uri={project.posterUri} style={styles.posterLarge}>
+              <GlassSurface variant="clear" pointerEvents="none" style={styles.doneMark}>
+                <SymbolView name={saved ? 'checkmark' : 'square.and.arrow.up'} size={20} tintColor={colors.textPrimary} weight="semibold" />
+              </GlassSurface>
+            </Thumb>
+            <AppText variant="label" color={colors.textSecondary} style={styles.center}>
+              {saved ? 'In your camera roll' : 'Share it to save or post'}
             </AppText>
             {project.error ? (
               <AppText variant="label" color={colors.orange} style={styles.center}>
@@ -233,19 +243,23 @@ export default function ExportScreen() {
           </View>
         ) : (
           <View style={styles.status}>
-            <View style={styles.ring}>
-              <ProgressRing progress={project.progress} size={RING} showLabel={false} />
-              <View style={[StyleSheet.absoluteFill, styles.ringLabel]} accessibilityElementsHidden>
-                <AppText variant="display" tabular>
-                  {percent}%
-                </AppText>
+            <Thumb seed={seedOf(project.id)} uri={project.posterUri} style={styles.posterLarge}>
+              <View style={[StyleSheet.absoluteFill, styles.dim]}>
+                <View style={styles.ring}>
+                  <ProgressRing progress={project.progress} size={RING} showLabel={false} />
+                  <View style={[StyleSheet.absoluteFill, styles.ringLabel]} accessibilityElementsHidden>
+                    <AppText variant="title" tabular>
+                      {percent}%
+                    </AppText>
+                  </View>
+                </View>
               </View>
-            </View>
+            </Thumb>
             <AppText variant="bodyStrong" style={styles.center}>
               {stage}
             </AppText>
             <AppText variant="label" color={colors.textMuted} style={styles.center}>
-              You can close this. The export keeps running.
+              Keeps running if you close this
             </AppText>
           </View>
         )}
@@ -364,18 +378,21 @@ const styles = StyleSheet.create({
   notice: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg },
 
   status: { alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl },
-  ring: { width: RING, height: RING, marginBottom: spacing.sm },
+  ring: { width: RING, height: RING },
   ringLabel: { alignItems: 'center', justifyContent: 'center' },
+  dim: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
+  poster: { alignSelf: 'center', width: 132, aspectRatio: 9 / 16, borderRadius: radii.card, marginBottom: spacing.lg },
+  posterLarge: { width: 170, aspectRatio: 9 / 16, borderRadius: radii.card, marginBottom: spacing.sm },
   doneMark: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.card,
-    marginBottom: spacing.sm,
   },
-  doneMarkMuted: { backgroundColor: colors.card },
 
   actions: { gap: spacing.md },
   actionRow: { flexDirection: 'row', gap: spacing.md },

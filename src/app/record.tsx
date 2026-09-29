@@ -11,6 +11,7 @@ import { errorText } from '@/batch/queue';
 import { postAddedClip } from '@/editor/clipBus';
 import { Engine } from '@/engine';
 import { AppText, GlassCapsule, GradientButton, IconButton, OutlineButton, Thumb } from '@/design/components';
+import { sampleFrame } from '@/design/sampleFrames';
 import { colors, radii, spacing } from '@/design/tokens';
 import { canImportFiles, importFile } from '@/onboarding/fileImport';
 import { formatDuration, useLibrary } from '@/state/library';
@@ -43,14 +44,14 @@ export default function RecordScreen() {
       <View style={[styles.black, styles.permission, { paddingBottom: insets.bottom + spacing.lg }]}>
         {close}
         <View style={styles.permissionText}>
-          <SymbolView name="video" size={32} tintColor={colors.textSecondary} weight="regular" />
+          <Thumb seed={2} source={sampleFrame(2)} style={styles.permissionFrame} />
           <AppText variant="title" style={styles.center} accessibilityRole="header">
             Record in Tenfold
           </AppText>
-          <AppText variant="body" color={colors.textSecondary} style={styles.center}>
+          <AppText variant="label" color={colors.textSecondary} style={styles.center}>
             {blocked
-              ? `Camera or microphone access is off for Tenfold. Turn on ${!cam.granted && !mic.granted ? 'both' : !cam.granted ? 'Camera' : 'Microphone'} in Settings to record here. Importing from Photos works without it.`
-              : 'Tenfold needs the camera and the microphone to record a clip. Recordings stay on this iPhone.'}
+              ? `Turn on ${!cam.granted && !mic.granted ? 'Camera and Microphone' : !cam.granted ? 'Camera' : 'Microphone'} for Tenfold in Settings.`
+              : 'Recordings stay on this iPhone.'}
           </AppText>
         </View>
         <GradientButton
@@ -173,8 +174,8 @@ function Recorder({ close, projectId }: { close: ReactNode; projectId?: string }
         ) : !recording ? (
           <AppText variant="caption" color={canImportFiles() ? colors.textSecondary : colors.textPrimary} style={styles.center}>
             {canImportFiles()
-              ? 'Up to 15 minutes. Tap to start, tap again to stop.'
-              : 'This build of Tenfold can’t add recordings to a batch yet, so a take can’t be edited. Import from Photos instead.'}
+              ? 'Up to 15 minutes'
+              : 'This build can’t edit recordings yet. Import from Photos instead.'}
           </AppText>
         ) : null}
         <View style={styles.controlRow}>
@@ -262,7 +263,7 @@ function Review({ take, close, projectId, onRetake }: { take: Take; close: React
         <GradientButton title={busy ? 'Adding clip…' : 'Use this clip'} shape="pill" disabled={!supported || busy} onPress={use} />
         {!supported && (
           <AppText variant="caption" color={colors.textMuted} style={styles.center}>
-            This build of Tenfold can’t add recordings to a batch yet. Importing from Photos works.
+            This build can’t edit recordings yet. Import from Photos instead.
           </AppText>
         )}
         <OutlineButton title="Retake" icon="arrow.counterclockwise" height={44} onPress={onRetake} disabled={busy} />
@@ -278,6 +279,7 @@ const styles = StyleSheet.create({
   permission: { justifyContent: 'center', paddingHorizontal: spacing.gutter },
   permissionText: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
   permissionButton: { alignSelf: 'stretch' },
+  permissionFrame: { width: 132, aspectRatio: 9 / 16, borderRadius: radii.card, marginBottom: spacing.md },
   frame: { alignSelf: 'center', overflow: 'hidden', borderRadius: radii.card, borderCurve: 'continuous', backgroundColor: colors.card },
   timer: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   timerPill: { gap: spacing.sm },

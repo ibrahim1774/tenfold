@@ -1,8 +1,8 @@
 import { SymbolView } from 'expo-symbols';
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, Card, OutlineButton, ProgressBar } from '@/design/components';
+import { AppText, ProgressBar } from '@/design/components';
 import { colors, spacing } from '@/design/tokens';
 import { useSettings } from '@/state/settings';
 import { prepareSpeech, refreshSpeechStatus } from '@/state/speech';
@@ -37,48 +37,53 @@ export function Language() {
 
   return (
     <View style={styles.wrap}>
-      <StepHead title="I record in" body="Tenfold transcribes on this iPhone, in the language you speak." />
+      <StepHead title="I record in" />
       <ChoiceList choices={LANGUAGES} selected={[LANGUAGES.some((l) => l.v === language) ? language : 'auto']} onToggle={choose} />
 
-      {speech !== 'unsupported' && speech !== 'unknown' ? (
-        <Card style={styles.model}>
-          <View style={styles.modelHead}>
+      {speech === 'supported' || speech === 'downloading' || speech === 'installed' ? (
+        <View style={styles.model}>
+          <View style={styles.modelRow} accessible accessibilityLabel={modelLine(speech, speechProgress)}>
             <SymbolView
               name={speech === 'installed' ? 'checkmark.circle.fill' : 'waveform'}
-              size={20}
-              tintColor={speech === 'installed' ? colors.success : colors.textPrimary}
+              size={17}
+              tintColor={speech === 'installed' ? colors.textPrimary : colors.textSecondary}
               weight="regular"
-              style={styles.icon}
             />
-            <View style={styles.flex}>
-              <AppText variant="bodyStrong">On-device speech</AppText>
-              <AppText variant="label" color={colors.textSecondary} tabular>
-                {speech === 'installed'
-                  ? 'Installed. Captions and filler-word cuts are on.'
-                  : speech === 'downloading'
-                    ? `Downloading, ${Math.round(speechProgress * 100)}%. It finishes in the background.`
-                    : 'iOS downloads Apple’s speech model for this language once. Best on Wi-Fi.'}
-              </AppText>
-            </View>
+            <AppText variant="label" color={colors.textSecondary} tabular style={styles.flex}>
+              {modelLine(speech, speechProgress)}
+            </AppText>
+            {speech === 'supported' && (
+              <Pressable onPress={prepareSpeech} hitSlop={10} accessibilityRole="button" accessibilityLabel="Download speech model">
+                {({ pressed }) => (
+                  <AppText variant="chip" color={colors.accentText} style={pressed && styles.pressed}>
+                    Download
+                  </AppText>
+                )}
+              </Pressable>
+            )}
           </View>
-          {speech === 'downloading' && <ProgressBar progress={speechProgress} height={4} />}
-          {speech === 'supported' && (
-            <OutlineButton title="Download speech model" icon="arrow.down.circle" height={44} onPress={prepareSpeech} />
-          )}
-        </Card>
+          {speech === 'downloading' && <ProgressBar progress={speechProgress} height={3} />}
+        </View>
       ) : speech === 'unsupported' ? (
         <AppText variant="label" color={colors.textMuted}>
-          On-device speech isn’t available for this language on this iPhone, so captions are off. Cuts and zooms still work.
+          Captions aren’t available in this language on this iPhone.
         </AppText>
       ) : null}
     </View>
   );
 }
 
+/** One quiet line about Apple's on-device speech model for the chosen language. */
+function modelLine(speech: string, progress: number) {
+  if (speech === 'installed') return 'On-device speech ready';
+  if (speech === 'downloading') return `Downloading speech · ${Math.round(progress * 100)}%`;
+  return 'Speech model for captions, once';
+}
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  wrap: { paddingHorizontal: spacing.gutter, gap: spacing.xl },
-  model: { gap: spacing.md },
-  modelHead: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
-  icon: { width: 24, height: 24 },
+  wrap: { gap: spacing.xl },
+  model: { gap: spacing.sm },
+  modelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
+  pressed: { opacity: 0.6 },
 });

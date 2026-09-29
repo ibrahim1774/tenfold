@@ -1495,18 +1495,18 @@ export default function EditorScreen() {
                 {shownNotice ??
                   (selected
                     ? timelineClips
-                      ? 'Part selected. Drag its ends to trim.'
-                      : 'Clip selected. Drag its ends to trim.'
+                      ? 'Drag the ends to trim'
+                      : 'Drag the ends to trim'
                     : selectedClip
-                      ? 'Clip selected. Drag its ends to trim, hold to move it. Tap it again to select a part.'
+                      ? 'Drag ends to trim · hold to move · tap again for a part'
                       : selectedCard
-                      ? 'Caption selected. Drag its ends to change when it shows.'
+                      ? 'Drag the ends to retime'
                       : selectedText
-                        ? 'Text selected. Drag its ends to change when it shows.'
+                        ? 'Drag the ends to retime'
                         : selectedAudio
                           ? selectedAudio.source === 'file'
-                            ? 'Sound selected. Drag its ends to trim, the middle to move it.'
-                            : 'Original sound selected. Drag its ends to trim.'
+                            ? 'Drag ends to trim · middle to move'
+                            : 'Drag the ends to trim'
                           : '')}
               </AppText>
             </View>
@@ -1600,7 +1600,7 @@ export default function EditorScreen() {
             )}
 
             {nothingSelected && tool === 'words' && (
-              <Panel title="Words" detail="Tap a word to cut or restore it. Hold it to fix the spelling.">
+              <Panel title="Words" detail="Tap to cut · hold to fix spelling">
                 {words.length === 0 ? (
                   <AppText variant="label" color={colors.textSecondary}>
                     No words were transcribed for this clip.
@@ -1666,7 +1666,7 @@ export default function EditorScreen() {
             )}
 
             {nothingSelected && tool === 'cuts' && (
-              <Panel title="Cuts" detail="Pauses, filler words and retakes taken out of this video.">
+              <Panel title="Cuts">
                 <View style={styles.statRow}>
                   <Stat value={String(acceptedPauses)} label="Pauses" />
                   <Stat value={String(acceptedFillers)} label="Fillers" />
@@ -1697,7 +1697,7 @@ export default function EditorScreen() {
                     <Chip label="On" selected={currentLevels.retakes} onPress={() => applyLevels({ ...currentLevels, retakes: true })} />
                   </ChipGroup>
                   <AppText variant="caption" color={colors.textMuted}>
-                    When a sentence is said twice, the first attempt is removed. Only near-exact repeats are cut without asking.
+                    Keeps the last take of a repeated line
                   </AppText>
                 </View>
                 {levelsError && (
@@ -1717,7 +1717,7 @@ export default function EditorScreen() {
             )}
 
             {nothingSelected && tool === 'zoom' && (
-              <Panel title="Zoom" detail="Punches in at each cut to hide the jump. Dynamic also zooms on new sentences.">
+              <Panel title="Zoom" detail="Punches in at each cut">
                 <ChipGroup>
                   {ZOOMS.map((z) => (
                     <Chip key={z.v} label={z.l} selected={doc.zoom.mode === z.v} onPress={() => commit({ ...doc, zoom: { ...doc.zoom, mode: z.v } })} />
@@ -1746,8 +1746,8 @@ export default function EditorScreen() {
                 title="Frame"
                 detail={
                   frameMode === 'custom'
-                    ? `Placed by hand at ${Math.round(placement.scale * 100)}%. Double-tap the video for Fit or Fill.`
-                    : 'Pinch the video to zoom, drag to move. Double-tap for Fit or Fill.'
+                    ? `By hand · ${Math.round(placement.scale * 100)}%`
+                    : 'Pinch to zoom · drag to move'
                 }>
                 <View style={styles.group}>
                   <OptionLabel>Canvas</OptionLabel>
@@ -1867,7 +1867,7 @@ export default function EditorScreen() {
             {nothingSelected && tool === 'audio' && (
               <Panel
                 title="Audio"
-                detail={audioEditable ? 'Adds at the playhead. Music dips while someone speaks.' : 'The sound recorded with the clip.'}>
+                detail={audioEditable ? 'Music dips under speech' : 'Recorded sound'}>
                 {audioEditable && (
                   <View style={styles.group}>
                     <OptionLabel>Add sound</OptionLabel>

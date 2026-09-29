@@ -46,6 +46,9 @@ Six sizes (see `type` in tokens): 30 screen title (`display`), 20 section or she
 - No "AI", "magic", "smart", sparkles, or exclamation marks in UI copy. Tenfold is a tool, not a mascot.
 - Empty states say what the screen is for and offer the one action that fills it.
 - Errors say what happened and what to do next, inline where the problem is.
+- At most one short line of supporting text per screen. No helper sentences, "How it works" lists or
+  icon-in-a-circle feature rows: show the footage instead. Keep only text that prevents a mistake or is
+  legally required (renewal terms, privacy disclosures).
 
 ## 4. Motion
 
@@ -58,6 +61,8 @@ Motion explains a change; it never decorates.
   `FadeIn.duration(motion.fast)` for content that appears because of a tap.
 - Springs are critically damped (`motion.spring`): no bounce, no overshoot.
 - Onboarding may animate its illustrations once, quickly (< 600 ms), never loop.
+  One exception: the "What Tenfold does for you" demo (`src/onboarding/Included.tsx`) loops, and rests on
+  its finished state under Reduce Motion.
 
 ## 5. Native patterns over custom ones
 

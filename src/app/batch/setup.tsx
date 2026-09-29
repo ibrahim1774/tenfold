@@ -133,7 +133,7 @@ export default function BatchSetupScreen() {
   // A full batch keeps its + tile while a bigger plan exists; tapping it asks Superwall (batch_limit).
   const canGrow = nextTier(tier) !== null;
   const captionUnlockTier = lowestTierWhere((l) => l.allCaptionStyles) ?? 'starter';
-  const footerNotes = (limitedExports ? 1 : 0) + (clips.length === 0 && !importing ? 1 : 0);
+  const footerNotes = limitedExports ? 1 : 0;
 
   const roomNow = () => {
     const b = useLibrary.getState().batches[batchId];
@@ -197,7 +197,7 @@ export default function BatchSetupScreen() {
           </AppText>
           {clips.length > 0 && (
             <AppText variant="label" color={colors.textSecondary} tabular>
-              {full ? `${TIER_NAMES[tier]} plan: up to ${limit} clips per batch` : `${clips.length} of ${limit}`}
+              {full ? `${limit} of ${limit} · ${TIER_NAMES[tier]} limit` : `${clips.length} of ${limit}`}
             </AppText>
           )}
         </View>
@@ -300,7 +300,7 @@ export default function BatchSetupScreen() {
         </ScrollView>
         {clips.length > 0 && !captionsOn && (
           <AppText variant="caption" color={colors.textMuted} style={[styles.gutter, styles.note]}>
-            Captions are off for every clip.
+            Captions are off.
           </AppText>
         )}
 
@@ -309,9 +309,11 @@ export default function BatchSetupScreen() {
           <AppText variant="title" accessibilityRole="header">
             Frame
           </AppText>
-          <AppText variant="label" color={colors.textMuted}>
-            {clips.length > 0 && !reframeOn ? 'Reframe is off' : 'Used by Reframe'}
-          </AppText>
+          {clips.length > 0 && !reframeOn ? (
+            <AppText variant="label" color={colors.textMuted}>
+              Reframe is off
+            </AppText>
+          ) : null}
         </View>
         <View style={[styles.gutter, styles.frameRow]}>
           <ChipGroup>
@@ -329,7 +331,7 @@ export default function BatchSetupScreen() {
 
         {/* 5. Fine-tune */}
         <View style={[styles.gutter, styles.block]}>
-          <CollapsibleSection title="Fine-tune" summary="Cut strength, zoom, caption font and colour, audio">
+          <CollapsibleSection title="Fine-tune">
             <OptionLabel>Pause cutting</OptionLabel>
             <ChipGroup>
               {SILENCE.map((o) => (
@@ -426,13 +428,10 @@ export default function BatchSetupScreen() {
                 />
               ))}
             </ChipGroup>
-            <AppText variant="caption" color={colors.textMuted}>
-              Spoken language is detected automatically.
-            </AppText>
             <View style={styles.divider} />
             <ToggleRow
               title="Export automatically"
-              subtitle="Save each video to Photos when it's done"
+              subtitle="Saves each video to Photos"
               value={preset.autoExport}
               onChange={(v) => update((p) => ({ ...p, autoExport: v }))}
             />
@@ -443,12 +442,7 @@ export default function BatchSetupScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + 8 }]}>
         {limitedExports && (
           <AppText variant="caption" color={colors.textSecondary} style={styles.centerText} tabular>
-            {exportsLeft} of {monthlyExports} exports left this month · editing is unlimited
-          </AppText>
-        )}
-        {clips.length === 0 && !importing && (
-          <AppText variant="caption" color={colors.textMuted} style={styles.centerText}>
-            Add at least one clip to generate.
+            {exportsLeft} of {monthlyExports} exports left this month
           </AppText>
         )}
         <View ref={tourTarget('setup.generate')} collapsable={false}>
@@ -482,13 +476,13 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.6 },
   muted: { opacity: 0.45 },
   strip: { paddingHorizontal: spacing.gutter, gap: spacing.sm },
-  thumb: { width: 64, height: 88, borderRadius: radii.thumb, borderCurve: 'continuous' },
+  thumb: { width: 90, height: 136, borderRadius: radii.tile, borderCurve: 'continuous' },
   // A clear glass badge over the frame; bounded on both sides so a long label truncates inside the tile.
   duration: {
     position: 'absolute',
     bottom: 4,
     left: 4,
-    maxWidth: 56,
+    maxWidth: 82,
     minHeight: 20,
     paddingHorizontal: 6,
     gap: 0,
@@ -504,15 +498,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addTile: {
-    width: 64,
-    height: 88,
-    borderRadius: radii.thumb,
+    width: 90,
+    height: 136,
+    borderRadius: radii.tile,
     borderCurve: 'continuous',
     backgroundColor: colors.cardHigh,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyNote: { height: 88, justifyContent: 'center', paddingLeft: spacing.xs },
+  emptyNote: { height: 136, justifyContent: 'center', paddingLeft: spacing.xs },
   // 36 pt chips + 4 pt above and below = 44 pt touch targets inside the sideways rows (a ScrollView clips hitSlop).
   chipRow: { paddingHorizontal: spacing.gutter, paddingVertical: 4, gap: spacing.sm },
   note: { marginTop: spacing.xs },

@@ -82,16 +82,21 @@ export function clipCount(n: number) {
   return `${n} ${n === 1 ? 'clip' : 'clips'}`;
 }
 
-/** Grid item like Photos albums: the thumbnail carries the colour, text sits under it with no card box. */
+/**
+ * Grid item like a Photos album: the batch's first takes side by side (the batch at a glance), a title
+ * and one line of fact under it, no card box.
+ */
 export function BatchCard({ batch }: { batch: Batch }) {
   const all = useLibrary((s) => s.projects);
   const docs = useLibrary((s) => s.docs);
   const s = summarize(batch, all);
-  const first = s.projects[0];
   // A video made of several clips counts each of them (the poster is its first clip).
   const clips = s.projects.reduce((n, p) => n + playingClipCount(p, docs[p.id]), 0);
   const facts = s.totalSec > 0 ? `${clipCount(clips)} · ${formatDuration(s.totalSec)}` : clipCount(clips);
   const age = timeAgo(s.when);
+  const frames = s.projects.slice(0, 3);
+  // Not started / editing say so; finished batches just say how big they are.
+  const line = s.status === 'ready' || s.status === 'exported' ? `${clipCount(clips)} · ${age}` : s.line;
 
   return (
     <PressableScale
@@ -102,7 +107,10 @@ export function BatchCard({ batch }: { batch: Batch }) {
       accessibilityLabel={`${batch.title}. ${facts}. ${s.line}, ${age}.`}
       accessibilityHint={s.status === 'setup' ? 'Opens batch setup' : 'Opens the batch'}
       onPress={() => openBatch(batch, s.status)}>
-      <Thumb seed={seedOf(batch.id)} uri={first?.posterUri} style={styles.thumb}>
+      <View style={styles.mosaic}>
+        {(frames.length > 0 ? frames : [undefined]).map((p, i) => (
+          <Thumb key={p?.id ?? i} seed={seedOf(batch.id) + i} uri={p?.posterUri} style={styles.frame} />
+        ))}
         {s.status === 'processing' ? (
           <GlassSurface variant="clear" style={styles.status} pointerEvents="none">
             <ProgressRing progress={s.progress} size={20} stroke={2.5} showLabel={false} />
@@ -112,16 +120,13 @@ export function BatchCard({ batch }: { batch: Batch }) {
             <SymbolView name="checkmark" size={12} tintColor={colors.textPrimary} weight="semibold" />
           </GlassSurface>
         ) : null}
-      </Thumb>
+      </View>
       <View style={styles.text}>
         <AppText variant="bodyStrong" numberOfLines={1}>
           {batch.title}
         </AppText>
         <AppText variant="label" color={colors.textSecondary} numberOfLines={1} tabular>
-          {facts}
-        </AppText>
-        <AppText variant="caption" color={colors.textMuted} numberOfLines={1} tabular>
-          {s.line} · {age}
+          {line}
         </AppText>
       </View>
     </PressableScale>
@@ -130,7 +135,16 @@ export function BatchCard({ batch }: { batch: Batch }) {
 
 const styles = StyleSheet.create({
   card: { flex: 1 },
-  thumb: { height: 200, borderRadius: radii.card, borderCurve: 'continuous' },
+  mosaic: {
+    flexDirection: 'row',
+    gap: 2,
+    aspectRatio: 4 / 5,
+    borderRadius: radii.card,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    backgroundColor: colors.card,
+  },
+  frame: { flex: 1 },
   status: {
     position: 'absolute',
     top: 8,

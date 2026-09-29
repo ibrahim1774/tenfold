@@ -197,13 +197,13 @@ export default function ProcessingScreen() {
                 <View style={styles.onDevice}>
                   <SymbolView name="iphone" size={12} tintColor={colors.textMuted} weight="regular" />
                   <AppText variant="caption" color={colors.textMuted}>
-                    On this iPhone · keep Tenfold open
+                    Keep Tenfold open
                   </AppText>
                 </View>
               )}
               {lowPower && working && (
                 <AppText variant="caption" color={colors.orange}>
-                  Low Power Mode is on, so this is slower.
+                  Low Power Mode slows this down
                 </AppText>
               )}
             </View>
@@ -242,11 +242,6 @@ export default function ProcessingScreen() {
         {Number.isFinite(left) && (
           <AppText variant="caption" color={colors.textSecondary} style={styles.center} tabular>
             {Math.max(0, left)} {left === 1 ? 'export' : 'exports'} left this month
-          </AppText>
-        )}
-        {exportable.length === 0 && done < total && (
-          <AppText variant="caption" color={colors.textMuted} style={styles.center}>
-            {inFlight > 0 ? 'Exporting now.' : 'Videos can be exported once they are ready.'}
           </AppText>
         )}
         <GradientButton

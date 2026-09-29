@@ -7,7 +7,7 @@ import { AppText } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
 import { colors, radii, spacing } from '@/design/tokens';
 
-/** Screen title plus one line saying why we ask. */
+/** Screen title, plus one short line only where it prevents a mistake. */
 export function StepHead({ title, body }: { title: string; body?: ReactNode }) {
   return (
     <View style={styles.head}>
@@ -15,7 +15,7 @@ export function StepHead({ title, body }: { title: string; body?: ReactNode }) {
         {title}
       </AppText>
       {body ? (
-        <AppText variant="body" color={colors.textSecondary}>
+        <AppText variant="label" color={colors.textSecondary}>
           {body}
         </AppText>
       ) : null}
@@ -25,7 +25,10 @@ export function StepHead({ title, body }: { title: string; body?: ReactNode }) {
 
 export type Choice<T extends string> = { v: T; label: string; detail?: string; icon?: SFSymbol };
 
-/** Grouped inset rows like iOS Settings. Single choice shows a radio; multi shows checkmarks. */
+/**
+ * Tall, quiet answer rows on the black page: the label alone, a mark on the right. The chosen row lifts
+ * onto a graphite fill. `detail` stays in the VoiceOver label; the screen keeps to the label.
+ */
 export function ChoiceList<T extends string>({
   choices,
   selected,
@@ -38,8 +41,8 @@ export function ChoiceList<T extends string>({
   multi?: boolean;
 }) {
   return (
-    <View style={styles.group} accessibilityRole={multi ? undefined : 'radiogroup'}>
-      {choices.map((c, i) => {
+    <View style={styles.list} accessibilityRole={multi ? undefined : 'radiogroup'}>
+      {choices.map((c) => {
         const on = selected.includes(c.v);
         return (
           <Pressable
@@ -51,20 +54,12 @@ export function ChoiceList<T extends string>({
             accessibilityRole={multi ? 'checkbox' : 'radio'}
             accessibilityState={{ checked: on }}
             accessibilityLabel={c.detail ? `${c.label}. ${c.detail}` : c.label}
-            style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
-            {/* iOS inset-group hairline: starts where the text starts, not at the edge. */}
-            {i > 0 ? <View style={[styles.divider, { left: c.icon ? DIVIDER_ICON_INSET : spacing.lg }]} /> : null}
-            {c.icon ? <SymbolView name={c.icon} size={20} tintColor={colors.textPrimary} weight="regular" style={styles.icon} /> : null}
-            <View style={styles.flex}>
-              <AppText variant="bodyStrong">{c.label}</AppText>
-              {c.detail ? (
-                <AppText variant="label" color={colors.textSecondary}>
-                  {c.detail}
-                </AppText>
-              ) : null}
-            </View>
+            style={({ pressed }) => [styles.row, on && styles.on, pressed && !on && styles.pressed]}>
+            <AppText variant="bodyStrong" color={on ? colors.textPrimary : colors.textSecondary} style={styles.flex}>
+              {c.label}
+            </AppText>
             <SymbolView
-              name={on ? 'checkmark.circle.fill' : 'circle'}
+              name={on ? (multi ? 'checkmark.square.fill' : 'checkmark.circle.fill') : multi ? 'square' : 'circle'}
               size={22}
               tintColor={on ? colors.textPrimary : colors.textMuted}
               weight="regular"
@@ -76,9 +71,6 @@ export function ChoiceList<T extends string>({
   );
 }
 
-const ICON_SIZE = 24;
-const DIVIDER_ICON_INSET = spacing.lg + ICON_SIZE + spacing.lg;
-
 export const onboardingStyles = StyleSheet.create({
   pad: { flexGrow: 1, paddingHorizontal: spacing.gutter, gap: spacing.xxl, paddingBottom: spacing.lg },
 });
@@ -86,14 +78,16 @@ export const onboardingStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   head: { gap: spacing.sm },
-  group: {
+  list: { gap: spacing.xs, marginHorizontal: -spacing.md },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    minHeight: 60,
+    paddingHorizontal: spacing.md,
     borderRadius: radii.card,
     borderCurve: 'continuous',
-    backgroundColor: colors.card,
-    overflow: 'hidden',
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, minHeight: 56, paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
-  divider: { position: 'absolute', top: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: colors.separator },
-  pressed: { backgroundColor: colors.cardHigh },
-  icon: { width: ICON_SIZE, height: ICON_SIZE },
+  on: { backgroundColor: colors.card },
+  pressed: { backgroundColor: 'rgba(255,255,255,0.05)' },
 });

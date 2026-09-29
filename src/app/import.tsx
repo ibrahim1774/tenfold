@@ -1,5 +1,4 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -9,7 +8,6 @@ import { importJoinedBatch, importNewBatch, useImporting } from '@/batch/importC
 import {
   AppText,
   Background,
-  Card,
   Chip,
   ChipGroup,
   GradientButton,
@@ -19,17 +17,9 @@ import {
   Thumb,
 } from '@/design/components';
 import { sampleFrame } from '@/design/sampleFrames';
-import type { SFSymbol } from '@/design/symbols';
 import { colors, motion, radii, spacing } from '@/design/tokens';
 import { Engine, EngineEvents, engineAvailable } from '@/engine';
-import { nextTier } from '@/onboarding/plans';
-import { maxBatchSize, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
-
-const FACTS: { icon: SFSymbol; text: string }[] = [
-  { icon: 'doc.on.doc', text: 'Clips are copied into Tenfold. Your originals in Photos stay untouched.' },
-  { icon: 'iphone', text: 'Editing happens on this iPhone. Nothing is uploaded.' },
-  { icon: 'icloud.and.arrow.down', text: 'Clips stored in iCloud download first, which can take a minute.' },
-];
+import { maxBatchSize, tierOf, useEntitlements } from '@/state/entitlements';
 
 export default function ImportScreen() {
   const insets = useSafeAreaInsets();
@@ -40,7 +30,6 @@ export default function ImportScreen() {
   const [mode, setMode] = useState<'single' | 'multiple'>(params.mode === 'multiple' && canJoin ? 'multiple' : 'single');
   const tier = useEntitlements((s) => tierOf(s));
   const limit = maxBatchSize(tier);
-  const bigger = nextTier(tier);
   const busy = useImporting((s) => s.busy);
   const [progress, setProgress] = useState<{ index: number; total: number } | null>(null);
   const available = engineAvailable();
@@ -82,7 +71,7 @@ export default function ImportScreen() {
           {[2, 1, 0].map((i) => (
             <View
               key={i}
-              style={[styles.stackCard, { transform: [{ rotate: `${(i - 1) * 6}deg` }, { translateX: (i - 1) * 30 }] }]}>
+              style={[styles.stackCard, { transform: [{ rotate: `${(i - 1) * 7}deg` }, { translateX: (i - 1) * 44 }, { translateY: Math.abs(i - 1) * 10 }] }]}>
               <Thumb seed={i + 4} source={sampleFrame(i + 1)} style={styles.stackThumb} />
             </View>
           ))}
@@ -91,9 +80,7 @@ export default function ImportScreen() {
           Pick your clips
         </AppText>
         <AppText variant="body" color={colors.textSecondary} style={styles.text}>
-          {mode === 'multiple'
-            ? `Choose up to ${limit} clips. They play one after another in the order you pick them, as one video.`
-            : `Choose up to ${limit} videos of someone talking to camera. You can add more to the batch later.`}
+          {mode === 'multiple' ? `Up to ${limit} clips, joined in the order you pick.` : `Up to ${limit} clips. Originals stay in Photos.`}
         </AppText>
         {canJoin && !busy && (
           <View style={styles.modes} accessibilityRole="radiogroup" accessibilityLabel="Each video is">
@@ -105,37 +92,19 @@ export default function ImportScreen() {
         )}
 
         {copying ? (
-          <Animated.View entering={FadeIn.duration(motion.fast)}>
-            <Card style={styles.card}>
-              <View style={styles.progressHead}>
-                <AppText variant="bodyStrong" tabular style={styles.flex}>
-                  Copying clip {current} of {copying.total}
-                </AppText>
-              </View>
-              <View
-                accessible
-                accessibilityRole="progressbar"
-                accessibilityLabel="Copying clips"
-                accessibilityValue={{ min: 0, max: copying.total, now: copying.index }}>
-                <ProgressBar progress={copying.index / copying.total} height={4} />
-              </View>
-              <AppText variant="label" color={colors.textSecondary}>
-                Keep this screen open. Clips in iCloud download first.
-              </AppText>
-            </Card>
+          <Animated.View entering={FadeIn.duration(motion.fast)} style={styles.copying}>
+            <View
+              accessible
+              accessibilityRole="progressbar"
+              accessibilityLabel="Copying clips"
+              accessibilityValue={{ min: 0, max: copying.total, now: copying.index }}>
+              <ProgressBar progress={copying.index / copying.total} height={3} />
+            </View>
+            <AppText variant="label" color={colors.textSecondary} style={styles.text}>
+              Keep this open. iCloud clips download first.
+            </AppText>
           </Animated.View>
-        ) : (
-          <Card style={styles.card}>
-            {FACTS.map((f) => (
-              <View key={f.text} style={styles.factRow}>
-                <SymbolView name={f.icon} size={17} tintColor={colors.textSecondary} weight="regular" style={styles.factIcon} />
-                <AppText variant="label" color={colors.textSecondary} style={styles.flex}>
-                  {f.text}
-                </AppText>
-              </View>
-            ))}
-          </Card>
-        )}
+        ) : null}
       </View>
 
       <View style={styles.footer}>
@@ -147,11 +116,7 @@ export default function ImportScreen() {
         />
         {!available ? (
           <AppText variant="caption" color={colors.textMuted} style={styles.text}>
-            This build doesn’t include the video engine. Install the latest build to import clips.
-          </AppText>
-        ) : bigger ? (
-          <AppText variant="caption" color={colors.textMuted} style={styles.text} tabular>
-            {TIER_NAMES[tier]}: {limit} clips per batch. {TIER_NAMES[bigger]}: {maxBatchSize(bigger)}.
+            This build has no video engine. Install the latest build.
           </AppText>
         ) : null}
       </View>
@@ -174,21 +139,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.25)',
   },
   center: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.gutter, gap: spacing.md },
-  stack: { height: 180, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg },
+  stack: { height: 250, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xl },
   stackCard: { position: 'absolute' },
   stackThumb: {
-    width: 96,
-    height: 164,
+    width: 124,
+    height: 220,
     borderRadius: radii.thumb,
     borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderStrong,
   },
   text: { textAlign: 'center' },
-  card: { gap: spacing.md, marginTop: spacing.lg },
-  progressHead: { flexDirection: 'row', alignItems: 'center' },
-  factRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  factIcon: { width: 22, height: 20 },
+  copying: { gap: spacing.sm, marginTop: spacing.lg },
   footer: { paddingHorizontal: spacing.gutter, gap: spacing.sm },
   modes: { alignItems: 'center' },
 });

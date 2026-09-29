@@ -3,8 +3,9 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 
-import { AppText, Background, Chip, GradientButton, IconButton } from '@/design/components';
-import { colors, motion, spacing } from '@/design/tokens';
+import { AppText, Background, Chip, GradientButton, IconButton, Thumb } from '@/design/components';
+import { sampleFrame } from '@/design/sampleFrames';
+import { colors, motion, radii, spacing } from '@/design/tokens';
 import type { BatchStatus } from '@/engine/types';
 import { BatchCard } from '@/library/BatchCard';
 import { batchStatus, useLibrary } from '@/state/library';
@@ -13,10 +14,10 @@ type Filter = 'all' | BatchStatus;
 
 const FILTERS: { v: Filter; l: string; none: string }[] = [
   { v: 'all', l: 'All', none: '' },
-  { v: 'setup', l: 'Not started', none: 'Every batch has been started.' },
-  { v: 'processing', l: 'Editing', none: 'Nothing is being edited right now.' },
-  { v: 'ready', l: 'Ready', none: 'No batches are waiting to export.' },
-  { v: 'exported', l: 'Exported', none: 'No batch has been fully exported yet.' },
+  { v: 'setup', l: 'Not started', none: 'None waiting to start' },
+  { v: 'processing', l: 'Editing', none: 'Nothing editing' },
+  { v: 'ready', l: 'Ready', none: 'Nothing ready to export' },
+  { v: 'exported', l: 'Exported', none: 'Nothing exported yet' },
 ];
 
 export default function LibraryScreen() {
@@ -57,11 +58,12 @@ export default function LibraryScreen() {
 
         {total === 0 ? (
           <View style={styles.empty}>
+            <Thumb seed={0} source={sampleFrame(6)} style={styles.emptyFrame} />
             <AppText variant="title" style={styles.center}>
               No batches yet
             </AppText>
-            <AppText variant="body" color={colors.textSecondary} style={styles.center}>
-              Batches you edit are kept here, newest first, with their clips and exported videos.
+            <AppText variant="label" color={colors.textSecondary} style={styles.center}>
+              Every batch you make lands here.
             </AppText>
             <GradientButton title="New batch" icon="plus" onPress={() => router.push('/import')} style={styles.emptyBtn} />
           </View>
@@ -113,7 +115,8 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.gutter },
   grid: { gap: spacing.xl },
   gridRow: { flexDirection: 'row', gap: spacing.md },
-  empty: { alignItems: 'center', gap: spacing.md, marginTop: spacing.xxl * 2, paddingHorizontal: spacing.lg },
+  empty: { alignItems: 'center', gap: spacing.sm, marginTop: spacing.xxl * 2, paddingHorizontal: spacing.lg },
+  emptyFrame: { width: 120, height: 160, borderRadius: radii.card, marginBottom: spacing.md, opacity: 0.85 },
   center: { textAlign: 'center' },
-  emptyBtn: { alignSelf: 'stretch', marginTop: spacing.sm },
+  emptyBtn: { alignSelf: 'stretch', marginTop: spacing.lg },
 });

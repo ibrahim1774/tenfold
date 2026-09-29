@@ -2,12 +2,15 @@ import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import * as WebBrowser from 'expo-web-browser';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Background, GradientButton, IconButton } from '@/design/components';
+import { sampleFrame } from '@/design/sampleFrames';
 import { colors, motion, radii, spacing } from '@/design/tokens';
 import { useStoreActions, type StorePrice } from '@/monetization/superwall';
 import {
@@ -28,6 +31,9 @@ import {
 } from '@/onboarding/plans';
 import { tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
 import { useSettings } from '@/state/settings';
+
+const HERO = 260;
+const BENEFITS = ['Silences and filler words cut', 'Word-by-word captions', 'Framed for vertical', 'No watermark'];
 
 // Tenfold's own paywall. Superwall presents the paywalls normally (src/monetization); this screen is the
 // fallback when this build has no Superwall module or a paywall can't be presented.
@@ -144,23 +150,33 @@ export default function PaywallScreen() {
   ];
 
   return (
-    <View style={[styles.flex, { paddingTop: insets.top + spacing.xs, paddingBottom: insets.bottom + spacing.xs }]}>
+    <View style={[styles.flex, { paddingBottom: insets.bottom + spacing.xs }]}>
       <Background />
 
-      <View style={styles.top}>
-        <IconButton icon="xmark" label={fromOnboarding ? 'Not now' : 'Close'} onPress={close} />
-      </View>
-
       <ScrollView style={styles.flex} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.head}>
-          <AppText variant="display" accessibilityRole="header">
-            {trial ? `Try Tenfold free for ${TRIAL_DAYS} days` : 'Choose your plan'}
-          </AppText>
-          <AppText variant="body" color={colors.textSecondary}>
-            {trial
-              ? `Cuts dead silences and filler words, adds captions, frames for vertical. Every plan starts with a ${TRIAL_DAYS}-day free trial.`
-              : 'Cuts dead silences and filler words, adds captions, frames for vertical. Change plans any time.'}
-          </AppText>
+        {/* A real take, darkened into the page, with the offer set on it. */}
+        <View style={[styles.hero, { height: HERO + insets.top }]}>
+          <Image source={sampleFrame(4)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" transition={0} />
+          <LinearGradient
+            colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.35)', colors.bg]}
+            locations={[0, 0.55, 1]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+          <View style={styles.heroText}>
+            <AppText variant="display" accessibilityRole="header">
+              {trial ? `Try Tenfold free for ${TRIAL_DAYS} days` : 'Choose your plan'}
+            </AppText>
+          </View>
+        </View>
+
+        <View style={styles.benefits}>
+          {BENEFITS.map((b) => (
+            <View key={b} style={styles.benefit}>
+              <SymbolView name="checkmark" size={13} tintColor={colors.textPrimary} weight="semibold" />
+              <AppText variant="body">{b}</AppText>
+            </View>
+          ))}
         </View>
 
         <View style={styles.segment} accessibilityRole="tablist">
@@ -205,6 +221,11 @@ export default function PaywallScreen() {
           ))}
         </View>
       </ScrollView>
+
+      {/* Over the image, so it stays put while the page scrolls. */}
+      <View style={[styles.top, { top: insets.top + spacing.xs }]}>
+        <IconButton icon="xmark" label={fromOnboarding ? 'Not now' : 'Close'} onPress={close} />
+      </View>
 
       <View style={styles.footer}>
         <GradientButton
@@ -272,6 +293,8 @@ function PlanCard({
         ? `${TRIAL_DAYS} days free`
         : null
     : null;
+  // The fact that tells the plans apart; the full list is in the VoiceOver label.
+  const facts = plan.features[1];
   return (
     <Pressable
       onPress={onPress}
@@ -296,25 +319,20 @@ function PlanCard({
               </AppText>
             ) : null}
           </View>
+          <AppText variant="label" color={colors.textSecondary} tabular numberOfLines={1}>
+            {facts}
+          </AppText>
+        </View>
+        <View style={styles.priceCol}>
+          <AppText variant="bodyStrong" tabular>
+            {price}
+          </AppText>
           {detail ? (
-            <AppText variant="label" color={colors.textSecondary} tabular>
+            <AppText variant="caption" color={colors.textMuted} tabular>
               {detail}
             </AppText>
           ) : null}
         </View>
-        <AppText variant="bodyStrong" tabular>
-          {price}
-        </AppText>
-      </View>
-      <View style={styles.features}>
-        {plan.features.map((f) => (
-          <View key={f} style={styles.feature}>
-            <SymbolView name="checkmark" size={12} tintColor={colors.textSecondary} weight="regular" />
-            <AppText variant="label" color={colors.textSecondary}>
-              {f}
-            </AppText>
-          </View>
-        ))}
       </View>
     </Pressable>
   );
@@ -323,9 +341,12 @@ function PlanCard({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { textAlign: 'center' },
-  top: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: spacing.md },
-  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.sm, paddingBottom: spacing.xl, gap: spacing.xl },
-  head: { gap: spacing.sm },
+  top: { position: 'absolute', right: spacing.md },
+  content: { paddingHorizontal: spacing.gutter, paddingBottom: spacing.xl, gap: spacing.xl },
+  hero: { marginHorizontal: -spacing.gutter, justifyContent: 'flex-end', backgroundColor: colors.card },
+  heroText: { paddingHorizontal: spacing.gutter },
+  benefits: { gap: spacing.sm, marginTop: -spacing.sm },
+  benefit: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
 
   segment: { flexDirection: 'row', padding: 3, borderRadius: radii.button, backgroundColor: colors.card },
   segmentItem: {
@@ -340,7 +361,7 @@ const styles = StyleSheet.create({
   segmentOn: { backgroundColor: colors.textPrimary },
   savePill: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: radii.round, backgroundColor: colors.bg },
 
-  plans: { gap: spacing.md },
+  plans: { gap: spacing.sm },
   plan: {
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
@@ -355,8 +376,7 @@ const styles = StyleSheet.create({
   planOn: { borderColor: colors.textPrimary },
   planHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
   planName: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  features: { paddingLeft: 22 + spacing.md, gap: 2 },
-  feature: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  priceCol: { alignItems: 'flex-end' },
 
   footer: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.xs },
   textButton: { minHeight: 44, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
