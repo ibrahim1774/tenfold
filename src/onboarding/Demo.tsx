@@ -96,7 +96,7 @@ async function runDemo(onStage: (stage: string, fraction: number) => void): Prom
 
 /**
  * Runs the real engine on the bundled sample clip and shows what it cut. Used as an onboarding step and
- * as the /demo screen ("Replay the demo" on Home and in Settings).
+ * as the /demo screen ("Replay the demo" on Create and in You).
  */
 export function Demo({ mode, onContinue }: { mode: DemoMode; onContinue: () => void }) {
   const [phase, setPhase] = useState<Phase>(() =>

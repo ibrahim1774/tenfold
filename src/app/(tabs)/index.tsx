@@ -30,7 +30,7 @@ import { prepareSpeech } from '@/state/speech';
 
 const RECENT = 6;
 
-export default function HomeScreen() {
+export default function CreateScreen() {
   const tier = useEntitlements((s) => tierOf(s));
   const isPro = tier !== 'free';
   const limit = maxBatchSize(tier);
@@ -54,17 +54,12 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <AppText variant="display" accessibilityRole="header" style={styles.flex}>
-            Tenfold
+            Create
           </AppText>
           <ProPill isPro={isPro} name={TIER_NAMES[tier]} />
-          {empty ? (
-            <MoreButton />
-          ) : (
-            <>
-              <IconButton icon="video" label="Record a clip" onPress={() => router.push('/record')} />
-              <IconButton icon="plus" label="New batch" onPress={() => router.push('/import')} />
-            </>
-          )}
+          <MoreButton />
+          {/* The import screen (join clips, sample): the long way in, next to the direct buttons below. */}
+          {!empty && <IconButton icon="plus" label="New batch" onPress={() => router.push('/import')} />}
         </View>
 
         <SpeechLine />
@@ -73,6 +68,8 @@ export default function HomeScreen() {
           <FirstBatch limit={limit} />
         ) : (
           <>
+            {/* Record or import first, whatever else is going on; batches in progress and recent ones below. */}
+            <CreateActions />
             {running.length > 0 && (
               <Animated.View layout={LinearTransition.duration(motion.base)} style={styles.section}>
                 {running.map(({ batch, summary }) => (
@@ -118,9 +115,28 @@ export default function HomeScreen() {
   );
 }
 
-/** Empty Home: the wall of finished takes, one line, and the one thing to do first. */
+/** Empty Create: the wall of finished takes, one line, and the two ways to start. */
 function FirstBatch({ limit }: { limit: number }) {
   const { height } = useWindowDimensions();
+  const available = engineAvailable();
+  return (
+    <View style={styles.first}>
+      <TakesWall pill={`Up to ${limit} at once`} style={[styles.wall, { height: Math.round(height * 0.42) }]} />
+      <View style={styles.firstText}>
+        <AppText variant="title" accessibilityRole="header">
+          Make your first batch
+        </AppText>
+        <AppText variant="label" color={colors.textSecondary}>
+          {available ? 'Pauses cut, captions on, framed for vertical.' : 'This build has no video engine. Install the latest build.'}
+        </AppText>
+      </View>
+      <CreateActions />
+    </View>
+  );
+}
+
+/** The screen's job: import clips from Photos (the primary action) or record one now. */
+function CreateActions() {
   const busy = useImporting((s) => s.busy);
   const [copying, setCopying] = useState<{ index: number; total: number } | null>(null);
   const available = engineAvailable();
@@ -144,20 +160,9 @@ function FirstBatch({ limit }: { limit: number }) {
         : 'Import clips';
 
   return (
-    <View style={styles.first}>
-      <TakesWall pill={`Up to ${limit} at once`} style={[styles.wall, { height: Math.round(height * 0.42) }]} />
-      <View style={styles.firstText}>
-        <AppText variant="title" accessibilityRole="header">
-          Make your first batch
-        </AppText>
-        <AppText variant="label" color={colors.textSecondary}>
-          {available ? 'Pauses cut, captions on, framed for vertical.' : 'This build has no video engine. Install the latest build.'}
-        </AppText>
-      </View>
-      <View style={styles.firstActions}>
-        <GradientButton title={title} icon={busy ? false : 'photo.on.rectangle'} disabled={busy || !available} onPress={importClips} />
-        <OutlineButton title="Record a clip" icon="video" onPress={() => router.push('/record')} disabled={busy} />
-      </View>
+    <View style={styles.firstActions}>
+      <GradientButton title={title} icon={busy ? false : 'photo.on.rectangle'} disabled={busy || !available} onPress={importClips} />
+      <OutlineButton title="Record a clip" icon="video" onPress={() => router.push('/record')} disabled={busy} />
     </View>
   );
 }
@@ -180,7 +185,7 @@ function MoreButton() {
 }
 
 function ProPill({ isPro, name }: { isPro: boolean; name: string }) {
-  // Free: the same plans paywall as Settings "See plans".
+  // Free: the same plans paywall as You → Upgrade.
   const gate = usePaywallGate();
   if (isPro) {
     return (

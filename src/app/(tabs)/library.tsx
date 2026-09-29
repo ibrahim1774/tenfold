@@ -44,7 +44,7 @@ export default function LibraryScreen() {
         <View style={styles.headRow}>
           <View style={styles.head}>
             <AppText variant="display" accessibilityRole="header">
-              Library
+              Cuts
             </AppText>
             {total > 0 && (
               <AppText variant="label" color={colors.textSecondary} tabular>

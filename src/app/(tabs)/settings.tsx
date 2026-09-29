@@ -13,7 +13,16 @@ import { Engine, engineAvailable } from '@/engine';
 import { usePaywallGate, useStoreActions } from '@/monetization/superwall';
 import { hasSampleClip } from '@/onboarding/fileImport';
 import { PRIVACY_URL, TERMS_URL } from '@/onboarding/plans';
-import { exportLimit, exportsResetDate, exportsUsedThisMonth, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
+import {
+  exportLimit,
+  exportUsageLine,
+  exportsUsedThisMonth,
+  maxBatchSize,
+  planLabel,
+  tierOf,
+  TIER_NAMES,
+  useEntitlements,
+} from '@/state/entitlements';
 import { useOnboarding } from '@/state/onboarding';
 import { PRESET_OPTIONS } from '@/state/presets';
 import { useSettings } from '@/state/settings';
@@ -42,11 +51,10 @@ const ICON_GAP = 14;
 // Accent for in-place action rows (iOS tints these instead of adding a chevron).
 const ACTION = colors.accentText;
 
-export default function SettingsScreen() {
+export default function YouScreen() {
   const { speech, speechProgress, speechLocale, defaultPreset, keepHDR, setDefaultPreset, setKeepHDR, setOnboarded } = useSettings();
   const ent = useEntitlements();
   const tier = tierOf(ent);
-  const isPro = tier !== 'free';
   const gate = usePaywallGate();
   const store = useStoreActions();
   const resetTour = useOnboarding((s) => s.resetTour);
@@ -101,10 +109,16 @@ export default function SettingsScreen() {
   const limit = exportLimit(tier);
   const limited = Number.isFinite(limit);
   const used = limited ? Math.min(limit, exportsUsedThisMonth(ent)) : 0;
-  const resets = exportsResetDate().toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+  const usage = exportUsageLine(ent);
 
   // Superwall's paywall for this placement, or Tenfold's own when none is shown. Nothing to unlock here.
-  const seePlans = () => gate({ placement: 'settings_upgrade', allowed: () => false });
+  const seePlans = () => gate({ placement: 'settings_upgrade', params: { source: 'you', tier }, allowed: () => false });
+
+  // Apple's own subscription screen (change, cancel, see renewal). The App Store app, else the web page.
+  const manageSubscription = () =>
+    Linking.openURL('itms-apps://apps.apple.com/account/subscriptions').catch(() =>
+      Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => {}),
+    );
 
   const restore = async () => {
     const result = await store.restore();
@@ -135,39 +149,28 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}>
         <AppText variant="display" accessibilityRole="header" style={styles.screenTitle}>
-          Settings
+          You
         </AppText>
 
         <Group title="Plan">
-          <Row icon="crown" title="Plan" value={TIER_NAMES[tier]} />
-          {limited && (
-            <View
-              style={styles.meter}
-              accessible
-              accessibilityLabel={`${used} of ${limit} exports used this month. Resets on ${resets}.`}>
-              <ProgressBar progress={used / limit} height={4} />
-              <AppText variant="caption" color={colors.textSecondary} tabular>
-                {used} of {limit} exports used · resets on {resets}
-              </AppText>
-              <View style={[styles.divider, { left: ROW_PAD + ICON_BOX + ICON_GAP }]} />
-            </View>
-          )}
-          <Row icon="square.grid.2x2" title="See plans" accessory="chevron" onPress={seePlans} />
-          {isPro ? (
-            <Row
-              icon="creditcard"
-              title="Manage subscription"
-              accessory="external"
-              onPress={() => Linking.openURL('https://apps.apple.com/account/subscriptions')}
-            />
+          <Row icon="crown" title="Plan" value={planLabel(tier, ent.billing)} />
+          <View style={styles.meter} accessible accessibilityLabel={usage}>
+            {limited && <ProgressBar progress={used / limit} height={4} />}
+            <AppText variant="caption" color={colors.textSecondary} tabular>
+              {usage}
+            </AppText>
+            <View style={[styles.divider, { left: ROW_PAD + ICON_BOX + ICON_GAP }]} />
+          </View>
+          <Row icon="square.stack" title="Batch size" value={`Up to ${maxBatchSize(tier)} clips`} />
+          {tier === 'free' ? (
+            <Row icon="arrow.up.circle" title="Upgrade" accessory="chevron" onPress={seePlans} />
+          ) : tier !== 'studio' ? (
+            <Row icon="arrow.up.arrow.down.circle" title="Change plan" accessory="chevron" onPress={seePlans} />
           ) : null}
-          <Row
-            icon="arrow.clockwise"
-            title="Restore purchases"
-            action
-            onPress={restore}
-            last
-          />
+          {tier !== 'free' ? (
+            <Row icon="creditcard" title="Manage subscription" accessory="external" onPress={manageSubscription} />
+          ) : null}
+          <Row icon="arrow.clockwise" title="Restore purchases" action onPress={restore} last />
         </Group>
 
         <Group title="Speech">

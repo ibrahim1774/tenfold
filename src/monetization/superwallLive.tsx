@@ -12,13 +12,13 @@ import {
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { logAttributionEvent, setAttributionUser, startAttribution, trackingAnswered } from '@/attribution/appsflyer';
-import { PRODUCT_IDS, TIERS, tierRank } from '@/onboarding/plans';
+import { PRODUCT_IDS, TIERS } from '@/onboarding/plans';
 import { tierOf, useEntitlements } from '@/state/entitlements';
 import { useOnboarding } from '@/state/onboarding';
 import { useSettings } from '@/state/settings';
 
 import { SUPERWALL_IOS_KEY } from './keys';
-import { onboardingAttributes, tierFromEntitlements, tierFromStatus } from './tiers';
+import { onboardingAttributes, planFromStatus, raisedPlan, type CustomerInfoLike } from './tiers';
 import type { GateRequest, PurchaseOutcome, StoreActions, StorePrice } from './types';
 
 const API_KEYS = { ios: SUPERWALL_IOS_KEY };
@@ -40,14 +40,18 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Superwall's subscription status → the persisted tier. UNKNOWN keeps the last known tier. */
+/**
+ * Superwall's subscription status (and customer info, for the billing period and a product-id fallback)
+ * → the persisted plan. Runs on every change, so a purchase, renewal, upgrade, downgrade or expiry applies
+ * at once. UNKNOWN keeps the last known plan. The month's export count is never reset here.
+ */
 function SubscriptionSync() {
-  const { subscriptionStatus } = useUser();
+  const { subscriptionStatus, customerInfo } = useUser();
   useEffect(() => {
     const s = useEntitlements.getState();
-    const next = tierFromStatus(subscriptionStatus, tierOf(s));
-    if (s.tier !== next || s.isPro !== (next !== 'free')) s.setTier(next);
-  }, [subscriptionStatus]);
+    const next = planFromStatus(subscriptionStatus, customerInfo as CustomerInfoLike, { tier: tierOf(s), billing: s.billing });
+    if (s.tier !== next.tier || s.billing !== next.billing || s.isPro !== (next.tier !== 'free')) s.setPlan(next);
+  }, [subscriptionStatus, customerInfo]);
   return null;
 }
 
@@ -148,22 +152,32 @@ function showFallback(req: GateRequest) {
   router.push(req.fallback ?? { pathname: '/paywall', params: { from: req.placement } });
 }
 
-/** Raises the local tier from Superwall's entitlements right after a purchase, before the status event lands. */
-async function refreshTier(getEntitlements: () => Promise<{ active: { id: string }[] }>) {
-  try {
-    const info = await getEntitlements();
-    const fresh = tierFromEntitlements(info.active.map((e) => e.id));
-    const s = useEntitlements.getState();
-    if (tierRank(fresh) > tierRank(tierOf(s))) s.setTier(fresh);
-  } catch {
-    // Keep the last known tier.
-  }
+type Fetchers = {
+  getEntitlements: () => Promise<{ active: { id: string }[] }>;
+  getCustomerInfo?: () => Promise<unknown>;
+};
+
+/**
+ * Raises the local plan from Superwall's entitlements (or active products) right after a purchase or restore,
+ * before the status event lands. Never lowers it; SubscriptionSync does that.
+ */
+async function refreshTier({ getEntitlements, getCustomerInfo }: Fetchers, purchasedProductId?: string) {
+  const [ent, info] = await Promise.all([
+    getEntitlements().catch(() => ({ active: [] as { id: string }[] })),
+    getCustomerInfo ? getCustomerInfo().catch(() => null) : Promise.resolve(null),
+  ]);
+  const s = useEntitlements.getState();
+  const next = raisedPlan(
+    { tier: tierOf(s), billing: s.billing },
+    { entitlementIds: ent.active.map((e) => e.id), info: info as CustomerInfoLike, purchasedProductId },
+  );
+  if (next) s.setPlan(next);
 }
 
 /** Registers placements through Superwall; see ./superwall.ts `usePaywallGate`. */
 export function useLiveGate(): (req: GateRequest) => void {
   const current = useRef<{ req: GateRequest; presented: boolean; skip: PaywallSkippedReason | null; done: boolean } | null>(null);
-  const { getEntitlements } = useUser();
+  const { getEntitlements, getCustomerInfo } = useUser();
   // Configured once is enough: a later config refresh failing leaves the SDK on its cached config.
   const ready = useSuperwall((s) => ({ ok: s.isConfigured })).ok;
 
@@ -206,7 +220,7 @@ export function useLiveGate(): (req: GateRequest) => void {
         // Superwall calls this when it grants access: skipped paywall, purchase or restore, or a
         // non-gated paywall closing. https://superwall.com/docs/expo/sdk-reference/hooks/usePlacement
         feature: async () => {
-          await refreshTier(getEntitlements);
+          await refreshTier({ getEntitlements, getCustomerInfo });
           if (req.allowed) {
             if (req.allowed()) finish(c);
             else if (!c.presented) showFallback(req); // no paywall shown (e.g. no campaign yet): show ours
@@ -219,7 +233,7 @@ export function useLiveGate(): (req: GateRequest) => void {
         if (!c.done) showFallback(req);
       });
     },
-    [ready, registerPlacement, getEntitlements],
+    [ready, registerPlacement, getEntitlements, getCustomerInfo],
   );
 }
 
@@ -230,10 +244,11 @@ let loadedPrices: Record<string, StorePrice> | null = null;
 
 /** Purchase, restore and localized prices for the native fallback paywall. */
 export function useLiveStore(): StoreActions {
-  const { purchase, restorePurchases, getEntitlements, products, ready } = useSuperwall((s) => ({
+  const { purchase, restorePurchases, getEntitlements, getCustomerInfo, products, ready } = useSuperwall((s) => ({
     purchase: s.purchase,
     restorePurchases: s.restorePurchases,
     getEntitlements: s.getEntitlements,
+    getCustomerInfo: s.getCustomerInfo,
     products: s.products,
     ready: s.isConfigured,
   }));
@@ -263,7 +278,7 @@ export function useLiveStore(): StoreActions {
       if (!ready) return 'unavailable';
       try {
         const result = await purchase(productId);
-        if (result.type === 'purchased') await refreshTier(getEntitlements);
+        if (result.type === 'purchased') await refreshTier({ getEntitlements, getCustomerInfo }, productId);
         return result.type as PurchaseOutcome;
       } catch {
         return 'failed';
@@ -273,7 +288,7 @@ export function useLiveStore(): StoreActions {
       if (!ready) return { ok: false, message: OFFLINE };
       try {
         const result = await restorePurchases();
-        if (result.result === 'restored') await refreshTier(getEntitlements);
+        if (result.result === 'restored') await refreshTier({ getEntitlements, getCustomerInfo });
         return result.result === 'restored' ? { ok: true } : { ok: false, message: result.errorMessage ?? undefined };
       } catch (e) {
         return { ok: false, message: e instanceof Error ? e.message : String(e) };

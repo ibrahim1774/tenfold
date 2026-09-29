@@ -283,6 +283,8 @@ async function main() {
     lib().deleteBatch(jb);
   }
 
+  await planLimitQueueSection();
+
   runCaptionEditTests(check);
   runTextOverlayTests(check);
   runAudioClipTests(check);
@@ -293,6 +295,64 @@ async function main() {
   process.exit(fails ? 1 : 0);
 }
 main();
+
+/* ---------- Plans against the real export lane ---------- */
+import { planFromStatus } from '@/monetization/tiers';
+
+async function planLimitQueueSection() {
+  const month = `${new Date().getFullYear()}-${new Date().getMonth() + 1}`;
+  const readyBatch = async (n: number) => {
+    const id = newBatch(n);
+    startBatch(id);
+    await until(() => statuses(id).every((s) => s === 'ready'));
+    return id;
+  };
+  const exportOpts = (id: string) => calls.filter((c) => c.fn === 'export' && c.id === id).at(-1)?.opts;
+  const sub = (productId: string, isActive = true) => ({ productId, isActive, purchaseDate: '2026-09-01T00:00:00Z' });
+
+  console.log('• pro via Superwall: the 300th export runs, the 301st is parked with the export_limit flag');
+  useQueueUI.getState().setLimitReached(false);
+  useEntitlements.getState().setPlan(
+    planFromStatus({ status: 'ACTIVE', entitlements: [{ id: 'pro' }] }, { subscriptions: [sub('com.ibrahim.tenfold.pro.yearly')] }, { tier: 'free', billing: null }),
+  );
+  useEntitlements.setState({ exportsUsed: 299, exportMonth: month });
+  let b = await readyBatch(2);
+  const [n300, n301] = lib().batches[b].projectIds;
+  queueExports([n300, n301]);
+  check(await until(() => useQueueUI.getState().limitReached), 'limit flag raised at 300');
+  check(lib().projects[n300].status === 'done' && lib().projects[n301].status === 'ready', `300th done, 301st parked (${statuses(b)})`);
+  check(useQueueUI.getState().parked.join() === n301, 'only the 301st is parked');
+  check(useEntitlements.getState().exportsUsed === 300, `300 used (${useEntitlements.getState().exportsUsed})`);
+  check(exportOpts(n300)?.watermark === false, 'pro export has no watermark');
+  check(!calls.some((c) => c.fn === 'export' && c.id === n301), 'the 301st never reached the engine');
+
+  console.log('• upgrade to studio mid-month: the parked export goes, count kept, never blocks again');
+  useEntitlements.getState().setPlan(
+    planFromStatus({ status: 'ACTIVE', entitlements: [{ id: 'studio' }] }, { subscriptions: [sub('com.ibrahim.tenfold.studio.monthly')] }, { tier: 'pro', billing: 'annual' }),
+  );
+  check(!useQueueUI.getState().limitReached, 'the upgrade clears the limit flag');
+  check(useEntitlements.getState().exportsUsed === 300, 'the month’s count is not reset by the upgrade');
+  queueExports([n301]);
+  check(await until(() => lib().projects[n301].status === 'done'), 'the parked video exports on studio');
+  b = await readyBatch(3);
+  queueExports(lib().batches[b].projectIds);
+  check(await until(() => statuses(b).every((s) => s === 'done')), `studio exports all, at ${useEntitlements.getState().exportsUsed} used (${statuses(b)})`);
+  check(!useQueueUI.getState().limitReached, 'studio never raises the limit flag');
+
+  console.log('• expiry → free: watermark on, 3 a month');
+  useEntitlements.getState().setPlan(
+    planFromStatus({ status: 'INACTIVE' }, { subscriptions: [sub('com.ibrahim.tenfold.studio.monthly', false)] }, { tier: 'studio', billing: 'monthly' }),
+  );
+  useEntitlements.setState({ exportsUsed: 0, exportMonth: month });
+  b = await readyBatch(4);
+  queueExports(lib().batches[b].projectIds);
+  check(await until(() => useQueueUI.getState().limitReached), 'free stops at 3');
+  check(statuses(b).filter((s) => s === 'done').length === 3, `3 exported on free (${statuses(b)})`);
+  const done = lib().batches[b].projectIds.filter((id) => lib().projects[id].status === 'done');
+  check(done.every((id) => exportOpts(id)?.watermark === true && exportOpts(id)?.quality === 'hd'), 'free exports carry the watermark, HD only');
+  useQueueUI.getState().setLimitReached(false);
+  lib().deleteBatch(b);
+}
 
 /* ---------- Onboarding, plans, tour (stage 2b) ---------- */
 // Imports are hoisted, so they can sit with the section they serve.

@@ -20,8 +20,8 @@ const API = 'https://api.appstoreconnect.apple.com';
 const SUBS = [
   ['Starter Monthly', 'com.ibrahim.tenfold.starter.monthly', 'ONE_MONTH', 3, '9.99', 'Batches of 20, 30 exports, all styles'],
   ['Starter Yearly', 'com.ibrahim.tenfold.starter.yearly', 'ONE_YEAR', 3, '79.99', 'Batches of 20, 30 exports, all styles'],
-  ['Pro Monthly', 'com.ibrahim.tenfold.pro.monthly', 'ONE_MONTH', 2, '19.99', 'Batches of 50, 100 exports, 4K export'],
-  ['Pro Yearly', 'com.ibrahim.tenfold.pro.yearly', 'ONE_YEAR', 2, '159.99', 'Batches of 50, 100 exports, 4K export'],
+  ['Pro Monthly', 'com.ibrahim.tenfold.pro.monthly', 'ONE_MONTH', 2, '19.99', 'Batches of 50, 300 exports, 4K export'],
+  ['Pro Yearly', 'com.ibrahim.tenfold.pro.yearly', 'ONE_YEAR', 2, '159.99', 'Batches of 50, 300 exports, 4K export'],
   ['Studio Monthly', 'com.ibrahim.tenfold.studio.monthly', 'ONE_MONTH', 1, '49.99', 'Batches of 100, unlimited exports, 4K'],
   ['Studio Yearly', 'com.ibrahim.tenfold.studio.yearly', 'ONE_YEAR', 1, '399.99', 'Batches of 100, unlimited exports, 4K'],
 ];

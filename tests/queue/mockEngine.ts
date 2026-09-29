@@ -65,7 +65,7 @@ export const Engine = {
     }
   },
   async export(id: string, doc: any, opts: any) {
-    calls.push({ fn: 'export', id, t: Date.now(), doc });
+    calls.push({ fn: 'export', id, t: Date.now(), doc, opts });
     if (!doc || !doc.cuts) throw new Error('no doc');
     running.export++;
     running.maxExport = Math.max(running.maxExport, running.export);

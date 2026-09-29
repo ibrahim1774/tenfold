@@ -29,3 +29,7 @@ The file name gives the timestamp in seconds, for example `-4_2s` is 4.2 s.
 | 05 Home | in-progress 10457 @9.2; Recent 34487 @8.2, 4834 @12.0, 39813 @0.5, 39814 @3.0 |
 
 Frames were chosen with eyes open and faces toward the lens where the clip allows it. At full size, the frames show no legible brand logos or text. The phone on the gimbal (34487) is in a patterned case, and the laptops (4834, 10457) are closed and unbranded from these angles.
+
+## In the app
+
+The onboarding step "What Tenfold does for you" plays a short muted loop cut from clip 39813 (720p file, `https://assets.mixkit.co/videos/39813/39813-720.mp4`, same Mixkit Stock Video Free License). It lives in `assets/onboarding/demo.mp4` with a first-frame poster `demo-poster.jpg`. Edits: 0.5–7.7 s kept, last 0.5 s cross-faded into the clip's first 0.5 s for a seamless loop, H.264 720 × 1280, no audio, about 1.3 MB. Details are in `assets/onboarding/VIDEO.md`. The downloaded file was deleted.

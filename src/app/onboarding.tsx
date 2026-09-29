@@ -60,7 +60,7 @@ export default function OnboardingScreen() {
   // Position in the full order, so a step that just dropped out (payoff) still has a place. Drives Back.
   const at = Math.max(0, steps.indexOf(step === 'payoff' && !payoff ? 'language' : step));
   // The progress bar counts the payoff screen whether or not it shows, so its total never changes mid-flow;
-  // a skipped payoff moves the bar on by two.
+  // a missing payoff (answers from an older version that allowed skipping) moves the bar on by two.
   const shownAt = Math.max(0, ALL_STEPS.indexOf(step));
 
   const go = (to: StepId | undefined, d: 1 | -1) => {
@@ -94,17 +94,6 @@ export default function OnboardingScreen() {
     });
   };
 
-  const skip = () => {
-    if (step === 'role') ob.setRole(null);
-    if (step === 'makes') setContentTypes([]); // the default preset stays as it is
-    if (step === 'perWeek') ob.setVideosPerWeek(null);
-    if (step === 'minutes') ob.setMinutesPerVideo(null);
-    // Decide the next step from the answers as they are after skipping, not before.
-    const willHavePayoff =
-      computePayoff(step === 'perWeek' ? null : ob.videosPerWeek, step === 'minutes' ? null : ob.minutesPerVideo) !== null;
-    go(after(willHavePayoff), 1);
-  };
-
   const continueQuestion = () => {
     if (step === 'makes' && contentTypes.length) setDefaultPreset(presetForContent(contentTypes));
     next();
@@ -125,15 +114,8 @@ export default function OnboardingScreen() {
         <View style={styles.topBar}>
           <IconButton icon="chevron.left" label="Back" onPress={back} />
           <StepProgress step={shownAt} total={ALL_STEPS.length - 1} />
-          {isQuestion ? (
-            <Pressable onPress={skip} accessibilityRole="button" accessibilityLabel="Skip this question" style={({ pressed }) => [styles.skip, pressed && styles.pressed]}>
-              <AppText variant="chip" color={colors.textSecondary}>
-                Skip
-              </AppText>
-            </Pressable>
-          ) : (
-            <View style={styles.skip} />
-          )}
+          {/* Balances the back button so the bar stays centred. Questions have no skip: each needs an answer. */}
+          <View style={styles.topBarEnd} />
         </View>
       )}
 
@@ -217,11 +199,8 @@ export default function OnboardingScreen() {
               </AppText>
             </>
           )}
-          {isQuestion && (
-            <>
-              <GradientButton title="Continue" shape="pill" disabled={!answered} onPress={continueQuestion} />
-            </>
-          )}
+          {/* Every question needs an answer (at least one for the multi-select) before Continue works. */}
+          {isQuestion && <GradientButton title="Continue" shape="pill" disabled={!answered} onPress={continueQuestion} />}
           {step === 'payoff' && <GradientButton title="Claim my time" shape="pill" onPress={next} />}
           {(step === 'included' || step === 'language') && <GradientButton title="Continue" shape="pill" onPress={next} />}
           {step === 'ready' && (
@@ -267,7 +246,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { textAlign: 'center' },
   topBar: { height: 44, marginBottom: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md },
-  skip: { minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
+  topBarEnd: { width: 44, height: 44 },
   progressTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.14)', overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 2, backgroundColor: colors.textPrimary },
   footer: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.sm },

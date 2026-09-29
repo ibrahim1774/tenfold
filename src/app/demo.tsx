@@ -6,7 +6,7 @@ import { Background, IconButton } from '@/design/components';
 import { spacing } from '@/design/tokens';
 import { Demo } from '@/onboarding/Demo';
 
-/** "Replay the demo" from Home and Settings. */
+/** "Replay the demo" from Create and You. */
 export default function DemoScreen() {
   const insets = useSafeAreaInsets();
   return (

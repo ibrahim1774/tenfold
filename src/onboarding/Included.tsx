@@ -1,6 +1,9 @@
+import { useEventListener } from 'expo';
 import { Image } from 'expo-image';
-import { useEffect } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useIsFocused } from 'expo-router';
+import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
+import { useEffect, useState } from 'react';
+import { AppState, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -10,21 +13,26 @@ import Animated, {
   useReducedMotion,
   useSharedValue,
   withRepeat,
+  withSequence,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
 
 import { AppText } from '@/design/components';
-import { sampleFrame } from '@/design/sampleFrames';
 import { colors, radii, spacing } from '@/design/tokens';
 
 /**
- * What every video gets, shown rather than listed: a real take whose silent gaps collapse, whose "um"
- * drops out, whose captions light up word by word, and which then crops to vertical. One loop, the only
- * looping animation in the app (an explicit exception to docs/DESIGN.md §4); under Reduce Motion it
- * rests on the finished state.
+ * What every video gets, shown rather than listed: a real take (a muted, looping stock clip) whose silent
+ * gaps collapse, whose "um" drops out, whose captions light up word by word, and which then crops to
+ * vertical. One loop, the only looping animation in the app (an explicit exception to docs/DESIGN.md §4);
+ * under Reduce Motion the clip doesn't play and the still poster rests on the finished state.
+ *
+ * The clip (assets/onboarding/demo.mp4, Mixkit 39813, see assets/onboarding/VIDEO.md) is exactly one
+ * cycle long, and the overlay timeline is re-synced to the player's position whenever playback starts.
  */
-const CYCLE = 7200;
+const DEMO = require('../../assets/onboarding/demo.mp4');
+const POSTER = require('../../assets/onboarding/demo-poster.jpg');
+const CYCLE = 7215;
 const STILL = 0.9;
 
 const BEATS = [
@@ -66,20 +74,59 @@ function step(t: number, a: number, b: number) {
   return p * p * (3 - 2 * p);
 }
 
+/** Runs t from the player's current position to the end of the cycle, then loops it with the clip. */
+function follow(t: SharedValue<number>, player: VideoPlayer) {
+  const at = Math.min(Math.max(player.currentTime * 1000, 0), CYCLE) / CYCLE;
+  const linear = { easing: Easing.linear };
+  t.set(at);
+  t.set(
+    withSequence(
+      withTiming(1, { ...linear, duration: (1 - at) * CYCLE }),
+      withRepeat(withSequence(withTiming(0, { duration: 0 }), withTiming(1, { ...linear, duration: CYCLE })), -1, false),
+    ),
+  );
+}
+
 export function Included() {
   const { width, height } = useWindowDimensions();
   const reduced = useReducedMotion();
+  const focused = useIsFocused();
   const t = useSharedValue(reduced ? STILL : 0);
+  const [shown, setShown] = useState(false);
 
+  const player = useVideoPlayer(reduced ? null : DEMO, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.audioMixingMode = 'mixWithOthers';
+  });
+
+  // Play only while this step is on screen; the hook releases the player on unmount.
   useEffect(() => {
     if (reduced) {
       t.set(STILL);
       return;
     }
-    t.set(0);
-    t.set(withRepeat(withTiming(1, { duration: CYCLE, easing: Easing.linear }), -1, false));
-    return () => cancelAnimation(t);
-  }, [reduced, t]);
+    if (focused) player.play();
+    else player.pause();
+  }, [reduced, focused, player, t]);
+
+  // The player pauses itself in the background; pick the loop back up on return.
+  useEffect(() => {
+    if (reduced || !focused) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') player.play();
+    });
+    return () => sub.remove();
+  }, [reduced, focused, player]);
+
+  // The overlays follow the clip: they start where playback starts and freeze when it pauses.
+  useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    if (reduced) return;
+    if (isPlaying) follow(t, player);
+    else cancelAnimation(t);
+  });
+
+  useEffect(() => () => cancelAnimation(t), [t]);
 
   const wide = width - spacing.gutter * 2;
   const frameH = Math.min(440, Math.round(height * 0.46));
@@ -96,7 +143,20 @@ export function Included() {
       <View style={styles.demo} accessible accessibilityRole="image" accessibilityLabel={A11Y}>
         <View style={[styles.stage, { height: frameH }]}>
           <Animated.View style={[styles.frame, frame]}>
-            <Image source={sampleFrame(3)} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} />
+            <Image source={POSTER} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} />
+            {!reduced && (
+              <VideoView
+                player={player}
+                style={[StyleSheet.absoluteFill, !shown && styles.hidden]}
+                contentFit="cover"
+                nativeControls={false}
+                allowsPictureInPicture={false}
+                allowsVideoFrameAnalysis={false}
+                onFirstFrameRender={() => setShown(true)}
+                accessible={false}
+                importantForAccessibility="no-hide-descendants"
+              />
+            )}
             <View style={styles.caption}>
               {WORDS.map((w, i) => (
                 <Word key={i} word={w} index={i} t={t} />
@@ -203,6 +263,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
   },
+  hidden: { opacity: 0 },
   wordBox: { overflow: 'hidden', marginHorizontal: 3 },
   word: {
     fontFamily: 'TikTokSans-ExtraBold',

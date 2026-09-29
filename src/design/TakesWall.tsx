@@ -8,7 +8,7 @@ import { colors, spacing } from './tokens';
 
 /**
  * A tilted wall of ten finished takes (the batch idea at a glance), dissolving into the black page.
- * Used by the first onboarding screen, the empty Home and the last onboarding step.
+ * Used by the first onboarding screen, the empty Create tab and the last onboarding step.
  * Frames are stills from Mixkit stock clips (free licence, see marketing/screenshots/FOOTAGE.md).
  */
 const CUTS = [

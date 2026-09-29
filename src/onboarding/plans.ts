@@ -1,5 +1,5 @@
 // The one source of truth for tiers: names, prices, App Store products and limits.
-// `src/state/entitlements.ts` reads its limits from here; the paywall and Settings read the copy.
+// `src/state/entitlements.ts` reads its limits from here; the paywall and the You tab read the copy.
 // Superwall's paywalls show the store's localized prices; these USD prices drive the native fallback paywall.
 // No imports from `state/`, so this file stays free of import cycles.
 
@@ -50,7 +50,7 @@ export const TIERS: Record<Tier, TierInfo> = {
     tier: 'pro',
     name: 'Pro',
     price: { monthly: 19.99, annual: 159.99 },
-    limits: { exportsPerMonth: 100, batchSize: 50, allCaptionStyles: true, watermark: false, uhd: true },
+    limits: { exportsPerMonth: 300, batchSize: 50, allCaptionStyles: true, watermark: false, uhd: true },
   },
   studio: {
     tier: 'studio',

@@ -41,16 +41,21 @@ export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const current = useEntitlements((s) => tierOf(s));
+  const currentBilling = useEntitlements((s) => s.billing);
   const setTier = useEntitlements((s) => s.setTier);
   const setOnboarded = useSettings((s) => s.setOnboarded);
   const store = useStoreActions();
-  const [billing, setBilling] = useState<Billing>('annual');
+  // A subscriber starts on the billing period they pay now, so switching monthly ↔ annual is one tap.
+  const [billing, setBilling] = useState<Billing>(currentBilling ?? 'annual');
   const [tier, setSelected] = useState<PaidTier>(current === 'free' ? 'pro' : current);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fromOnboarding = from === 'onboarding';
   // Apple gives one free trial per subscription group: subscribers switching plans don't get another.
   const trial = current === 'free';
+  // Already on this plan (same billing, or billing not known yet): nothing to buy.
+  const onCurrentPlan = tier === current && (!currentBilling || billing === currentBilling);
+  const billingSwitch = tier === current && !onCurrentPlan;
   const plan = planFor(tier);
   // The App Store's prices in the person's currency, when all six loaded; otherwise USD everywhere (never mixed).
   const local = store.prices;
@@ -98,7 +103,7 @@ export default function PaywallScreen() {
 
   const confirm = async () => {
     if (busy) return;
-    if (tier === current) {
+    if (onCurrentPlan) {
       close();
       return;
     }
@@ -229,7 +234,7 @@ export default function PaywallScreen() {
 
       <View style={styles.footer}>
         <GradientButton
-          title={busy ? 'Waiting for the App Store' : tier === current ? `Keep ${plan.name}` : trial ? `Try ${plan.name} free` : `Switch to ${plan.name}`}
+          title={busy ? 'Waiting for the App Store' : onCurrentPlan ? `Keep ${plan.name}` : billingSwitch ? `Switch to ${plan.name} ${billing === 'annual' ? 'Annual' : 'Monthly'}` : trial ? `Try ${plan.name} free` : `Switch to ${plan.name}`}
           shape="pill"
           disabled={busy}
           onPress={confirm}

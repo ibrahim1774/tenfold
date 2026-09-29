@@ -81,7 +81,7 @@ export default function ProcessingScreen() {
       <View style={[styles.flex, styles.missing]}>
         <Background />
         <AppText variant="bodyStrong">This batch was deleted.</AppText>
-        <OutlineButton title="Back to Home" height={44} onPress={() => router.dismissTo('/')} />
+        <OutlineButton title="Back to Create" height={44} onPress={() => router.dismissTo('/')} />
       </View>
     );
   }

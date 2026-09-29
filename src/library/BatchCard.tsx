@@ -25,7 +25,7 @@ export type BatchSummary = {
   when: number;
 };
 
-/** Facts about a batch shared by Home and Library, so both say the same thing as the batch screen. */
+/** Facts about a batch shared by Create and Cuts, so both say the same thing as the batch screen. */
 export function summarize(batch: Batch, all: Record<string, Project>): BatchSummary {
   const projects = projectsOf(batch, all);
   const status = batchStatus(batch, all);

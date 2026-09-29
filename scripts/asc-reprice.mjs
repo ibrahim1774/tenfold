@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Re-prices Tenfold's six subscriptions and updates their short descriptions (2026-09-28 lineup):
-//   Starter $9.99/mo, $79.99/yr (30 exports)   Pro $19.99/mo, $159.99/yr (100 exports)
+//   Starter $9.99/mo, $79.99/yr (30 exports)   Pro $19.99/mo, $159.99/yr (300 exports)
 //   Studio $49.99/mo, $399.99/yr (unlimited)
 // The subscriptions have never been approved, so the new price applies straight away in every country
 // (USA price plus Apple's equalised price for each other territory).
@@ -19,8 +19,8 @@ const API = 'https://api.appstoreconnect.apple.com';
 const PLAN = {
   'com.ibrahim.tenfold.starter.monthly': ['9.99', 'Batches of 20, 30 exports, all styles'],
   'com.ibrahim.tenfold.starter.yearly': ['79.99', 'Batches of 20, 30 exports, all styles'],
-  'com.ibrahim.tenfold.pro.monthly': ['19.99', 'Batches of 50, 100 exports, 4K export'],
-  'com.ibrahim.tenfold.pro.yearly': ['159.99', 'Batches of 50, 100 exports, 4K export'],
+  'com.ibrahim.tenfold.pro.monthly': ['19.99', 'Batches of 50, 300 exports, 4K export'],
+  'com.ibrahim.tenfold.pro.yearly': ['159.99', 'Batches of 50, 300 exports, 4K export'],
   'com.ibrahim.tenfold.studio.monthly': ['49.99', 'Batches of 100, unlimited exports, 4K'],
   'com.ibrahim.tenfold.studio.yearly': ['399.99', 'Batches of 100, unlimited exports, 4K'],
 };
