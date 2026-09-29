@@ -19,6 +19,7 @@ import { Demo } from '@/onboarding/Demo';
 import { hasSampleClip } from '@/onboarding/fileImport';
 import { Hook } from '@/onboarding/Hook';
 import { Language } from '@/onboarding/Language';
+import { logAttributionEvent, startAttribution } from '@/attribution/appsflyer';
 import { Included } from '@/onboarding/Included';
 import { Payoff } from '@/onboarding/PayoffScreen';
 import { computePayoff } from '@/onboarding/savings';
@@ -77,6 +78,7 @@ export default function OnboardingScreen() {
 
   const finish = (tour: boolean) => {
     ob.setTourEnabled(tour);
+    logAttributionEvent('af_complete_registration', { af_registration_method: 'onboarding' });
     // Replaying onboarding as a subscriber: no paywall.
     if (!free) {
       setOnboarded(true);
@@ -192,7 +194,15 @@ export default function OnboardingScreen() {
         <View style={styles.footer}>
           {step === 'hook' && (
             <>
-              <GradientButton title={HAS_DEMO ? 'See it happen' : 'Get started'} shape="pill" onPress={next} />
+              <GradientButton
+                title={HAS_DEMO ? 'See it happen' : 'Get started'}
+                shape="pill"
+                onPress={() => {
+                  // Apple's tracking prompt, then AppsFlyer; onboarding carries on underneath.
+                  startAttribution();
+                  next();
+                }}
+              />
               <AppText variant="caption" color={colors.textMuted} style={styles.center}>
                 No account. Your videos never leave your iPhone.
               </AppText>

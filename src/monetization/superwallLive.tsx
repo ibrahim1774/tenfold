@@ -11,7 +11,8 @@ import {
 } from 'expo-superwall';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { PRODUCT_IDS, tierRank } from '@/onboarding/plans';
+import { logAttributionEvent, setAttributionUser, startAttribution, trackingAnswered } from '@/attribution/appsflyer';
+import { PRODUCT_IDS, TIERS, tierRank } from '@/onboarding/plans';
 import { tierOf, useEntitlements } from '@/state/entitlements';
 import { useOnboarding } from '@/state/onboarding';
 import { useSettings } from '@/state/settings';
@@ -32,6 +33,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     <SuperwallProvider apiKeys={API_KEYS} onConfigurationError={onConfigurationError}>
       <SubscriptionSync />
       <AttributeSync />
+      <AttributionBridge />
       {__DEV__ ? <DevEventLogger /> : null}
       {children}
     </SuperwallProvider>
@@ -69,6 +71,63 @@ function AttributeSync() {
       sent.current = ''; // try again on the next change
     });
   }, [onboarded, role, videosPerWeek, minutesPerVideo, language, update]);
+  return null;
+}
+
+/** USD list price for a product id, for the revenue value on attribution events. */
+function usdPrice(productId: string): number | undefined {
+  for (const [tier, ids] of Object.entries(PRODUCT_IDS)) {
+    const price = TIERS[tier as keyof typeof TIERS].price;
+    if (!price) continue;
+    if (ids.monthly === productId) return price.monthly;
+    if (ids.annual === productId) return price.annual;
+  }
+  return undefined;
+}
+
+/**
+ * AppsFlyer attribution alongside Superwall: starts it for people past the tracking prompt (new people are
+ * asked on onboarding's first tap), links the AppsFlyer id to Superwall and the Superwall user to
+ * AppsFlyer, and reports trials and subscriptions as AppsFlyer's standard events.
+ */
+function AttributionBridge() {
+  const onboarded = useSettings((s) => s.onboarded);
+  const { user, setIntegrationAttributes } = useUser();
+  const userId = user?.appUserId || user?.aliasId || '';
+  const linked = useRef(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!onboarded && !(await trackingAnswered())) return; // onboarding asks first
+      const afId = await startAttribution();
+      if (!alive || !afId || linked.current) return;
+      linked.current = true;
+      setIntegrationAttributes({ appsflyerId: afId }).catch(() => {
+        linked.current = false;
+      });
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [onboarded, setIntegrationAttributes]);
+
+  useEffect(() => {
+    if (userId) setAttributionUser(userId);
+  }, [userId]);
+
+  useSuperwallEvents({
+    onSuperwallEvent: (info) => {
+      const e = info.event;
+      if (e.event === 'freeTrialStart') {
+        const id = e.product?.productIdentifier ?? e.product?.id ?? '';
+        logAttributionEvent('af_start_trial', { af_content_id: id, af_currency: 'USD', af_price: usdPrice(id) ?? 0 });
+      } else if (e.event === 'subscriptionStart') {
+        const id = e.product?.productIdentifier ?? e.product?.id ?? '';
+        logAttributionEvent('af_subscribe', { af_content_id: id, af_currency: 'USD', af_revenue: usdPrice(id) ?? 0 });
+      }
+    },
+  });
   return null;
 }
 

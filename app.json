@@ -23,7 +23,8 @@
           "snssdk1233",
           "instagram"
         ],
-        "EXDevMenuShowFloatingActionButton": false
+        "EXDevMenuShowFloatingActionButton": false,
+        "NSAdvertisingAttributionReportEndpoint": "https://appsflyer-skadnetwork.com/"
       },
       "buildNumber": "2"
     },
@@ -76,7 +77,14 @@
         }
       ],
       "./plugins/withQuotedBundleScript.js",
-      "./plugins/withStoreKitConfig.js"
+      "./plugins/withStoreKitConfig.js",
+      "react-native-appsflyer",
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "Tenfold uses this only to see which ad brought you here, so we can spend less on ads that don't work. Your videos never leave your iPhone."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
