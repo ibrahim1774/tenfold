@@ -60,7 +60,7 @@ export function Payoff({ payoff }: { payoff: PayoffNumbers }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, minHeight: 520, paddingHorizontal: spacing.gutter, paddingTop: spacing.lg, gap: spacing.xl },
+  wrap: { flex: 1, minHeight: 520, paddingTop: spacing.lg, gap: spacing.xl },
   top: { gap: spacing.xs },
   struck: { textDecorationLine: 'line-through', textDecorationColor: light.glyph },
   hero: { gap: spacing.xs },
