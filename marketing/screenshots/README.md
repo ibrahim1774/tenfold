@@ -43,4 +43,4 @@ node marketing/screenshots/render.mjs 03 05   # only some pages (does not clear 
 
 ## App Preview video
 
-`../preview/app-preview-6.9.mp4` (29.3 s, 886 × 1920, 30 fps, H.264 High 4.0 ~10 Mbps, silent stereo AAC 256 kbps; Apple's 6.9"/6.7" App Preview spec). `../preview/tutorial.mp4` is a 62 s cut of the same simulator recording for social or the website. Both are in-app footage only: hook, "What Tenfold does for you", the savings estimate, Create, picking 10 clips, choosing edits, then the batch processing.
+`../preview/app-preview-6.9.mp4`: 16.6 s, just above Apple's 15 s minimum (the limit is 15–30 s). 886 × 1920, 30 fps, H.264 High 4.0 ~10 Mbps, silent stereo AAC 256 kbps (Apple's 6.9"/6.7" App Preview spec). In-app footage only, cut from one simulator recording: hook, "What Tenfold does for you", Create, picking 10 clips, choosing edits, the batch processing.
