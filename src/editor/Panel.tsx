@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppText, Card, PressableScale } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
-import { dark, radii, spacing } from '@/design/tokens';
+import { colors, radii, spacing } from '@/design/tokens';
 
 /**
  * One structure for every editor tool: title (20), one line of explanation (13, secondary), then controls.
@@ -19,7 +19,7 @@ export function Panel({ title, detail, children }: { title: string; detail?: str
           {title}
         </AppText>
         {detail ? (
-          <AppText variant="label" color={dark.textSecondary}>
+          <AppText variant="label" color={colors.textSecondary}>
             {detail}
           </AppText>
         ) : null}
@@ -32,7 +32,7 @@ export function Panel({ title, detail, children }: { title: string; detail?: str
 /** Sentence-case label above an inset group (iOS 26 grouped lists). */
 export function GroupLabel({ children }: { children: string }) {
   return (
-    <AppText variant="label" color={dark.textSecondary} style={styles.groupLabel} accessibilityRole="header">
+    <AppText variant="label" color={colors.textSecondary} style={styles.groupLabel} accessibilityRole="header">
       {children}
     </AppText>
   );
@@ -48,7 +48,7 @@ export function RowGroup({ rows }: { rows: InfoRow[] }) {
         <Fragment key={r.label}>
           {i > 0 && <View style={styles.divider} />}
           <View style={styles.row} accessible accessibilityLabel={`${r.label}: ${r.value}`}>
-            <AppText variant="body" color={dark.textSecondary} style={styles.rowLabel}>
+            <AppText variant="body" color={colors.textSecondary} style={styles.rowLabel}>
               {r.label}
             </AppText>
             <AppText variant="body" tabular style={styles.rowValue}>
@@ -102,8 +102,8 @@ export function ToolBar({ tools, active, onPress }: { tools: { id: ToolId; icon:
             accessibilityLabel={t.label}
             accessibilityState={OPENS_SCREEN.includes(t.id) ? undefined : { selected: on }}
             style={[styles.tool, on && styles.toolOn]}>
-            <SymbolView name={t.icon} size={21} weight={on ? 'medium' : 'regular'} tintColor={on ? dark.textPrimary : dark.textSecondary} />
-            <AppText variant="caption" color={on ? dark.textPrimary : dark.textSecondary} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.toolLabel}>
+            <SymbolView name={t.icon} size={21} weight={on ? 'medium' : 'regular'} tintColor={on ? colors.textPrimary : colors.textSecondary} />
+            <AppText variant="caption" color={on ? colors.textPrimary : colors.textSecondary} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.toolLabel}>
               {t.label}
             </AppText>
           </PressableScale>
@@ -124,7 +124,7 @@ export function ActionBar({ actions, label }: { actions: BarAction[]; label: str
   return (
     <View style={styles.tools} accessibilityRole="toolbar" accessibilityLabel={label}>
       {actions.map((a) => {
-        const tint = a.disabled ? dark.textMuted : a.danger ? dark.danger : dark.textPrimary;
+        const tint = a.disabled ? colors.textMuted : a.danger ? colors.danger : colors.textPrimary;
         return (
           <PressableScale
             key={a.id}
@@ -152,14 +152,14 @@ const styles = StyleSheet.create({
   card: { gap: spacing.lg },
   head: { gap: 2 },
   groupLabel: { marginTop: spacing.xl, marginBottom: spacing.sm, marginLeft: spacing.lg },
-  group: { backgroundColor: dark.card, borderRadius: radii.card, borderCurve: 'continuous', overflow: 'hidden' },
+  group: { backgroundColor: colors.card, borderRadius: radii.card, borderCurve: 'continuous', overflow: 'hidden' },
   row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 12 },
   rowLabel: { flexShrink: 0 },
   rowValue: { flexShrink: 1, textAlign: 'right' },
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: dark.separator },
-  bone: { height: 12, borderRadius: 6, backgroundColor: dark.cardHigh },
+  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.separator },
+  bone: { height: 12, borderRadius: 6, backgroundColor: colors.cardHigh },
   tools: { flexDirection: 'row', gap: spacing.xs },
   tool: { flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: radii.tile, borderCurve: 'continuous', paddingHorizontal: 2 },
-  toolOn: { backgroundColor: dark.cardHigh },
+  toolOn: { backgroundColor: colors.cardHigh },
   toolLabel: { textAlign: 'center' },
 });

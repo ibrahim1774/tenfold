@@ -19,7 +19,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { AppText } from '@/design/components';
-import { brand, light, media, radii, shadows, spacing } from '@/design/tokens';
+import { colors, radii, spacing } from '@/design/tokens';
 
 /**
  * What every video gets, shown rather than listed: a real take (a muted, looping stock clip) whose silent
@@ -142,28 +142,25 @@ export function Included() {
 
       <View style={styles.demo} accessible accessibilityRole="image" accessibilityLabel={A11Y}>
         <View style={[styles.stage, { height: frameH }]}>
-          {/* The take lifts off the page: shadow on the outer (animated) view, clipping on the inner one. */}
-          <Animated.View style={[styles.frameShadow, frame]}>
-            <View style={styles.frame}>
-              <Image source={POSTER} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} />
-              {!reduced && (
-                <VideoView
-                  player={player}
-                  style={[StyleSheet.absoluteFill, !shown && styles.hidden]}
-                  contentFit="cover"
-                  nativeControls={false}
-                  allowsPictureInPicture={false}
-                  allowsVideoFrameAnalysis={false}
-                  onFirstFrameRender={() => setShown(true)}
-                  accessible={false}
-                  importantForAccessibility="no-hide-descendants"
-                />
-              )}
-              <View style={styles.caption}>
-                {WORDS.map((w, i) => (
-                  <Word key={i} word={w} index={i} t={t} />
-                ))}
-              </View>
+          <Animated.View style={[styles.frame, frame]}>
+            <Image source={POSTER} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} />
+            {!reduced && (
+              <VideoView
+                player={player}
+                style={[StyleSheet.absoluteFill, !shown && styles.hidden]}
+                contentFit="cover"
+                nativeControls={false}
+                allowsPictureInPicture={false}
+                allowsVideoFrameAnalysis={false}
+                onFirstFrameRender={() => setShown(true)}
+                accessible={false}
+                importantForAccessibility="no-hide-descendants"
+              />
+            )}
+            <View style={styles.caption}>
+              {WORDS.map((w, i) => (
+                <Word key={i} word={w} index={i} t={t} />
+              ))}
             </View>
           </Animated.View>
         </View>
@@ -199,10 +196,10 @@ function Word({ word, index, t }: { word: string; index: number; t: SharedValue<
     const v = t.get();
     return {
       color: interpolateColor(v, [start - 0.004, start, start + WORD_STEP, start + WORD_STEP + 0.004], [
-        media.text,
-        brand.primary,
-        brand.primary,
-        media.text,
+        '#FFFFFF',
+        colors.accent,
+        colors.accent,
+        '#FFFFFF',
       ]),
     };
   });
@@ -225,7 +222,7 @@ function Segment({ segment, t }: { segment: (typeof SEGMENTS)[number]; t: Shared
   return (
     <Animated.View style={[styles.segment, segment.silent && { width: full }, style]}>
       {segment.bars.map((h, i) => (
-        <View key={i} style={[styles.bar, { height: h, backgroundColor: segment.silent ? light.textMuted : light.textPrimary }]} />
+        <View key={i} style={[styles.bar, { height: h, backgroundColor: segment.silent ? colors.textMuted : colors.textPrimary }]} />
       ))}
     </Animated.View>
   );
@@ -250,19 +247,12 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, paddingHorizontal: spacing.gutter, gap: spacing.xl },
   demo: { flex: 1, justifyContent: 'center', gap: spacing.xl },
   stage: { alignItems: 'center', justifyContent: 'center' },
-  frameShadow: {
+  frame: {
     height: '100%',
     borderRadius: radii.card,
     borderCurve: 'continuous',
-    backgroundColor: light.card,
-    ...shadows.soft,
-  },
-  frame: {
-    flex: 1,
-    borderRadius: radii.card,
-    borderCurve: 'continuous',
     overflow: 'hidden',
-    backgroundColor: light.cardHigh,
+    backgroundColor: colors.card,
   },
   caption: {
     position: 'absolute',
@@ -279,7 +269,7 @@ const styles = StyleSheet.create({
     fontFamily: 'TikTokSans-ExtraBold',
     fontSize: 22,
     lineHeight: 28,
-    color: media.text,
+    color: '#FFFFFF',
     textShadowColor: 'rgba(0,0,0,0.85)',
     textShadowRadius: 3,
     textShadowOffset: { width: 0, height: 1 },

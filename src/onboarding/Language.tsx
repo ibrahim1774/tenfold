@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, ProgressBar } from '@/design/components';
-import { light, spacing } from '@/design/tokens';
+import { colors, spacing } from '@/design/tokens';
 import { useSettings } from '@/state/settings';
 import { prepareSpeech, refreshSpeechStatus } from '@/state/speech';
 
@@ -46,16 +46,16 @@ export function Language() {
             <SymbolView
               name={speech === 'installed' ? 'checkmark.circle.fill' : 'waveform'}
               size={17}
-              tintColor={speech === 'installed' ? light.textPrimary : light.textSecondary}
+              tintColor={speech === 'installed' ? colors.textPrimary : colors.textSecondary}
               weight="regular"
             />
-            <AppText variant="label" color={light.textSecondary} tabular style={styles.flex}>
+            <AppText variant="label" color={colors.textSecondary} tabular style={styles.flex}>
               {modelLine(speech, speechProgress)}
             </AppText>
             {speech === 'supported' && (
               <Pressable onPress={prepareSpeech} hitSlop={10} accessibilityRole="button" accessibilityLabel="Download speech model">
                 {({ pressed }) => (
-                  <AppText variant="chip" color={light.accentText} style={pressed && styles.pressed}>
+                  <AppText variant="chip" color={colors.accentText} style={pressed && styles.pressed}>
                     Download
                   </AppText>
                 )}
@@ -65,7 +65,7 @@ export function Language() {
           {speech === 'downloading' && <ProgressBar progress={speechProgress} height={3} />}
         </View>
       ) : speech === 'unsupported' ? (
-        <AppText variant="label" color={light.textMuted}>
+        <AppText variant="label" color={colors.textMuted}>
           Captions aren’t available in this language on this iPhone.
         </AppText>
       ) : null}

@@ -1,9 +1,12 @@
 import { StyleSheet, View } from 'react-native';
 
-import { useTheme } from '../theme';
+import { colors } from '../tokens';
 
-/** Flat page canvas behind every screen, in the screen's palette. (`glow` is kept for call sites; it draws nothing.) */
+/** Flat black canvas behind every screen. (`glow` is kept for call sites; it no longer draws anything.) */
 export function Background({ glow: _glow = true }: { glow?: boolean }) {
-  const theme = useTheme();
-  return <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.bg }]} pointerEvents="none" />;
+  return <View style={[StyleSheet.absoluteFill, styles.base]} pointerEvents="none" />;
 }
+
+const styles = StyleSheet.create({
+  base: { backgroundColor: colors.bg },
+});

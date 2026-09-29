@@ -16,7 +16,7 @@ import {
   seedOf,
 } from '@/design/components';
 import { TakesWall } from '@/design/TakesWall';
-import { light, motion, radii, spacing } from '@/design/tokens';
+import { colors, motion, spacing } from '@/design/tokens';
 import { importNewBatch, useImporting } from '@/batch/importClips';
 import { Engine, EngineEvents, engineAvailable } from '@/engine';
 import type { Batch } from '@/engine/types';
@@ -91,7 +91,7 @@ export default function CreateScreen() {
                       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                       accessibilityRole="link"
                       accessibilityLabel="See all batches">
-                      <AppText variant="chip" color={light.textSecondary}>
+                      <AppText variant="chip" color={colors.textSecondary}>
                         See all
                       </AppText>
                     </PressableScale>
@@ -126,7 +126,7 @@ function FirstBatch({ limit }: { limit: number }) {
         <AppText variant="title" accessibilityRole="header">
           Make your first batch
         </AppText>
-        <AppText variant="label" color={light.textSecondary}>
+        <AppText variant="label" color={colors.textSecondary}>
           {available ? 'Pauses cut, captions on, framed for vertical.' : 'This build has no video engine. Install the latest build.'}
         </AppText>
       </View>
@@ -190,8 +190,8 @@ function ProPill({ isPro, name }: { isPro: boolean; name: string }) {
   if (isPro) {
     return (
       <View style={styles.proBadge} accessible accessibilityLabel={`Tenfold ${name} is active`}>
-        <SymbolView name="crown.fill" size={13} tintColor={light.accent} weight="regular" />
-        <AppText variant="label" color={light.textSecondary}>
+        <SymbolView name="crown.fill" size={13} tintColor={colors.accent} weight="regular" />
+        <AppText variant="label" color={colors.textSecondary}>
           {name}
         </AppText>
       </View>
@@ -211,7 +211,7 @@ function SpeechLine() {
   const { speech, speechProgress } = useSettings();
   if (speech === 'unsupported') {
     return (
-      <AppText variant="label" color={light.textMuted}>
+      <AppText variant="label" color={colors.textMuted}>
         Captions aren’t available in your language on this iPhone.
       </AppText>
     );
@@ -225,7 +225,7 @@ function SpeechLine() {
         accessibilityRole="progressbar"
         accessibilityLabel="Setting up captions"
         accessibilityValue={{ min: 0, max: 100, now: pct }}>
-        <AppText variant="label" color={light.textSecondary} tabular>
+        <AppText variant="label" color={colors.textSecondary} tabular>
           Setting up captions · {pct}%
         </AppText>
         <ProgressBar progress={speechProgress} height={2} />
@@ -240,11 +240,11 @@ function SpeechLine() {
       accessibilityLabel="Turn on captions"
       accessibilityHint="Downloads Apple’s speech model once"
       style={({ pressed }) => [styles.speechRow, pressed && styles.pressed]}>
-      <SymbolView name="waveform" size={15} tintColor={light.textSecondary} weight="regular" />
-      <AppText variant="label" color={light.textSecondary} style={styles.flex}>
+      <SymbolView name="waveform" size={15} tintColor={colors.textSecondary} weight="regular" />
+      <AppText variant="label" color={colors.textSecondary} style={styles.flex}>
         Captions need a one-time download.
       </AppText>
-      <AppText variant="chip" color={light.accentText}>
+      <AppText variant="chip" color={colors.accentText}>
         Set up
       </AppText>
     </Pressable>
@@ -269,11 +269,11 @@ function RunningRow({ batch, summary }: { batch: Batch; summary: BatchSummary })
           <AppText variant="bodyStrong" numberOfLines={1} style={styles.flex}>
             {batch.title}
           </AppText>
-          <AppText variant="label" color={light.textSecondary} tabular>
+          <AppText variant="label" color={colors.textSecondary} tabular>
             {pct}%
           </AppText>
         </View>
-        <AppText variant="label" color={light.textSecondary} numberOfLines={1} tabular>
+        <AppText variant="label" color={colors.textSecondary} numberOfLines={1} tabular>
           {summary.line}
         </AppText>
         <ProgressBar progress={summary.progress} height={3} />
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   grid: { gap: spacing.xl },
   gridRow: { flexDirection: 'row', gap: spacing.md },
   runRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 76 },
-  runThumb: { width: 54, height: 72, borderRadius: radii.tile, borderCurve: 'continuous' },
+  runThumb: { width: 54, height: 72, borderRadius: 10, borderCurve: 'continuous' },
   runBody: { gap: spacing.xs },
   runHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });

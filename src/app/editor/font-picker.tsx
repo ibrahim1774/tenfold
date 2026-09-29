@@ -6,13 +6,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CAPTION_FONTS, withLook } from '@/captions/presets';
 import { useCaptionTarget } from '@/captions/useCaptionTarget';
 import { AppText, Card, ScreenHeader } from '@/design/components';
-import { spacing } from '@/design/tokens';
-import { themedStyles, useScheme, useTheme } from '@/design/theme';
+import { colors, spacing } from '@/design/tokens';
 
 // Caption fonts, each name drawn in its own face. Picking one keeps the rest of the look (style → Custom).
 export default function FontPicker() {
-  const colors = useTheme();
-  const styles = themed[useScheme()];
   const insets = useSafeAreaInsets();
   const { projectId, batchId } = useLocalSearchParams<{ projectId?: string; batchId?: string }>();
   const { settings, update } = useCaptionTarget(projectId, batchId);
@@ -49,7 +46,7 @@ export default function FontPicker() {
   );
 }
 
-const themed = themedStyles((colors) => ({
+const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.sm },
   // Hairlines start where the text does, like iOS.
   divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.separator },
@@ -57,4 +54,4 @@ const themed = themedStyles((colors) => ({
   pressed: { backgroundColor: colors.cardHigh },
   name: { flex: 1 },
   check: { width: 15 },
-}));
+});

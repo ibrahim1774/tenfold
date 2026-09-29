@@ -2,8 +2,7 @@ import { StyleSheet, View, type TextStyle } from 'react-native';
 
 import type { CaptionAnimation } from '../../captions/presets';
 import { sampleFrame } from '../sampleFrames';
-import { themedStyles, useScheme } from '../theme';
-import { dark, radii } from '../tokens';
+import { colors, radii } from '../tokens';
 import { AppText } from './AppText';
 import { GlassCapsule } from './Glass';
 import { PressableScale } from './PressableScale';
@@ -49,7 +48,6 @@ export function StyleTile({
   const active = words.length - 1;
   const family: TextStyle = fontFamily && fontFamily !== 'System' ? { fontFamily } : { fontFamily: undefined, fontWeight: '900' };
   const big = maxWords === 1;
-  const themed = frameStyles[useScheme()];
 
   const wordStyle = (i: number): TextStyle[] => {
     const isActive = i === active;
@@ -71,7 +69,7 @@ export function StyleTile({
       accessibilityLabel={locked ? `${name}, needs a paid plan` : name}
       accessibilityState={{ selected }}
       style={[styles.wrap, { width }]}>
-      <View style={[styles.frame, selected && themed.frameSelected]}>
+      <View style={[styles.frame, selected && styles.frameSelected]}>
         <Thumb seed={seed} source={sampleFrame(seed)} style={styles.thumb}>
           <View style={styles.captionWrap}>
             <View style={[styles.line, animation === 'box' && styles.box, animation === 'classic' && styles.classic]}>
@@ -96,7 +94,7 @@ export function StyleTile({
           ) : null}
         </Thumb>
       </View>
-      <AppText variant="label" style={[styles.label, selected ? themed.labelOn : themed.labelOff]} numberOfLines={1}>
+      <AppText variant="label" style={styles.label} color={selected ? colors.textPrimary : colors.textSecondary} numberOfLines={1}>
         {name}
       </AppText>
     </PressableScale>
@@ -106,6 +104,7 @@ export function StyleTile({
 const styles = StyleSheet.create({
   wrap: { gap: 8 },
   frame: { borderRadius: radii.tile + 3, borderCurve: 'continuous', borderWidth: 2, borderColor: 'transparent', padding: 2 },
+  frameSelected: { borderColor: colors.textPrimary },
   thumb: { height: 128, borderRadius: radii.tile - 1, borderCurve: 'continuous', justifyContent: 'flex-end' },
   captionWrap: { padding: 8, paddingBottom: 18, alignItems: 'center' },
   line: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', columnGap: 3, rowGap: 1 },
@@ -117,14 +116,6 @@ const styles = StyleSheet.create({
   pill: { borderRadius: 5, paddingHorizontal: 3 },
   cursor: { color: '#FFFFFF', opacity: 0.8 },
   lock: { position: 'absolute', top: 6, right: 6, minHeight: 20, paddingHorizontal: 7 },
-  // Over glass (always dark), so the dark palette's brand text.
-  lockText: { fontWeight: '600', fontSize: 12, lineHeight: 16, color: dark.accentText },
+  lockText: { fontWeight: '600', fontSize: 12, lineHeight: 16, color: colors.accentText },
   label: { textAlign: 'center' },
 });
-
-// The chosen style gets a brand ring, the same selection mark as onboarding answers and plan cards.
-const frameStyles = themedStyles((p) => ({
-  frameSelected: { borderColor: p.accent },
-  labelOn: { color: p.textPrimary },
-  labelOff: { color: p.textSecondary },
-}));

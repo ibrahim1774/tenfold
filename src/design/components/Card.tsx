@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
-import { View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { themedStyles, useScheme } from '../theme';
-import { radii, spacing } from '../tokens';
+import { colors, radii, spacing } from '../tokens';
 
 export type CardProps = {
   children: ReactNode;
@@ -12,12 +11,8 @@ export type CardProps = {
   dashed?: boolean;
 };
 
-/**
- * A raised surface (an iOS inset group): white on the warm light page, graphite on dark. Continuous
- * corners, no border and no shadow: the fill alone separates it from the page.
- */
+/** Flat raised surface (an iOS inset group): graphite fill, continuous corners, no border or shadow. */
 export function Card({ children, style, padded = true, tone = 'default', dashed }: CardProps) {
-  const styles = themed[useScheme()];
   return (
     <View
       style={[
@@ -32,14 +27,14 @@ export function Card({ children, style, padded = true, tone = 'default', dashed 
   );
 }
 
-const themed = themedStyles((p) => ({
+const styles = StyleSheet.create({
   card: {
-    backgroundColor: p.card,
+    backgroundColor: colors.card,
     borderRadius: radii.card,
     borderCurve: 'continuous',
     overflow: 'hidden',
   },
-  high: { backgroundColor: p.cardHigh },
-  dashed: { borderWidth: 1, borderStyle: 'dashed', borderColor: p.borderStrong, backgroundColor: 'transparent' },
+  high: { backgroundColor: colors.cardHigh },
+  dashed: { borderWidth: 1, borderStyle: 'dashed', borderColor: colors.borderStrong, backgroundColor: 'transparent' },
   padded: { padding: spacing.lg },
-}));
+});

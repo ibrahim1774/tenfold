@@ -1,6 +1,6 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
-import { light } from '@/design/tokens';
+import { colors } from '@/design/tokens';
 
 /**
  * The system tab bar (UITabBarController), so iOS 26 draws its Liquid Glass bar, selection pill and
@@ -9,17 +9,16 @@ import { light } from '@/design/tokens';
  */
 export default function TabsLayout() {
   return (
-    // Brand tint in its text tone (the tab labels are small text, so the darker brand shade for AA).
-    <NativeTabs tintColor={light.accentText} minimizeBehavior="onScrollDown">
-      <NativeTabs.Trigger name="index" contentStyle={{ backgroundColor: light.bg }}>
+    <NativeTabs tintColor={colors.accent} minimizeBehavior="onScrollDown">
+      <NativeTabs.Trigger name="index" contentStyle={{ backgroundColor: colors.bg }}>
         <NativeTabs.Trigger.Icon sf={{ default: 'plus.circle', selected: 'plus.circle.fill' }} />
         <NativeTabs.Trigger.Label>Create</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="library" contentStyle={{ backgroundColor: light.bg }}>
+      <NativeTabs.Trigger name="library" contentStyle={{ backgroundColor: colors.bg }}>
         <NativeTabs.Trigger.Icon sf={{ default: 'film.stack', selected: 'film.stack.fill' }} />
         <NativeTabs.Trigger.Label>Cuts</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="settings" contentStyle={{ backgroundColor: light.bg }}>
+      <NativeTabs.Trigger name="settings" contentStyle={{ backgroundColor: colors.bg }}>
         <NativeTabs.Trigger.Icon sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }} />
         <NativeTabs.Trigger.Label>You</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>

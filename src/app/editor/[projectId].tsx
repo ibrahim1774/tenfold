@@ -20,7 +20,7 @@ import {
   ScreenHeader,
   ToggleRow,
 } from '@/design/components';
-import { dark, radii, spacing, type as typeScale } from '@/design/tokens';
+import { colors, radii, spacing, type as typeScale } from '@/design/tokens';
 import { editsOf, effectiveLevels } from '@/batch/edits';
 import { ASPECTS, aspectOf, aspectRatioValue } from '@/editor/aspect';
 import { fillUserScale, type Placement } from '@/editor/frame';
@@ -626,8 +626,6 @@ export default function EditorScreen() {
     }
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        // The editor is dark while the app's chrome is light: match its sheets to the screen.
-        userInterfaceStyle: 'dark',
         options: ['Delete clip', 'Cancel'],
         destructiveButtonIndex: 0,
         cancelButtonIndex: 1,
@@ -736,12 +734,7 @@ export default function EditorScreen() {
     setNotice(null);
     if (clipJob) return;
     ActionSheetIOS.showActionSheetWithOptions(
-      {
-        options: ['From Photos', 'Record a clip', 'From Files', 'Cancel'],
-        cancelButtonIndex: 3,
-        title: 'Add a clip to the end',
-        userInterfaceStyle: 'dark',
-      },
+      { options: ['From Photos', 'Record a clip', 'From Files', 'Cancel'], cancelButtonIndex: 3, title: 'Add a clip to the end' },
       (i) => {
         if (i === 0) void pickClips('photos');
         else if (i === 2) void pickClips('files');
@@ -1098,8 +1091,6 @@ export default function EditorScreen() {
     ];
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        // The editor is dark while the app's chrome is light: match its sheets to the screen.
-        userInterfaceStyle: 'dark',
         options: [...items.map((o) => o.title), 'Cancel'],
         cancelButtonIndex: items.length,
         destructiveButtonIndex: 0,
@@ -1149,14 +1140,14 @@ export default function EditorScreen() {
         {loadError || (!doc && !stillWorking) ? (
           <>
             <AppText variant="bodyStrong">This video isn’t ready to edit.</AppText>
-            <AppText variant="label" color={dark.textSecondary} style={styles.centerText}>
+            <AppText variant="label" color={colors.textSecondary} style={styles.centerText}>
               {loadError ?? project.error ?? 'Run the batch first.'}
             </AppText>
           </>
         ) : (
           <>
-            <ActivityIndicator color={dark.textPrimary} />
-            <AppText variant="label" color={dark.textSecondary}>
+            <ActivityIndicator color={colors.textPrimary} />
+            <AppText variant="label" color={colors.textSecondary}>
               Still analysing this clip.
             </AppText>
           </>
@@ -1346,7 +1337,7 @@ export default function EditorScreen() {
             )}
             {!previewReady && (
               <View style={styles.previewLoading}>
-                <ActivityIndicator color={dark.textPrimary} />
+                <ActivityIndicator color={colors.textPrimary} />
               </View>
             )}
             <GlassCapsule variant="clear" style={styles.badge}>
@@ -1366,11 +1357,11 @@ export default function EditorScreen() {
                 scaleTo={0.9}
                 hitSlop={6}
                 style={styles.play}>
-                <SymbolView name={playing ? 'pause.fill' : 'play.fill'} size={17} tintColor={dark.textPrimary} />
+                <SymbolView name={playing ? 'pause.fill' : 'play.fill'} size={17} tintColor={colors.textPrimary} />
               </PressableScale>
               <AppText variant="label" tabular style={styles.clock} accessibilityLabel={`${formatDuration(time)} of ${formatDuration(total)}`}>
                 {formatDuration(time)}
-                <AppText variant="label" tabular color={dark.textSecondary}>
+                <AppText variant="label" tabular color={colors.textSecondary}>
                   {` / ${formatDuration(total)}`}
                 </AppText>
               </AppText>
@@ -1497,7 +1488,7 @@ export default function EditorScreen() {
               {/* Only messages the user caused show here; the strip explains itself by use. */}
               <AppText
                 variant="caption"
-                color={shownNotice ? dark.textPrimary : dark.textMuted}
+                color={shownNotice ? colors.textPrimary : colors.textMuted}
                 style={styles.editHint}
                 numberOfLines={2}
                 accessibilityLiveRegion="polite">
@@ -1549,7 +1540,7 @@ export default function EditorScreen() {
                     returnKeyType="done"
                     submitBehavior="blurAndSubmit"
                     keyboardAppearance="dark"
-                    selectionColor={dark.accent}
+                    selectionColor={colors.accent}
                     accessibilityLabel="Caption text"
                     accessibilityHint="Done saves it. Leave it empty to use the transcribed words."
                     onEndEditing={(e) => saveCaptionText(selectedCard, e.nativeEvent.text)}
@@ -1577,7 +1568,7 @@ export default function EditorScreen() {
                 </AppText>
                 {!analysis.noSpeech && candidates.length > 0 && (
                   <>
-                    <AppText variant="label" color={dark.textSecondary}>
+                    <AppText variant="label" color={colors.textSecondary}>
                       {[
                         fillerCandidates.length > 0
                           ? fillerCandidates.length === 1
@@ -1611,7 +1602,7 @@ export default function EditorScreen() {
             {nothingSelected && tool === 'words' && (
               <Panel title="Words" detail="Tap to cut · hold to fix spelling">
                 {words.length === 0 ? (
-                  <AppText variant="label" color={dark.textSecondary}>
+                  <AppText variant="label" color={colors.textSecondary}>
                     No words were transcribed for this clip.
                   </AppText>
                 ) : (
@@ -1633,7 +1624,7 @@ export default function EditorScreen() {
                             autoCapitalize="none"
                             returnKeyType="done"
                             keyboardAppearance="dark"
-                            selectionColor={dark.accent}
+                            selectionColor={colors.violet}
                             accessibilityLabel={`Spelling of “${w.text}”`}
                             accessibilityHint="Done saves it. Leave it empty to use the transcribed word."
                             onEndEditing={(e) => saveWord(i, e.nativeEvent.text)}
@@ -1662,7 +1653,7 @@ export default function EditorScreen() {
                           ]}>
                           <AppText
                             variant="chip"
-                            color={removed ? dark.danger : i === activeWord ? dark.textInverse : dark.chipText}
+                            color={removed ? colors.danger : i === activeWord ? colors.textInverse : colors.chipText}
                             style={removed && styles.strike}>
                             {text}
                           </AppText>
@@ -1705,12 +1696,12 @@ export default function EditorScreen() {
                     <Chip label="Off" selected={!currentLevels.retakes} onPress={() => applyLevels({ ...currentLevels, retakes: false })} />
                     <Chip label="On" selected={currentLevels.retakes} onPress={() => applyLevels({ ...currentLevels, retakes: true })} />
                   </ChipGroup>
-                  <AppText variant="caption" color={dark.textMuted}>
+                  <AppText variant="caption" color={colors.textMuted}>
                     Keeps the last take of a repeated line
                   </AppText>
                 </View>
                 {levelsError && (
-                  <AppText variant="label" color={dark.danger}>
+                  <AppText variant="label" color={colors.danger}>
                     {levelsError}
                   </AppText>
                 )}
@@ -1782,7 +1773,7 @@ export default function EditorScreen() {
                           <View style={styles.aspectIcon}>
                             <View style={[styles.aspectBox, box, on && styles.aspectBoxOn]} />
                           </View>
-                          <AppText variant="caption" color={on ? dark.textPrimary : dark.textSecondary} numberOfLines={1}>
+                          <AppText variant="caption" color={on ? colors.textPrimary : colors.textSecondary} numberOfLines={1}>
                             {a.label}
                           </AppText>
                         </PressableScale>
@@ -1811,10 +1802,10 @@ export default function EditorScreen() {
                           accessibilityState={{ selected: on }}
                           accessibilityLabel={`${m.label}: ${m.hint}`}
                           style={[styles.segmentItem, on && styles.segmentOn]}>
-                          <AppText variant="chip" color={on ? dark.textInverse : dark.textPrimary}>
+                          <AppText variant="chip" color={on ? colors.textInverse : colors.textPrimary}>
                             {m.label}
                           </AppText>
-                          <AppText variant="caption" color={on ? 'rgba(0,0,0,0.6)' : dark.textMuted}>
+                          <AppText variant="caption" color={on ? 'rgba(0,0,0,0.6)' : colors.textMuted}>
                             {m.hint}
                           </AppText>
                         </PressableScale>
@@ -1823,7 +1814,7 @@ export default function EditorScreen() {
                   </View>
                 </View>
                 {layout.length > 1 && (
-                  <AppText variant="caption" color={dark.textMuted}>
+                  <AppText variant="caption" color={colors.textMuted}>
                     Applies to all {layout.length} clips.
                   </AppText>
                 )}
@@ -1896,7 +1887,7 @@ export default function EditorScreen() {
                   onChange={(v) => commit(setOriginalMuted(doc, v))}
                 />
                 {!audioEditable && (
-                  <AppText variant="caption" color={dark.textMuted}>
+                  <AppText variant="caption" color={colors.textMuted}>
                     Adding music and voiceovers needs the latest build of Tenfold.
                   </AppText>
                 )}
@@ -1930,7 +1921,7 @@ function textTiming(o: TextOverlay, total: number) {
 }
 
 function EditAction({ icon, label, onPress, disabled, danger }: { icon: 'scissors' | 'trash'; label: string; onPress: () => void; disabled?: boolean; danger?: boolean }) {
-  const tint = disabled ? dark.textMuted : danger ? dark.danger : dark.textPrimary;
+  const tint = disabled ? colors.textMuted : danger ? colors.danger : colors.textPrimary;
   return (
     <PressableScale
       onPress={onPress}
@@ -1955,7 +1946,7 @@ function Stat({ value, label }: { value: string; label: string }) {
       <AppText variant="title" tabular>
         {value}
       </AppText>
-      <AppText variant="caption" color={dark.textSecondary} numberOfLines={1}>
+      <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}>
         {label}
       </AppText>
     </View>
@@ -1969,7 +1960,7 @@ const styles = StyleSheet.create({
   gutter: { paddingHorizontal: spacing.gutter },
   previewSlot: { alignItems: 'center', justifyContent: 'center' },
   overlay: { position: 'absolute', alignSelf: 'center' },
-  bone: { borderRadius: radii.card, borderCurve: 'continuous', backgroundColor: dark.card },
+  bone: { borderRadius: radii.card, borderCurve: 'continuous', backgroundColor: colors.card },
   skeletonTools: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.lg },
   skeletonTool: { flex: 1, height: 58, borderRadius: radii.tile },
   group: { gap: spacing.sm },
@@ -1983,9 +1974,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: radii.tile,
     borderCurve: 'continuous',
-    backgroundColor: dark.chipFill,
+    backgroundColor: colors.chipFill,
   },
-  segmentOn: { backgroundColor: dark.chipSelectedFill },
+  segmentOn: { backgroundColor: colors.chipSelectedFill },
   previewLoading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52, marginBottom: spacing.sm },
   topSide: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -2013,7 +2004,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 18,
     borderCurve: 'continuous',
-    backgroundColor: dark.card,
+    backgroundColor: colors.card,
   },
   editActionOff: { opacity: 0.5 },
   editHint: { flex: 1, marginLeft: spacing.xs },
@@ -2027,14 +2018,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: radii.tile,
     borderCurve: 'continuous',
-    backgroundColor: dark.chipFill,
+    backgroundColor: colors.chipFill,
     borderWidth: 1.5,
     borderColor: 'transparent',
   },
-  aspectOn: { borderColor: dark.textPrimary, backgroundColor: dark.cardHigh },
+  aspectOn: { borderColor: colors.textPrimary, backgroundColor: colors.cardHigh },
   aspectIcon: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
-  aspectBox: { borderRadius: 3, borderWidth: 1.5, borderColor: dark.textSecondary },
-  aspectBoxOn: { borderColor: dark.textPrimary },
+  aspectBox: { borderRadius: 3, borderWidth: 1.5, borderColor: colors.textSecondary },
+  aspectBoxOn: { borderColor: colors.textPrimary },
   panel: { marginTop: spacing.xl },
   words: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   word: {
@@ -2042,7 +2033,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 17,
     justifyContent: 'center',
-    backgroundColor: dark.chipFill,
+    backgroundColor: colors.chipFill,
     borderWidth: 1,
     borderColor: 'transparent',
   },
@@ -2051,15 +2042,15 @@ const styles = StyleSheet.create({
     lineHeight: undefined,
     minWidth: 64,
     paddingVertical: 0,
-    color: dark.textPrimary,
-    backgroundColor: dark.cardHigh,
-    borderColor: dark.accent,
+    color: colors.textPrimary,
+    backgroundColor: colors.cardHigh,
+    borderColor: colors.violet,
   },
-  wordActive: { backgroundColor: dark.chipSelectedFill },
-  wordRemoved: { backgroundColor: dark.dangerSoft },
-  wordCandidate: { borderColor: dark.danger, borderStyle: 'dashed' },
+  wordActive: { backgroundColor: colors.chipSelectedFill },
+  wordRemoved: { backgroundColor: colors.dangerSoft },
+  wordCandidate: { borderColor: colors.danger, borderStyle: 'dashed' },
   strike: { textDecorationLine: 'line-through' },
-  captionTextBox: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: radii.tile, backgroundColor: dark.chipFill },
+  captionTextBox: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: radii.tile, backgroundColor: colors.chipFill },
   captionInput: {
     ...typeScale.body,
     lineHeight: undefined,
@@ -2067,10 +2058,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: radii.tile,
-    color: dark.textPrimary,
-    backgroundColor: dark.cardHigh,
+    color: colors.textPrimary,
+    backgroundColor: colors.cardHigh,
     borderWidth: 1,
-    borderColor: dark.accent,
+    borderColor: colors.accent,
   },
   statRow: { flexDirection: 'row', justifyContent: 'space-between' },
   stat: { alignItems: 'center', flex: 1, gap: 2 },

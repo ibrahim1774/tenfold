@@ -9,7 +9,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { AppText, GlassCapsule, PressableScale } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
-import { dark, radii, sizes, spacing } from '@/design/tokens';
+import { colors, radii, sizes, spacing } from '@/design/tokens';
 import { HOOKS, MAX_SIZE, MIN_SIZE, nextBox, overlayMetrics, TEXT_COLORS, TEXT_STYLES } from '@/editor/textLayout';
 import { newOverlay, normalizeText, removeOverlay, upsertOverlay } from '@/editor/textOverlays';
 import { Engine, type TextAlign, type TextOverlay, type TextOverlayBox } from '@/engine';
@@ -175,7 +175,7 @@ export default function TextEditorScreen() {
             placeholder="Enter text"
             placeholderTextColor="rgba(255,255,255,0.5)"
             keyboardAppearance="dark"
-            selectionColor={dark.accent}
+            selectionColor={colors.accent}
             allowFontScaling={false}
             accessibilityLabel="Text"
             style={inputStyle}
@@ -209,7 +209,7 @@ export default function TextEditorScreen() {
               {Engine.canPickColor() && (
                 <Pressable onPress={pickSystemColor} accessibilityRole="button" accessibilityLabel="More colours" hitSlop={2} style={styles.swatchHit}>
                   <View style={[styles.swatch, styles.swatchMore]}>
-                    <SymbolView name="eyedropper" size={14} tintColor={dark.textPrimary} />
+                    <SymbolView name="eyedropper" size={14} tintColor={colors.textPrimary} />
                   </View>
                 </Pressable>
               )}
@@ -267,23 +267,23 @@ export default function TextEditorScreen() {
 function ToolButton({ icon, label, onPress, on, dim }: { icon: SFSymbol; label: string; onPress: () => void; on?: boolean; dim?: boolean }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={on === undefined ? undefined : { selected: on }} style={[styles.tool, on && styles.toolOn]}>
-      <SymbolView name={icon} size={19} weight="regular" tintColor={on ? dark.textInverse : dark.textPrimary} style={dim ? styles.dimIcon : undefined} />
+      <SymbolView name={icon} size={19} weight="regular" tintColor={on ? colors.textInverse : colors.textPrimary} style={dim ? styles.dimIcon : undefined} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  frame: { position: 'absolute', overflow: 'hidden', backgroundColor: dark.bg },
+  frame: { position: 'absolute', overflow: 'hidden', backgroundColor: colors.bg },
   dim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)' },
   toolbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, height: TOOLBAR_H },
   tools: { minHeight: sizes.iconButton, paddingHorizontal: 0, gap: 0 },
   tool: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   // Selected tool: a white disc with a black glyph, as in the system's own editors.
-  toolOn: { backgroundColor: dark.textPrimary },
+  toolOn: { backgroundColor: colors.textPrimary },
   dimIcon: { opacity: 0.6 },
   colorRing: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
-  colorRingOn: { borderColor: dark.textPrimary },
+  colorRingOn: { borderColor: colors.textPrimary },
   colorDot: { width: 20, height: 20, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.5)' },
   done: { minHeight: sizes.iconButton, paddingHorizontal: spacing.lg },
   middle: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
@@ -297,12 +297,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(28,28,30,0.82)',
   },
-  chipOn: { backgroundColor: dark.chipSelectedFill },
-  chipText: { fontSize: 15, color: dark.textPrimary },
-  chipTextOn: { color: dark.chipSelectedText },
+  chipOn: { backgroundColor: colors.chipSelectedFill },
+  chipText: { fontSize: 15, color: colors.textPrimary },
+  chipTextOn: { color: colors.chipSelectedText },
   // Swatches: a white ring with a small gap marks the chosen colour; the hairline keeps black visible.
   swatchHit: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
-  swatchHitOn: { borderColor: dark.textPrimary },
+  swatchHitOn: { borderColor: colors.textPrimary },
   swatch: { width: 28, height: 28, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.4)' },
   swatchMore: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(28,28,30,0.82)' },
   hooks: { paddingBottom: 2 },
@@ -316,6 +316,6 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: dark.textPrimary,
+    backgroundColor: colors.textPrimary,
   },
 });

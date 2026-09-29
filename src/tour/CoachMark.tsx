@@ -4,15 +4,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Rect as SvgRect } from 'react-native-svg';
 
 import { AppText, GradientButton } from '@/design/components';
-import { motion, radii, spacing } from '@/design/tokens';
+import { colors, motion, radii, spacing } from '@/design/tokens';
 
 import type { Rect } from './steps';
-import { themedStyles, useScheme, useTheme } from '@/design/theme';
 
 const PAD = 6;
 const RADIUS = radii.card;
 const CARD_GAP = 14;
-// A calm outline around the highlighted control: white at half alpha over the dimmed screen, no glow.
+// A calm outline around the highlighted control: white at low alpha, no accent glow.
 const RING = 'rgba(255,255,255,0.5)';
 
 function roundedRect({ x, y, width: w, height: h }: Rect, r: number) {
@@ -32,8 +31,6 @@ export type CoachMarkProps = {
 
 /** Dims the screen except for a rounded cut-out around `target`, with a card that explains it. */
 export function CoachMark({ target, title, body, index, total, onNext, onSkip }: CoachMarkProps) {
-  const colors = useTheme();
-  const styles = themed[useScheme()];
   const win = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const last = index === total - 1;
@@ -63,7 +60,7 @@ export function CoachMark({ target, title, body, index, total, onNext, onSkip }:
       exiting={FadeOut.duration(motion.fast).reduceMotion(ReduceMotion.System)}
       style={StyleSheet.absoluteFill}
       accessibilityViewIsModal>
-      {/* The overlay fades in from 0, so the bubble is a flat card, not glass (glass can't start at opacity 0). */}
+      {/* The overlay fades in from 0, so the bubble is flat graphite, not glass (glass can't start at opacity 0). */}
       {/* Swallows taps outside the card: the tour asks for Next or Skip. */}
       <Pressable style={StyleSheet.absoluteFill} accessible={false} onPress={() => {}}>
         <Svg width={win.width} height={win.height}>
@@ -111,7 +108,7 @@ export function CoachMark({ target, title, body, index, total, onNext, onSkip }:
   );
 }
 
-const themed = themedStyles((colors) => ({
+const styles = StyleSheet.create({
   flex: { flex: 1 },
   card: {
     position: 'absolute',
@@ -121,11 +118,11 @@ const themed = themedStyles((colors) => ({
     gap: spacing.sm,
     borderRadius: 22,
     borderCurve: 'continuous',
-    backgroundColor: colors.popover,
+    backgroundColor: colors.cardHigh,
   },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs },
   skip: { minHeight: 44, justifyContent: 'center', paddingRight: spacing.md },
   next: { minWidth: 104 },
   pressed: { opacity: 0.6 },
-}));
+});

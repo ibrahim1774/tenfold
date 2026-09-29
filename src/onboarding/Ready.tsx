@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/design/components';
 import { TakesWall } from '@/design/TakesWall';
-import { light, spacing } from '@/design/tokens';
+import { colors, spacing } from '@/design/tokens';
 import { useOnboarding } from '@/state/onboarding';
 import { PRESET_OPTIONS } from '@/state/presets';
 import { useSettings } from '@/state/settings';
@@ -36,7 +36,7 @@ export function Ready() {
         <AppText variant="display" accessibilityRole="header">
           Your first batch is ready to make.
         </AppText>
-        <AppText variant="label" color={light.textSecondary} numberOfLines={2}>
+        <AppText variant="label" color={colors.textSecondary} numberOfLines={2}>
           {summary}
         </AppText>
       </View>

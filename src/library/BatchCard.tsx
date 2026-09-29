@@ -3,7 +3,7 @@ import { SymbolView } from 'expo-symbols';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, GlassSurface, PressableScale, ProgressRing, Thumb, seedOf } from '@/design/components';
-import { light, media, radii, shadows, spacing } from '@/design/tokens';
+import { colors, radii, spacing } from '@/design/tokens';
 import type { Batch, BatchStatus, Project } from '@/engine/types';
 import { batchStatus, formatDuration, projectsOf, timeAgo, useLibrary } from '@/state/library';
 import { playingClipCount } from '@/editor/clips';
@@ -107,28 +107,25 @@ export function BatchCard({ batch }: { batch: Batch }) {
       accessibilityLabel={`${batch.title}. ${facts}. ${s.line}, ${age}.`}
       accessibilityHint={s.status === 'setup' ? 'Opens batch setup' : 'Opens the batch'}
       onPress={() => openBatch(batch, s.status)}>
-      {/* Shadow on the outer view, clipping on the inner one (iOS can't do both on one view). */}
-      <View style={styles.lift}>
-        <View style={styles.mosaic}>
-          {(frames.length > 0 ? frames : [undefined]).map((p, i) => (
-            <Thumb key={p?.id ?? i} seed={seedOf(batch.id) + i} uri={p?.posterUri} style={styles.frame} />
-          ))}
-          {s.status === 'processing' ? (
-            <GlassSurface variant="clear" style={styles.status} pointerEvents="none">
-              <ProgressRing progress={s.progress} size={20} stroke={2.5} showLabel={false} />
-            </GlassSurface>
-          ) : s.status === 'exported' ? (
-            <GlassSurface variant="clear" style={styles.status} pointerEvents="none">
-              <SymbolView name="checkmark" size={12} tintColor={media.text} weight="semibold" />
-            </GlassSurface>
-          ) : null}
-      </View>
+      <View style={styles.mosaic}>
+        {(frames.length > 0 ? frames : [undefined]).map((p, i) => (
+          <Thumb key={p?.id ?? i} seed={seedOf(batch.id) + i} uri={p?.posterUri} style={styles.frame} />
+        ))}
+        {s.status === 'processing' ? (
+          <GlassSurface variant="clear" style={styles.status} pointerEvents="none">
+            <ProgressRing progress={s.progress} size={20} stroke={2.5} showLabel={false} />
+          </GlassSurface>
+        ) : s.status === 'exported' ? (
+          <GlassSurface variant="clear" style={styles.status} pointerEvents="none">
+            <SymbolView name="checkmark" size={12} tintColor={colors.textPrimary} weight="semibold" />
+          </GlassSurface>
+        ) : null}
       </View>
       <View style={styles.text}>
         <AppText variant="bodyStrong" numberOfLines={1}>
           {batch.title}
         </AppText>
-        <AppText variant="label" color={light.textSecondary} numberOfLines={1} tabular>
+        <AppText variant="label" color={colors.textSecondary} numberOfLines={1} tabular>
           {line}
         </AppText>
       </View>
@@ -138,21 +135,14 @@ export function BatchCard({ batch }: { batch: Batch }) {
 
 const styles = StyleSheet.create({
   card: { flex: 1 },
-  lift: {
+  mosaic: {
+    flexDirection: 'row',
+    gap: 2,
     aspectRatio: 4 / 5,
     borderRadius: radii.card,
     borderCurve: 'continuous',
-    backgroundColor: light.card,
-    ...shadows.soft,
-  },
-  mosaic: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 2,
-    borderRadius: radii.card,
-    borderCurve: 'continuous',
     overflow: 'hidden',
-    backgroundColor: light.card,
+    backgroundColor: colors.card,
   },
   frame: { flex: 1 },
   status: {
@@ -165,5 +155,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  text: { paddingHorizontal: 2, paddingTop: spacing.md, gap: 1 },
+  text: { paddingHorizontal: 2, paddingTop: spacing.sm, gap: 1 },
 });

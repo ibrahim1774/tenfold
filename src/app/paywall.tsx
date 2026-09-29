@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Background, GradientButton, IconButton } from '@/design/components';
 import { sampleFrame } from '@/design/sampleFrames';
-import { light, motion, radii, shadows, spacing } from '@/design/tokens';
+import { colors, motion, radii, spacing } from '@/design/tokens';
 import { useStoreActions, type StorePrice } from '@/monetization/superwall';
 import {
   annualSavingPercent,
@@ -159,19 +159,13 @@ export default function PaywallScreen() {
       <Background />
 
       <ScrollView style={styles.flex} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* A real take across the top, dissolving into the page; the offer sits where it fades out. */}
+        {/* A real take, darkened into the page, with the offer set on it. */}
         <View style={[styles.hero, { height: HERO + insets.top }]}>
           <Image source={sampleFrame(4)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" transition={0} />
           <LinearGradient
-            colors={[light.bgClear, light.bgClear, light.bg]}
-            locations={[0, 0.45, 0.92]}
+            colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.35)', colors.bg]}
+            locations={[0, 0.55, 1]}
             style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-          />
-          {/* A light veil under the status bar, so its dark glyphs read over the footage. */}
-          <LinearGradient
-            colors={[light.chrome, light.bgClear]}
-            style={[styles.veil, { height: insets.top + 48 }]}
             pointerEvents="none"
           />
           <View style={styles.heroText}>
@@ -184,7 +178,7 @@ export default function PaywallScreen() {
         <View style={styles.benefits}>
           {BENEFITS.map((b) => (
             <View key={b} style={styles.benefit}>
-              <SymbolView name="checkmark" size={14} tintColor={light.accent} weight="bold" />
+              <SymbolView name="checkmark" size={13} tintColor={colors.textPrimary} weight="semibold" />
               <AppText variant="body">{b}</AppText>
             </View>
           ))}
@@ -201,12 +195,12 @@ export default function PaywallScreen() {
                 accessibilityState={{ selected: on }}
                 accessibilityLabel={b === 'annual' ? `Annual, save ${saving}%` : 'Monthly'}
                 style={[styles.segmentItem, on && styles.segmentOn]}>
-                <AppText variant="chip" color={on ? light.textPrimary : light.textSecondary}>
+                <AppText variant="chip" color={on ? colors.textInverse : colors.textPrimary}>
                   {b === 'annual' ? 'Annual' : 'Monthly'}
                 </AppText>
                 {b === 'annual' && saving > 0 ? (
                   <View style={styles.savePill}>
-                    <AppText variant="caption" color={light.accentText} tabular>
+                    <AppText variant="caption" color={colors.accentText} tabular>
                       Save {saving}%
                     </AppText>
                   </View>
@@ -247,17 +241,17 @@ export default function PaywallScreen() {
         />
         {notice ? (
           <Animated.View entering={FadeIn.duration(motion.fast).reduceMotion(ReduceMotion.System)}>
-            <AppText variant="caption" color={light.textPrimary} style={styles.center} accessibilityLiveRegion="polite">
+            <AppText variant="caption" color={colors.textPrimary} style={styles.center} accessibilityLiveRegion="polite">
               {notice}
             </AppText>
           </Animated.View>
         ) : null}
-        <AppText variant="caption" color={light.textMuted} tabular style={styles.center}>
+        <AppText variant="caption" color={colors.textMuted} tabular style={styles.center}>
           {renewalLine(plan, billing, trial, storePrice(tier, billing)?.localizedPrice)}
         </AppText>
 
         <Pressable onPress={close} accessibilityRole="button" style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
-          <AppText variant="bodyStrong" color={light.textSecondary}>
+          <AppText variant="bodyStrong" color={colors.textSecondary}>
             Not now
           </AppText>
         </Pressable>
@@ -265,7 +259,7 @@ export default function PaywallScreen() {
         <View style={styles.links}>
           {links.map(({ label, onPress }) => (
             <Pressable key={label} onPress={onPress} accessibilityRole="link" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
-              <AppText variant="caption" color={light.textMuted}>
+              <AppText variant="caption" color={colors.textMuted}>
                 {label}
               </AppText>
             </Pressable>
@@ -318,19 +312,19 @@ function PlanCard({
         <SymbolView
           name={selected ? 'checkmark.circle.fill' : 'circle'}
           size={22}
-          tintColor={selected ? light.accent : light.glyph}
+          tintColor={selected ? colors.textPrimary : colors.textMuted}
           weight="regular"
         />
         <View style={styles.flex}>
           <View style={styles.planName}>
             <AppText variant="bodyStrong">{plan.name}</AppText>
             {current ? (
-              <AppText variant="caption" color={light.textMuted}>
+              <AppText variant="caption" color={colors.textMuted}>
                 Your plan
               </AppText>
             ) : null}
           </View>
-          <AppText variant="label" color={light.textSecondary} tabular numberOfLines={1}>
+          <AppText variant="label" color={colors.textSecondary} tabular numberOfLines={1}>
             {facts}
           </AppText>
         </View>
@@ -339,7 +333,7 @@ function PlanCard({
             {price}
           </AppText>
           {detail ? (
-            <AppText variant="caption" color={light.textMuted} tabular>
+            <AppText variant="caption" color={colors.textMuted} tabular>
               {detail}
             </AppText>
           ) : null}
@@ -354,13 +348,12 @@ const styles = StyleSheet.create({
   center: { textAlign: 'center' },
   top: { position: 'absolute', right: spacing.md },
   content: { paddingHorizontal: spacing.gutter, paddingBottom: spacing.xl, gap: spacing.xl },
-  hero: { marginHorizontal: -spacing.gutter, justifyContent: 'flex-end', backgroundColor: light.bg },
+  hero: { marginHorizontal: -spacing.gutter, justifyContent: 'flex-end', backgroundColor: colors.card },
   heroText: { paddingHorizontal: spacing.gutter },
-  veil: { position: 'absolute', top: 0, left: 0, right: 0 },
   benefits: { gap: spacing.sm, marginTop: -spacing.sm },
   benefit: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
 
-  segment: { flexDirection: 'row', padding: 3, borderRadius: radii.button, backgroundColor: light.cardHigh },
+  segment: { flexDirection: 'row', padding: 3, borderRadius: radii.button, backgroundColor: colors.card },
   segmentItem: {
     flex: 1,
     minHeight: 40,
@@ -370,8 +363,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     borderRadius: radii.button - 3,
   },
-  segmentOn: { backgroundColor: light.card, ...shadows.control },
-  savePill: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: radii.round, backgroundColor: light.accentSoft },
+  segmentOn: { backgroundColor: colors.textPrimary },
+  savePill: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: radii.round, backgroundColor: colors.bg },
 
   plans: { gap: spacing.sm },
   plan: {
@@ -381,11 +374,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     borderCurve: 'continuous',
     // Constant width so selecting a plan doesn't shift the layout; only the selected plan shows a ring.
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: 'transparent',
-    backgroundColor: light.card,
+    backgroundColor: colors.card,
   },
-  planOn: { borderColor: light.accent },
+  planOn: { borderColor: colors.textPrimary },
   planHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
   planName: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   priceCol: { alignItems: 'flex-end' },

@@ -3,8 +3,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type { SFSymbol } from '../symbols';
-import { useScheme, useTheme } from '../theme';
-import { media, shadows, sizes } from '../tokens';
+import { colors, sizes } from '../tokens';
 import { GlassSurface, glassAvailable } from './Glass';
 import { PressableScale } from './PressableScale';
 
@@ -14,9 +13,8 @@ export type IconButtonProps = {
   onPress?: () => void;
   size?: number;
   /**
-   * 'glass' (default): chrome floating over content (back, close, more, +). A Liquid Glass circle on
-   * dark screens; on light screens a white circle lifted by the soft control shadow.
-   * 'filled': a flat neutral circle for controls inside content (steppers in a sheet).
+   * 'glass' (default): a Liquid Glass circle for chrome floating over content (back, close, more, +).
+   * 'filled': a flat graphite circle for controls inside content (steppers in a sheet).
    * 'ghost': a bare glyph (undo/redo in a toolbar that is itself glass).
    * 'outline' and 'solid' are legacy names for 'glass'.
    */
@@ -35,15 +33,9 @@ export function IconButton({
   disabled,
   iconScale = 0.39,
 }: IconButtonProps) {
-  const scheme = useScheme();
-  const theme = useTheme();
+  const glyph = <SymbolView name={icon} size={Math.round(size * iconScale)} tintColor={colors.textPrimary} weight="medium" />;
   const circle = { width: size, height: size, borderRadius: size / 2 };
-  const floating = tone === 'glass' || tone === 'outline' || tone === 'solid';
-  const isGlass = floating && scheme === 'dark';
-  // Glass draws dark whatever the page, so its glyph is the dark palette's white.
-  const glyph = (
-    <SymbolView name={icon} size={Math.round(size * iconScale)} tintColor={isGlass ? media.text : theme.textPrimary} weight="medium" />
-  );
+  const isGlass = tone === 'glass' || tone === 'outline' || tone === 'solid';
 
   return (
     <PressableScale
@@ -62,7 +54,7 @@ export function IconButton({
           {glyph}
         </GlassSurface>
       ) : (
-        <GlassFreeCircle fill={floating ? theme.card : tone === 'filled' ? theme.cardHigh : undefined} lifted={floating} circle={circle}>
+        <GlassFreeCircle filled={tone === 'filled'} circle={circle}>
           {glyph}
         </GlassFreeCircle>
       )}
@@ -71,20 +63,18 @@ export function IconButton({
 }
 
 function GlassFreeCircle({
-  fill,
-  lifted,
+  filled,
   circle,
   children,
 }: {
-  fill?: string;
-  lifted: boolean;
+  filled: boolean;
   circle: { width: number; height: number; borderRadius: number };
   children: ReactNode;
 }) {
-  return <View style={[styles.center, circle, fill ? { backgroundColor: fill } : null, lifted && styles.lifted]}>{children}</View>;
+  return <View style={[styles.center, circle, filled && styles.filled]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
-  lifted: shadows.control,
+  filled: { backgroundColor: colors.cardHigh },
 });

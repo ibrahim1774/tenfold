@@ -2,7 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, PressableScale } from '@/design/components';
-import { light, radii, spacing } from '@/design/tokens';
+import { colors, radii, spacing } from '@/design/tokens';
 import type { Batch, EditSelection, Project } from '@/engine/types';
 import { setAllEdits, setEdit } from '@/state/batchSetup';
 
@@ -33,7 +33,7 @@ export function BatchEdits({ batch, clips, selections }: { batch: Batch; clips: 
             onPress={() => setAllEdits(batch.id, !everything)}
             accessibilityRole="button"
             accessibilityLabel={everything ? 'Clear all edits' : 'Select all edits'}>
-            <AppText variant="chip" color={light.textSecondary}>
+            <AppText variant="chip" color={colors.textSecondary}>
               {everything ? 'Clear' : 'Select all'}
             </AppText>
           </Pressable>
@@ -60,8 +60,8 @@ export function BatchEdits({ batch, clips, selections }: { batch: Batch; clips: 
                     accessibilityLabel={mixed ? `${e.label}, on for ${n} of ${clips.length} clips` : e.label}
                     accessibilityHint={e.detail}
                     style={[styles.chip, all && styles.on, mixed && styles.mixed, empty && styles.disabled]}>
-                    {mixed && <SymbolView name="minus" size={12} weight="semibold" tintColor={light.textPrimary} />}
-                    <AppText variant="chip" numberOfLines={1} color={all ? light.chipSelectedText : light.chipText}>
+                    {mixed && <SymbolView name="minus" size={12} weight="semibold" tintColor={colors.textPrimary} />}
+                    <AppText variant="chip" numberOfLines={1} color={all ? colors.chipSelectedText : colors.chipText}>
                       {e.label}
                     </AppText>
                   </PressableScale>
@@ -73,11 +73,11 @@ export function BatchEdits({ batch, clips, selections }: { batch: Batch; clips: 
       </View>
 
       {empty ? (
-        <AppText variant="caption" color={light.textMuted}>
+        <AppText variant="caption" color={colors.textMuted}>
           Add clips first.
         </AppText>
       ) : differing > 0 ? (
-        <AppText variant="caption" color={light.textSecondary} tabular>
+        <AppText variant="caption" color={colors.textSecondary} tabular>
           {differing} {differing === 1 ? 'clip differs' : 'clips differ'} · tap a clip to change it
         </AppText>
       ) : null}
@@ -102,13 +102,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     paddingHorizontal: spacing.sm,
-    backgroundColor: light.chipFill,
+    backgroundColor: colors.chipFill,
     // Transparent by default so the mixed state's outline doesn't shift the layout.
     borderWidth: 1,
     borderColor: 'transparent',
   },
   // On for every clip: white fill. On for some: a white outline and a minus.
-  on: { backgroundColor: light.chipSelectedFill, borderColor: light.chipSelectedFill },
-  mixed: { borderColor: light.textSecondary },
+  on: { backgroundColor: colors.chipSelectedFill, borderColor: colors.chipSelectedFill },
+  mixed: { borderColor: colors.textSecondary },
   disabled: { opacity: 0.4 },
 });

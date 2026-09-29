@@ -2,12 +2,11 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/design/components';
-import { spacing } from '@/design/tokens';
+import { colors, spacing } from '@/design/tokens';
 import { Engine } from '@/engine';
 
 import { CAPTION_COLORS, MORE_CAPTION_COLORS } from './presets';
 import { useRecentColors } from './recentColors';
-import { themedStyles, useScheme, useTheme } from '@/design/theme';
 
 const NAMES: Record<string, string> = {
   '#FFE14D': 'Yellow',
@@ -25,8 +24,6 @@ const NAMES: Record<string, string> = {
  * picker ("Other colour"). Builds without the picker get a larger swatch grid instead.
  */
 export function ColorChoices({ value, onPick }: { value: string; onPick: (hex: string) => void }) {
-  const colors = useTheme();
-  const styles = themed[useScheme()];
   const recent = useRecentColors((s) => s.colors);
   const add = useRecentColors((s) => s.add);
   // Checked once per open: a build either has the picker or it doesn't.
@@ -73,8 +70,6 @@ export function ColorChoices({ value, onPick }: { value: string; onPick: (hex: s
 }
 
 function Swatches({ label, list, current, onPick }: { label?: string; list: string[]; current: string; onPick: (hex: string) => void }) {
-  const colors = useTheme();
-  const styles = themed[useScheme()];
   return (
     <View style={styles.section}>
       {label ? (
@@ -104,7 +99,7 @@ function Swatches({ label, list, current, onPick }: { label?: string; list: stri
   );
 }
 
-const themed = themedStyles((colors) => ({
+const styles = StyleSheet.create({
   wrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.md, gap: spacing.md },
   section: { gap: spacing.sm },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
@@ -113,4 +108,4 @@ const themed = themedStyles((colors) => ({
   // A hairline edge so black stays visible on graphite.
   dot: { width: 30, height: 30, borderRadius: 15, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong },
   more: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
-}));
+});

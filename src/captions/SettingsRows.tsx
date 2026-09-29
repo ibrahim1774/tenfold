@@ -4,15 +4,12 @@ import { Children, Fragment, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Card, Toggle } from '@/design/components';
-import { spacing } from '@/design/tokens';
-import { themedStyles, useScheme, useTheme } from '@/design/theme';
+import { colors, spacing } from '@/design/tokens';
 
 // Grouped inset rows like iOS Settings (docs/DESIGN.md §5): a borderless graphite group, hairlines that
 // start at the text inset, sentence-case headers, chevrons only on rows that navigate. Rows are 48 pt or taller.
 
 export function SettingsGroup({ label, footer, children }: { label?: string; footer?: string; children: ReactNode }) {
-  const colors = useTheme();
-  const styles = themed[useScheme()];
   const rows = Children.toArray(children).filter(Boolean);
   return (
     <View style={styles.wrap}>
@@ -40,8 +37,6 @@ export function SettingsGroup({ label, footer, children }: { label?: string; foo
 
 /** A row that opens another screen: label, current value, chevron. */
 export function NavRow({ label, value, onPress, hint }: { label: string; value: string; onPress: () => void; hint?: string }) {
-  const colors = useTheme();
-  const styles = themed[useScheme()];
   return (
     <Pressable
       onPress={onPress}
@@ -61,7 +56,6 @@ export function NavRow({ label, value, onPress, hint }: { label: string; value: 
 }
 
 export function SwitchRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
-  const styles = themed[useScheme()];
   return (
     <View style={styles.row}>
       <AppText variant="body" style={styles.label}>
@@ -74,7 +68,6 @@ export function SwitchRow({ label, value, onChange }: { label: string; value: bo
 
 /** A row with a colour swatch; tapping it opens the colour choices. */
 export function ColorRow({ label, color, open, onPress }: { label: string; color: string; open?: boolean; onPress: () => void }) {
-  const styles = themed[useScheme()];
   const none = color === 'transparent' || color === '';
   return (
     <Pressable
@@ -93,8 +86,6 @@ export function ColorRow({ label, color, open, onPress }: { label: string; color
 
 /** One choice in an inline list: a checkmark marks the current one. */
 export function CheckRow({ label, checked, onPress, children }: { label: string; checked: boolean; onPress: () => void; children?: ReactNode }) {
-  const colors = useTheme();
-  const styles = themed[useScheme()];
   return (
     <Pressable
       onPress={() => {
@@ -127,8 +118,6 @@ export function SegmentRow<T extends string>({
   value: T;
   onChange: (v: T) => void;
 }) {
-  const colors = useTheme();
-  const styles = themed[useScheme()];
   return (
     <View style={styles.segmentRow}>
       <AppText variant="body">{label}</AppText>
@@ -161,8 +150,6 @@ export function SegmentRow<T extends string>({
 
 /** A read-only fact: label on the left, value on the right (no chevron, nothing to tap). */
 export function ValueRow({ label, value }: { label: string; value: string }) {
-  const colors = useTheme();
-  const styles = themed[useScheme()];
   return (
     <View style={styles.row} accessible accessibilityLabel={`${label}: ${value}`}>
       <AppText variant="body" style={styles.factLabel}>
@@ -177,7 +164,6 @@ export function ValueRow({ label, value }: { label: string; value: string }) {
 
 /** Placeholder in the shape of a ValueRow while the facts load. */
 export function ValueRowSkeleton() {
-  const styles = themed[useScheme()];
   return (
     <View style={styles.row}>
       <View style={[styles.bone, styles.boneLabel]} />
@@ -189,11 +175,10 @@ export function ValueRowSkeleton() {
 
 /** Free-form content inside a group (a stepper, a swatch grid), padded like a row. */
 export function RowBody({ children }: { children: ReactNode }) {
-  const styles = themed[useScheme()];
   return <View style={styles.body}>{children}</View>;
 }
 
-const themed = themedStyles((colors) => ({
+const styles = StyleSheet.create({
   wrap: { gap: spacing.sm },
   groupLabel: { marginLeft: spacing.lg },
   footer: { marginHorizontal: spacing.lg },
@@ -215,4 +200,4 @@ const themed = themedStyles((colors) => ({
   bone: { height: 12, borderRadius: 6, backgroundColor: colors.cardHigh },
   boneLabel: { width: 110 },
   boneValue: { width: 70 },
-}));
+});

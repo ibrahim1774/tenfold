@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { errorText } from '@/batch/queue';
 import { SettingsGroup, ValueRow, ValueRowSkeleton } from '@/captions/SettingsRows';
 import { AppText, ScreenHeader } from '@/design/components';
-import { dark, spacing } from '@/design/tokens';
+import { colors, spacing } from '@/design/tokens';
 import type { InfoRow } from '@/editor/Panel';
 import { Engine, type Analysis } from '@/engine';
 import { formatDuration, useLibrary } from '@/state/library';
@@ -65,12 +65,12 @@ export default function VideoInfoSheet() {
   return (
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
       <ScreenHeader title={project?.title ?? 'Video info'} back={false} />
-      <AppText variant="label" color={dark.textMuted} style={styles.subline}>
+      <AppText variant="label" color={colors.textMuted} style={styles.subline}>
         How this clip was analysed on this iPhone.
       </AppText>
 
       {error ? (
-        <AppText variant="label" color={dark.danger} style={styles.error}>
+        <AppText variant="label" color={colors.danger} style={styles.error}>
           Couldn’t read this video’s analysis: {error}
         </AppText>
       ) : !analysis ? (
@@ -84,12 +84,12 @@ export default function VideoInfoSheet() {
           {video.length > 0 && <SettingsGroup label="Video">{rowsOf(video)}</SettingsGroup>}
           {warnings.length > 0 && (
             <View style={styles.notesWrap}>
-              <AppText variant="label" color={dark.textSecondary} style={styles.notesLabel} accessibilityRole="header">
+              <AppText variant="label" color={colors.textSecondary} style={styles.notesLabel} accessibilityRole="header">
                 Notes
               </AppText>
               <View style={styles.notes}>
                 {warnings.map((w, i) => (
-                  <AppText key={i} variant="label" color={dark.textSecondary}>
+                  <AppText key={i} variant="label" color={colors.textSecondary}>
                     {w}
                   </AppText>
                 ))}

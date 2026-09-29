@@ -8,7 +8,7 @@ import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanima
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { AppText } from '@/design/components';
-import { dark } from '@/design/tokens';
+import { colors } from '@/design/tokens';
 import type { AudioClip, CaptionCard, CompSegment, TextOverlay, Thumbnail } from '@/engine/types';
 import { fileRows, originalsOf, trimLimits } from './audioClips';
 import { MIN_CLIP_SEC as MIN_SOURCE_CLIP_SEC, type TimelineClip } from './clips';
@@ -269,7 +269,7 @@ export function Timeline({
             scroll.current?.scrollTo({ x: t * PPS, animated: false });
             onScrubEnd(t);
           }}>
-          <SymbolView name="arrowtriangle.down.fill" size={12} tintColor={dark.accent} />
+          <SymbolView name="arrowtriangle.down.fill" size={12} tintColor={colors.accent} />
           <View style={styles.playLine} />
         </View>
       </View>
@@ -417,7 +417,7 @@ const TimelineTracks = memo(function TimelineTracks({
       <View style={styles.ruler}>
         {ticks.out.map((t) => (
           <View key={t} style={[styles.tick, { left: x(t) }]}>
-            <AppText variant="caption" color={dark.ruler} tabular>
+            <AppText variant="caption" color={colors.ruler} tabular>
               {tickLabel(t)}
             </AppText>
           </View>
@@ -520,7 +520,7 @@ const TimelineTracks = memo(function TimelineTracks({
             top={6}
             height={44}
             radius={10}
-            color={dark.accent}
+            color={colors.accent}
             // Inward up to the shortest clip; outward only as far as it was trimmed.
             startRange={[-clipRestorable.start * PPS, Math.max(0, (selClip.end - selClip.start - MIN_SOURCE_CLIP_SEC) * PPS)]}
             endRange={[-Math.max(0, (selClip.end - selClip.start - MIN_SOURCE_CLIP_SEC) * PPS), clipRestorable.end * PPS]}
@@ -535,7 +535,7 @@ const TimelineTracks = memo(function TimelineTracks({
             accessibilityLabel="Add clip"
             accessibilityHint="Adds a clip from Photos, the camera or Files to the end of the video."
             style={({ pressed }) => [styles.addClip, { left: x(total) + 12 }, pressed && styles.addClipPressed]}>
-            <SymbolView name="plus" size={20} weight="regular" tintColor={dark.textPrimary} />
+            <SymbolView name="plus" size={20} weight="regular" tintColor={colors.textPrimary} />
           </Pressable>
         )}
         {selRegion && (
@@ -596,8 +596,8 @@ const TimelineTracks = memo(function TimelineTracks({
                 hidden && styles.captionHidden,
                 isSel && styles.captionSelected,
               ]}>
-              <SymbolView name={hidden ? 'eye.slash' : 'textformat'} size={12} tintColor={hidden ? dark.textMuted : dark.textPrimary} />
-              <AppText variant="caption" color={hidden ? dark.textMuted : dark.textPrimary} style={styles.captionText} numberOfLines={1}>
+              <SymbolView name={hidden ? 'eye.slash' : 'textformat'} size={12} tintColor={hidden ? colors.textMuted : colors.textPrimary} />
+              <AppText variant="caption" color={hidden ? colors.textMuted : colors.textPrimary} style={styles.captionText} numberOfLines={1}>
                 {text}
               </AppText>
             </Pressable>
@@ -611,7 +611,7 @@ const TimelineTracks = memo(function TimelineTracks({
             top={4}
             height={26}
             radius={8}
-            color={dark.accent}
+            color={colors.accent}
             // Can't cross the neighbours, can't get shorter than MIN_CAPTION_SEC.
             startRange={[
               ((selCardIndex > 0 ? allCards[selCardIndex - 1].end : 0) - selCard.start) * PPS,
@@ -652,7 +652,7 @@ const TimelineTracks = memo(function TimelineTracks({
                   { top: 4 + row * TEXT_ROW, left: x(start), width: Math.max(28, (end - start) * PPS - 4) },
                   isSel && styles.captionSelected,
                 ]}>
-                <SymbolView name="textformat" size={12} tintColor={dark.textPrimary} />
+                <SymbolView name="textformat" size={12} tintColor={colors.textPrimary} />
                 <AppText variant="caption" style={styles.captionText} numberOfLines={1}>
                   {o.text.replace(/\n/g, ' ')}
                 </AppText>
@@ -667,7 +667,7 @@ const TimelineTracks = memo(function TimelineTracks({
               top={4 + selText.row * TEXT_ROW}
               height={26}
               radius={8}
-              color={dark.accent}
+              color={colors.accent}
               // Anywhere inside the video, never shorter than MIN_OVERLAY_SEC.
               startRange={[-selText.start * PPS, Math.max(0, selText.end - selText.start - MIN_OVERLAY_SEC) * PPS]}
               endRange={[-Math.max(0, selText.end - selText.start - MIN_OVERLAY_SEC) * PPS, Math.max(0, total - selText.end) * PPS]}
@@ -706,8 +706,8 @@ const TimelineTracks = memo(function TimelineTracks({
                 ))}
                 {w > 70 && (
                   <View pointerEvents="none" style={styles.soundLabel}>
-                    <SymbolView name={muted ? 'speaker.slash' : 'speaker.wave.2'} size={11} tintColor={dark.textSecondary} />
-                    <AppText variant="caption" color={dark.textSecondary} numberOfLines={1}>
+                    <SymbolView name={muted ? 'speaker.slash' : 'speaker.wave.2'} size={11} tintColor={colors.textSecondary} />
+                    <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}>
                       Original
                     </AppText>
                   </View>
@@ -723,7 +723,7 @@ const TimelineTracks = memo(function TimelineTracks({
               top={4}
               height={40}
               radius={8}
-              color={dark.accent}
+              color={colors.accent}
               startRange={[selAudioLimits.start[0] * PPS, selAudioLimits.start[1] * PPS]}
               endRange={[selAudioLimits.end[0] * PPS, selAudioLimits.end[1] * PPS]}
               scrollGesture={scrollGesture}
@@ -765,7 +765,7 @@ const TimelineTracks = memo(function TimelineTracks({
                   <View key={i} style={[styles.fileBar, { left: b.left, height: b.h }]} />
                 ))}
                 <View pointerEvents="none" style={styles.soundLabel}>
-                  <SymbolView name={c.loop ? 'repeat' : title.startsWith('Voiceover') ? 'mic' : 'music.note'} size={11} tintColor={dark.textPrimary} />
+                  <SymbolView name={c.loop ? 'repeat' : title.startsWith('Voiceover') ? 'mic' : 'music.note'} size={11} tintColor={colors.textPrimary} />
                   <AppText variant="caption" numberOfLines={1} style={styles.captionText}>
                     {title}
                   </AppText>
@@ -781,7 +781,7 @@ const TimelineTracks = memo(function TimelineTracks({
               top={4 + selAudioRow * SOUND_ROW}
               height={26}
               radius={8}
-              color={dark.accent}
+              color={colors.accent}
               startRange={[selAudioLimits.start[0] * PPS, selAudioLimits.start[1] * PPS]}
               endRange={[selAudioLimits.end[0] * PPS, selAudioLimits.end[1] * PPS]}
               scrollGesture={scrollGesture}
@@ -1019,12 +1019,12 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   ruler: { height: 24 },
   tick: { position: 'absolute', top: 2 },
-  dot: { position: 'absolute', top: 9, width: 2, height: 2, borderRadius: 1, backgroundColor: dark.ruler },
+  dot: { position: 'absolute', top: 9, width: 2, height: 2, borderRadius: 1, backgroundColor: colors.ruler },
   clipTrack: { height: 56, justifyContent: 'center' },
-  clip: { position: 'absolute', top: 6, height: 44, borderRadius: 10, overflow: 'hidden', backgroundColor: dark.cardHigh },
+  clip: { position: 'absolute', top: 6, height: 44, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.cardHigh },
   selectedTint: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.12)' },
   frame: { position: 'absolute', top: 0, width: FRAME_W, height: 44, borderRightWidth: 1, borderRightColor: 'rgba(0,0,0,0.35)' },
-  framePlaceholder: { backgroundColor: dark.cardHigh },
+  framePlaceholder: { backgroundColor: colors.cardHigh },
   handle: {
     position: 'absolute',
     top: 10,
@@ -1047,11 +1047,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: dark.accent,
+    borderColor: colors.accent,
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
-  dropMarker: { position: 'absolute', top: 2, width: 4, height: 52, borderRadius: 2, backgroundColor: dark.accent },
-  clipDivider: { position: 'absolute', top: 6, width: 2, height: 44, backgroundColor: dark.bg },
+  dropMarker: { position: 'absolute', top: 2, width: 4, height: 52, borderRadius: 2, backgroundColor: colors.accent },
+  clipDivider: { position: 'absolute', top: 6, width: 2, height: 44, backgroundColor: colors.bg },
   clipTitle: { position: 'absolute', top: 9, paddingHorizontal: 6, height: 18, justifyContent: 'center', borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.55)' },
   addClip: {
     position: 'absolute',
@@ -1061,7 +1061,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: dark.cardHigh,
+    backgroundColor: colors.cardHigh,
   },
   addClipPressed: { opacity: 0.6 },
   captionTrack: { height: 34, marginTop: 4 },
@@ -1075,9 +1075,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: dark.cardHigh,
+    backgroundColor: colors.cardHigh,
   },
-  captionHidden: { backgroundColor: 'transparent', borderWidth: 1, borderStyle: 'dashed', borderColor: dark.borderStrong },
+  captionHidden: { backgroundColor: 'transparent', borderWidth: 1, borderStyle: 'dashed', borderColor: colors.borderStrong },
   // Selected: one step lighter than the chip (the accent edge frame marks it), not a coloured fill.
   captionSelected: { backgroundColor: SELECTED_FILL },
   captionText: { flexShrink: 1 },
@@ -1088,16 +1088,16 @@ const styles = StyleSheet.create({
   edgeGrip: { width: 2, height: '45%', borderRadius: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
   edgeBody: { position: 'absolute', top: 0, bottom: 0, left: 6, right: 6 },
   soundLane: { height: 48, marginTop: 4 },
-  laneLine: { position: 'absolute', top: 23, height: StyleSheet.hairlineWidth, backgroundColor: dark.borderStrong },
+  laneLine: { position: 'absolute', top: 23, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderStrong },
   soundRows: { marginTop: 2 },
   soundClip: { position: 'absolute', borderRadius: 8, overflow: 'hidden', justifyContent: 'center' },
-  originalClip: { top: 4, height: 40, backgroundColor: dark.card },
-  fileClip: { height: 26, backgroundColor: dark.cardHigh },
+  originalClip: { top: 4, height: 40, backgroundColor: colors.card },
+  fileClip: { height: 26, backgroundColor: colors.cardHigh },
   soundSelected: { backgroundColor: SELECTED_FILL },
   soundLabel: { position: 'absolute', top: 3, left: 6, right: 6, flexDirection: 'row', alignItems: 'center', gap: 4 },
   fileBar: { position: 'absolute', bottom: 2, width: 2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.18)' },
   wave: { height: 48, marginTop: 4, justifyContent: 'center' },
-  bar: { position: 'absolute', width: 2, borderRadius: 1, backgroundColor: dark.waveform },
+  bar: { position: 'absolute', width: 2, borderRadius: 1, backgroundColor: colors.waveform },
   playhead: { position: 'absolute', top: 12, bottom: 0, width: 12, alignItems: 'center' },
-  playLine: { flex: 1, width: 2, marginTop: -2, backgroundColor: dark.accent, borderRadius: 1 },
+  playLine: { flex: 1, width: 2, marginTop: -2, backgroundColor: colors.accent, borderRadius: 1 },
 });

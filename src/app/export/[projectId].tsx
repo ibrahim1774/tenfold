@@ -20,7 +20,7 @@ import {
   Thumb,
   seedOf,
 } from '@/design/components';
-import { dark, radii, spacing } from '@/design/tokens';
+import { colors, radii, spacing } from '@/design/tokens';
 import { usePaywallGate } from '@/monetization/superwall';
 import { limitsFor, lowestTierWhere } from '@/onboarding/plans';
 import { exportsLeft, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
@@ -120,16 +120,14 @@ export default function ExportScreen() {
       if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing isn’t available on this device.');
       await Sharing.shareAsync(project.exportUri, { mimeType: 'video/mp4', UTI: 'public.mpeg-4' });
     } catch (e) {
-      Alert.alert('Couldn’t share', e instanceof Error ? e.message : String(e), undefined, { userInterfaceStyle: 'dark' });
+      Alert.alert('Couldn’t share', e instanceof Error ? e.message : String(e));
     }
   };
 
   const openTikTok = async () => {
     const can = await Linking.canOpenURL('tiktok://').catch(() => false);
     await Linking.openURL(can ? 'tiktok://' : 'photos-redirect://').catch(() => {
-      Alert.alert('Couldn’t open TikTok', 'Your video is in Photos. Open TikTok and pick it from your camera roll.', undefined, {
-        userInterfaceStyle: 'dark',
-      });
+      Alert.alert('Couldn’t open TikTok', 'Your video is in Photos. Open TikTok and pick it from your camera roll.');
     });
   };
 
@@ -159,7 +157,7 @@ export default function ExportScreen() {
       <Background />
       {/* Small centred title with the glass Close in the leading corner, like an iOS 26 sheet. */}
       <ScreenHeader title={title} left={<IconButton icon="xmark" label="Close" onPress={() => router.back()} />} />
-      <AppText variant="label" color={dark.textSecondary} style={[styles.center, styles.subtitle]} numberOfLines={1}>
+      <AppText variant="label" color={colors.textSecondary} style={[styles.center, styles.subtitle]} numberOfLines={1}>
         {project.title}
       </AppText>
 
@@ -169,19 +167,19 @@ export default function ExportScreen() {
             {!failed && height >= 740 ? <Thumb seed={seedOf(project.id)} uri={project.posterUri} style={styles.poster} /> : null}
             {failed ? (
               <View style={styles.error} accessibilityRole="alert">
-                <SymbolView name="exclamationmark.triangle" size={17} tintColor={dark.danger} weight="regular" />
+                <SymbolView name="exclamationmark.triangle" size={17} tintColor={colors.danger} weight="regular" />
                 <View style={styles.flex}>
-                  <AppText variant="bodyStrong" color={dark.danger}>
+                  <AppText variant="bodyStrong" color={colors.danger}>
                     Export failed
                   </AppText>
-                  <AppText variant="label" color={dark.textSecondary}>
+                  <AppText variant="label" color={colors.textSecondary}>
                     {project.error}
                   </AppText>
                 </View>
               </View>
             ) : null}
 
-            <AppText variant="label" color={dark.textSecondary} style={styles.groupTitle}>
+            <AppText variant="label" color={colors.textSecondary} style={styles.groupTitle}>
               Quality
             </AppText>
             <View style={styles.group}>
@@ -208,21 +206,21 @@ export default function ExportScreen() {
                 accessibilityRole="button"
                 accessibilityHint="Shows plans"
                 style={styles.notice}>
-                <AppText variant="caption" color={dark.textMuted}>
+                <AppText variant="caption" color={colors.textMuted}>
                   Free exports include a small Tenfold watermark
                   {Number.isFinite(left) ? (
-                    <AppText variant="caption" color={dark.textMuted} tabular>
+                    <AppText variant="caption" color={colors.textMuted} tabular>
                       {` · ${left} left this month`}
                     </AppText>
                   ) : null}
                   .{' '}
-                  <AppText variant="caption" color={dark.textPrimary}>
+                  <AppText variant="caption" color={colors.textPrimary}>
                     Remove it with {TIER_NAMES[cleanTier]}
                   </AppText>
                 </AppText>
               </Pressable>
             ) : Number.isFinite(left) ? (
-              <AppText variant="caption" color={dark.textMuted} style={styles.notice} tabular>
+              <AppText variant="caption" color={colors.textMuted} style={styles.notice} tabular>
                 {left} exports left this month
               </AppText>
             ) : null}
@@ -231,14 +229,14 @@ export default function ExportScreen() {
           <View style={styles.status}>
             <Thumb seed={seedOf(project.id)} uri={project.posterUri} style={styles.posterLarge}>
               <GlassSurface variant="clear" pointerEvents="none" style={styles.doneMark}>
-                <SymbolView name={saved ? 'checkmark' : 'square.and.arrow.up'} size={20} tintColor={dark.textPrimary} weight="semibold" />
+                <SymbolView name={saved ? 'checkmark' : 'square.and.arrow.up'} size={20} tintColor={colors.textPrimary} weight="semibold" />
               </GlassSurface>
             </Thumb>
-            <AppText variant="label" color={dark.textSecondary} style={styles.center}>
+            <AppText variant="label" color={colors.textSecondary} style={styles.center}>
               {saved ? 'In your camera roll' : 'Share it to save or post'}
             </AppText>
             {project.error ? (
-              <AppText variant="label" color={dark.warning} style={styles.center}>
+              <AppText variant="label" color={colors.orange} style={styles.center}>
                 {project.error}
               </AppText>
             ) : null}
@@ -260,7 +258,7 @@ export default function ExportScreen() {
             <AppText variant="bodyStrong" style={styles.center}>
               {stage}
             </AppText>
-            <AppText variant="label" color={dark.textMuted} style={styles.center}>
+            <AppText variant="label" color={colors.textMuted} style={styles.center}>
               Keeps running if you close this
             </AppText>
           </View>
@@ -320,19 +318,19 @@ function QualityRow({ title, subtitle, selected, onPress, badge, disabled, last 
         <View style={[styles.row, pressed && styles.rowPressed, disabled && styles.rowDisabled]}>
           <View style={styles.flex}>
             <AppText variant="bodyStrong">{title}</AppText>
-            <AppText variant="label" color={dark.textMuted}>
+            <AppText variant="label" color={colors.textMuted}>
               {subtitle}
             </AppText>
           </View>
           {badge ? (
             <View style={styles.planTag}>
-              <SymbolView name="lock.fill" size={11} tintColor={dark.textSecondary} weight="regular" />
-              <AppText variant="label" color={dark.textSecondary}>
+              <SymbolView name="lock.fill" size={11} tintColor={colors.textSecondary} weight="regular" />
+              <AppText variant="label" color={colors.textSecondary}>
                 {badge}
               </AppText>
             </View>
           ) : null}
-          {selected ? <SymbolView name="checkmark" size={16} tintColor={dark.textPrimary} weight="regular" /> : null}
+          {selected ? <SymbolView name="checkmark" size={16} tintColor={colors.textPrimary} weight="regular" /> : null}
           {!last ? <View style={styles.divider} /> : null}
         </View>
       )}
@@ -356,17 +354,17 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     borderRadius: radii.card,
     borderCurve: 'continuous',
-    backgroundColor: dark.dangerSoft,
+    backgroundColor: colors.dangerSoft,
   },
   groupTitle: { paddingHorizontal: spacing.lg },
   group: {
     borderRadius: radii.card,
     borderCurve: 'continuous',
-    backgroundColor: dark.card,
+    backgroundColor: colors.card,
     overflow: 'hidden',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 12, minHeight: 60 },
-  rowPressed: { backgroundColor: dark.cardHigh },
+  rowPressed: { backgroundColor: colors.cardHigh },
   rowDisabled: { opacity: 0.45 },
   divider: {
     position: 'absolute',
@@ -374,7 +372,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: dark.separator,
+    backgroundColor: colors.separator,
   },
   planTag: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   notice: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg },

@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { editsOf } from '@/batch/edits';
@@ -10,12 +10,11 @@ import { ColorRow, CheckRow, NavRow, RowBody, SegmentRow, SettingsGroup, SwitchR
 import { useCaptionTarget } from '@/captions/useCaptionTarget';
 import { AppText, GradientButton, IconButton, ScreenHeader, Thumb } from '@/design/components';
 import { sampleFrame } from '@/design/sampleFrames';
-import { radii, spacing } from '@/design/tokens';
+import { colors, radii, spacing } from '@/design/tokens';
 import type { CaptionBackground, CaptionOutline, CaptionSettings } from '@/engine';
 import { playCaptionSample } from '@/editor/previewBus';
 import { setEdit } from '@/state/batchSetup';
 import { useLibrary } from '@/state/library';
-import { themedStyles, useScheme, useTheme } from '@/design/theme';
 
 type ColorKey = keyof CaptionSettings['colors'];
 
@@ -56,8 +55,6 @@ const WORD_COUNTS = CAPTION_FORMATS.map((f) => ({ value: String(f.maxWords), lab
 // Captions of one video (`projectId`) or of a batch's preset (`batchId`). Every change applies at once:
 // for a video it is an undoable edit the live preview behind the sheet re-renders immediately.
 export default function CaptionsSheet() {
-  const colors = useTheme();
-  const styles = themed[useScheme()];
   const insets = useSafeAreaInsets();
   const { projectId, batchId } = useLocalSearchParams<{ projectId?: string; batchId?: string }>();
   const { settings, update } = useCaptionTarget(projectId, batchId);
@@ -230,7 +227,7 @@ export default function CaptionsSheet() {
   );
 }
 
-const themed = themedStyles((colors) => ({
+const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.xl },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
@@ -244,4 +241,4 @@ const themed = themedStyles((colors) => ({
   handle: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   handleText: { fontWeight: '700' },
   done: { marginTop: spacing.xs },
-}));
+});

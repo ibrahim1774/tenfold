@@ -3,13 +3,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { ThemeScope, useTheme } from '../theme';
-import { media } from '../tokens';
+import { colors } from '../tokens';
 
 /**
- * Video thumbnail: a real frame when `uri` (or a bundled `source`) is given, otherwise a flat neutral
- * tile. No decorative gradient fallbacks. A soft scrim at the bottom keeps overlaid labels legible on
- * bright frames, and anything drawn over the frame uses the dark palette (white on footage).
+ * Video thumbnail: a real frame when `uri` (or a bundled `source`) is given, otherwise a flat graphite
+ * tile. The footage is the only colour on screen, so there are no decorative gradient fallbacks. A soft
+ * scrim at the bottom keeps overlaid labels legible on bright frames.
  */
 export function Thumb({
   seed: _seed,
@@ -27,9 +26,8 @@ export function Thumb({
   children?: ReactNode;
 }) {
   const hasImage = !!uri || source != null;
-  const theme = useTheme();
   return (
-    <View style={[styles.base, { backgroundColor: theme.cardHigh }, style]}>
+    <View style={[styles.base, style]}>
       {uri ? (
         <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
       ) : source != null ? (
@@ -37,13 +35,13 @@ export function Thumb({
       ) : null}
       {hasImage && (
         <LinearGradient
-          colors={['rgba(0,0,0,0)', media.scrim]}
+          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.35)']}
           locations={[0.6, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
       )}
-      <ThemeScope scheme="dark">{children}</ThemeScope>
+      {children}
     </View>
   );
 }
@@ -56,5 +54,5 @@ export function seedOf(id: string): number {
 }
 
 const styles = StyleSheet.create({
-  base: { overflow: 'hidden', borderCurve: 'continuous' },
+  base: { overflow: 'hidden', backgroundColor: colors.cardHigh, borderCurve: 'continuous' },
 });

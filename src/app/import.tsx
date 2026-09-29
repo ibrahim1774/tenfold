@@ -17,7 +17,7 @@ import {
   Thumb,
 } from '@/design/components';
 import { sampleFrame } from '@/design/sampleFrames';
-import { light, motion, radii, shadows, spacing } from '@/design/tokens';
+import { colors, motion, radii, spacing } from '@/design/tokens';
 import { Engine, EngineEvents, engineAvailable } from '@/engine';
 import { maxBatchSize, tierOf, useEntitlements } from '@/state/entitlements';
 
@@ -79,7 +79,7 @@ export default function ImportScreen() {
         <AppText variant="display" accessibilityRole="header" style={styles.text}>
           Pick your clips
         </AppText>
-        <AppText variant="body" color={light.textSecondary} style={styles.text}>
+        <AppText variant="body" color={colors.textSecondary} style={styles.text}>
           {mode === 'multiple' ? `Up to ${limit} clips, joined in the order you pick.` : `Up to ${limit} clips. Originals stay in Photos.`}
         </AppText>
         {canJoin && !busy && (
@@ -100,7 +100,7 @@ export default function ImportScreen() {
               accessibilityValue={{ min: 0, max: copying.total, now: copying.index }}>
               <ProgressBar progress={copying.index / copying.total} height={3} />
             </View>
-            <AppText variant="label" color={light.textSecondary} style={styles.text}>
+            <AppText variant="label" color={colors.textSecondary} style={styles.text}>
               Keep this open. iCloud clips download first.
             </AppText>
           </Animated.View>
@@ -115,7 +115,7 @@ export default function ImportScreen() {
           onPress={pick}
         />
         {!available ? (
-          <AppText variant="caption" color={light.textMuted} style={styles.text}>
+          <AppText variant="caption" color={colors.textMuted} style={styles.text}>
             This build has no video engine. Install the latest build.
           </AppText>
         ) : null}
@@ -136,17 +136,18 @@ const styles = StyleSheet.create({
     width: 36,
     height: 5,
     borderRadius: 3,
-    backgroundColor: light.borderStrong,
+    backgroundColor: 'rgba(255,255,255,0.25)',
   },
   center: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.gutter, gap: spacing.md },
   stack: { height: 250, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xl },
-  // Each card lifts on the soft shadow (on this view); the thumbnail inside clips to the same corners.
-  stackCard: { position: 'absolute', borderRadius: radii.card, borderCurve: 'continuous', backgroundColor: light.card, ...shadows.soft },
+  stackCard: { position: 'absolute' },
   stackThumb: {
     width: 124,
     height: 220,
-    borderRadius: radii.card,
+    borderRadius: radii.thumb,
     borderCurve: 'continuous',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderStrong,
   },
   text: { textAlign: 'center' },
   copying: { gap: spacing.sm, marginTop: spacing.lg },
