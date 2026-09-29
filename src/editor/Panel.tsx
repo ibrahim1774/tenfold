@@ -84,7 +84,7 @@ export type ToolId = 'cuts' | 'words' | 'captions' | 'text' | 'zoom' | 'crop' | 
 const OPENS_SCREEN: ToolId[] = ['captions', 'text'];
 
 /**
- * The editor's tool row, flat on black: icon over label. The open tool turns white on a quiet raised fill;
+ * The editor's tool row: each icon on its own dark rounded tile, label underneath. The open tool's tile is lighter;
  * Captions and Text open their own screens, so they are plain buttons that never stay selected.
  */
 export function ToolBar({ tools, active, onPress }: { tools: { id: ToolId; icon: SFSymbol; label: string }[]; active: ToolId | null; onPress: (id: ToolId) => void }) {
@@ -101,8 +101,10 @@ export function ToolBar({ tools, active, onPress }: { tools: { id: ToolId; icon:
             accessibilityRole={OPENS_SCREEN.includes(t.id) ? 'button' : 'tab'}
             accessibilityLabel={t.label}
             accessibilityState={OPENS_SCREEN.includes(t.id) ? undefined : { selected: on }}
-            style={[styles.tool, on && styles.toolOn]}>
-            <SymbolView name={t.icon} size={21} weight={on ? 'medium' : 'regular'} tintColor={on ? colors.textPrimary : colors.textSecondary} />
+            style={styles.tool}>
+            <View style={[styles.tile, on && styles.tileOn]}>
+              <SymbolView name={t.icon} size={19} weight={on ? 'medium' : 'regular'} tintColor={on ? colors.textPrimary : colors.textSecondary} />
+            </View>
             <AppText variant="caption" color={on ? colors.textPrimary : colors.textSecondary} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.toolLabel}>
               {t.label}
             </AppText>
@@ -135,8 +137,10 @@ export function ActionBar({ actions, label }: { actions: BarAction[]; label: str
             accessibilityRole={a.on === undefined ? 'button' : 'switch'}
             accessibilityLabel={a.label}
             accessibilityState={a.on === undefined ? { disabled: a.disabled } : { disabled: a.disabled, checked: a.on }}
-            style={[styles.tool, a.on && styles.toolOn, a.disabled && styles.toolOff]}>
-            <SymbolView name={a.icon} size={21} weight={a.on ? 'medium' : 'regular'} tintColor={tint} />
+            style={[styles.tool, a.disabled && styles.toolOff]}>
+            <View style={[styles.tile, a.on && styles.tileOn]}>
+              <SymbolView name={a.icon} size={19} weight={a.on ? 'medium' : 'regular'} tintColor={tint} />
+            </View>
             <AppText variant="caption" color={tint} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.toolLabel}>
               {a.label}
             </AppText>
@@ -159,7 +163,9 @@ const styles = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.separator },
   bone: { height: 12, borderRadius: 6, backgroundColor: colors.cardHigh },
   tools: { flexDirection: 'row', gap: spacing.xs },
-  tool: { flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: radii.tile, borderCurve: 'continuous', paddingHorizontal: 2 },
-  toolOn: { backgroundColor: colors.cardHigh },
+  tool: { flex: 1, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 2 },
+  // Each icon sits on its own dark rounded tile, label underneath (the user's reference, 2026-09-29).
+  tile: { width: 42, height: 42, borderRadius: 13, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
+  tileOn: { backgroundColor: '#3A3A3C' },
   toolLabel: { textAlign: 'center' },
 });

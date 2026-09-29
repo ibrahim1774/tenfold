@@ -60,9 +60,10 @@
             "./assets/fonts/TikTokSans_800ExtraBold.ttf",
             "./assets/fonts/TikTokSans_600SemiBold.ttf",
             "./assets/fonts/ComicNeue_700Bold.ttf",
-            "./assets/fonts/InstrumentSans_500Medium.ttf",
-            "./assets/fonts/InstrumentSans_600SemiBold.ttf",
-            "./assets/fonts/InstrumentSans_700Bold.ttf"
+            "./assets/fonts/Inter_400Regular.ttf",
+            "./assets/fonts/Inter_500Medium.ttf",
+            "./assets/fonts/Inter_600SemiBold.ttf",
+            "./assets/fonts/Inter_700Bold.ttf"
           ]
         }
       ],

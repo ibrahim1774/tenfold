@@ -8,7 +8,7 @@ import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanima
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { AppText } from '@/design/components';
-import { colors } from '@/design/tokens';
+import { colors, track } from '@/design/tokens';
 import type { AudioClip, CaptionCard, CompSegment, TextOverlay, Thumbnail } from '@/engine/types';
 import { fileRows, originalsOf, trimLimits } from './audioClips';
 import { MIN_CLIP_SEC as MIN_SOURCE_CLIP_SEC, type TimelineClip } from './clips';
@@ -596,8 +596,10 @@ const TimelineTracks = memo(function TimelineTracks({
                 hidden && styles.captionHidden,
                 isSel && styles.captionSelected,
               ]}>
-              <SymbolView name={hidden ? 'eye.slash' : 'textformat'} size={12} tintColor={hidden ? colors.textMuted : colors.textPrimary} />
-              <AppText variant="caption" color={hidden ? colors.textMuted : colors.textPrimary} style={styles.captionText} numberOfLines={1}>
+              <View style={[styles.trackIcon, hidden ? styles.trackIconHidden : styles.textIcon]}>
+                <SymbolView name={hidden ? 'eye.slash' : 'textformat'} size={11} tintColor={hidden ? colors.textMuted : track.textInk} />
+              </View>
+              <AppText variant="caption" color={hidden ? colors.textMuted : track.textInk} style={styles.captionText} numberOfLines={1}>
                 {text}
               </AppText>
             </Pressable>
@@ -652,8 +654,10 @@ const TimelineTracks = memo(function TimelineTracks({
                   { top: 4 + row * TEXT_ROW, left: x(start), width: Math.max(28, (end - start) * PPS - 4) },
                   isSel && styles.captionSelected,
                 ]}>
-                <SymbolView name="textformat" size={12} tintColor={colors.textPrimary} />
-                <AppText variant="caption" style={styles.captionText} numberOfLines={1}>
+                <View style={[styles.trackIcon, styles.textIcon]}>
+                  <SymbolView name="textformat" size={11} tintColor={track.textInk} />
+                </View>
+                <AppText variant="caption" color={track.textInk} style={styles.captionText} numberOfLines={1}>
                   {o.text.replace(/\n/g, ' ')}
                 </AppText>
               </Pressable>
@@ -702,12 +706,14 @@ const TimelineTracks = memo(function TimelineTracks({
                 accessibilityHint={isSel ? 'Deselects it.' : 'Selects it to split, delete, set volume or fade.'}
                 style={[styles.soundClip, styles.originalClip, { left: x(c.start) + 1, width: w }, isSel && styles.soundSelected]}>
                 {barsIn(c.start, c.end).map((b, i) => (
-                  <View key={i} style={[styles.bar, { left: b.left - c.start * PPS, height: muted || c.volume === 0 ? 2 : Math.max(2, b.h * Math.min(1, 0.35 + c.volume * 0.65)) }]} />
+                  <View key={i} style={[styles.bar, styles.barOnTrack, { left: b.left - c.start * PPS, height: muted || c.volume === 0 ? 2 : Math.max(2, b.h * Math.min(1, 0.35 + c.volume * 0.65)) }]} />
                 ))}
                 {w > 70 && (
                   <View pointerEvents="none" style={styles.soundLabel}>
-                    <SymbolView name={muted ? 'speaker.slash' : 'speaker.wave.2'} size={11} tintColor={colors.textSecondary} />
-                    <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}>
+                    <View style={[styles.trackIcon, styles.audioIcon]}>
+                      <SymbolView name={muted ? 'speaker.slash' : 'speaker.wave.2'} size={11} tintColor={track.audioInk} />
+                    </View>
+                    <AppText variant="caption" color={track.audioInk} numberOfLines={1}>
                       Original
                     </AppText>
                   </View>
@@ -765,8 +771,10 @@ const TimelineTracks = memo(function TimelineTracks({
                   <View key={i} style={[styles.fileBar, { left: b.left, height: b.h }]} />
                 ))}
                 <View pointerEvents="none" style={styles.soundLabel}>
-                  <SymbolView name={c.loop ? 'repeat' : title.startsWith('Voiceover') ? 'mic' : 'music.note'} size={11} tintColor={colors.textPrimary} />
-                  <AppText variant="caption" numberOfLines={1} style={styles.captionText}>
+                  <View style={[styles.trackIcon, styles.audioIcon]}>
+                    <SymbolView name={c.loop ? 'repeat' : title.startsWith('Voiceover') ? 'mic' : 'music.note'} size={11} tintColor={track.audioInk} />
+                  </View>
+                  <AppText variant="caption" color={track.audioInk} numberOfLines={1} style={styles.captionText}>
                     {title}
                   </AppText>
                 </View>
@@ -1012,7 +1020,6 @@ function EdgeFrame({ left, width, top, height, radius, color, startRange, endRan
   );
 }
 
-const SELECTED_FILL = '#3A3A3C';
 
 const styles = StyleSheet.create({
   wrap: { flexDirection: 'row' },
@@ -1070,16 +1077,24 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 4,
     height: 26,
-    paddingHorizontal: 8,
+    paddingLeft: 3,
+    paddingRight: 8,
     borderRadius: 8,
+    borderCurve: 'continuous',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.cardHigh,
+    gap: 6,
+    overflow: 'hidden',
+    backgroundColor: track.text,
   },
+  // The lighter square chip that holds a clip's icon (T, note, speaker) at its left edge.
+  trackIcon: { width: 20, height: 20, borderRadius: 6, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
+  textIcon: { backgroundColor: track.textIcon },
+  audioIcon: { backgroundColor: track.audioIcon },
+  trackIconHidden: { backgroundColor: 'transparent' },
   captionHidden: { backgroundColor: 'transparent', borderWidth: 1, borderStyle: 'dashed', borderColor: colors.borderStrong },
-  // Selected: one step lighter than the chip (the accent edge frame marks it), not a coloured fill.
-  captionSelected: { backgroundColor: SELECTED_FILL },
+  // Selected: the white edge frame marks it; the pastel stays, one step lighter.
+  captionSelected: { backgroundColor: track.textIcon },
   captionText: { flexShrink: 1 },
   edgeFrame: { position: 'absolute', borderWidth: 2 },
   edge: { position: 'absolute', top: -2, bottom: -2, width: 12, alignItems: 'center', justifyContent: 'center' },
@@ -1091,13 +1106,14 @@ const styles = StyleSheet.create({
   laneLine: { position: 'absolute', top: 23, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderStrong },
   soundRows: { marginTop: 2 },
   soundClip: { position: 'absolute', borderRadius: 8, overflow: 'hidden', justifyContent: 'center' },
-  originalClip: { top: 4, height: 40, backgroundColor: colors.card },
-  fileClip: { height: 26, backgroundColor: colors.cardHigh },
-  soundSelected: { backgroundColor: SELECTED_FILL },
-  soundLabel: { position: 'absolute', top: 3, left: 6, right: 6, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  fileBar: { position: 'absolute', bottom: 2, width: 2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.18)' },
+  originalClip: { top: 4, height: 40, backgroundColor: track.audio },
+  fileClip: { height: 26, backgroundColor: track.audio },
+  soundSelected: { backgroundColor: track.audioIcon },
+  soundLabel: { position: 'absolute', top: 3, left: 3, right: 6, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  fileBar: { position: 'absolute', bottom: 2, width: 2, borderRadius: 1, backgroundColor: track.audioWave, opacity: 0.45 },
   wave: { height: 48, marginTop: 4, justifyContent: 'center' },
   bar: { position: 'absolute', width: 2, borderRadius: 1, backgroundColor: colors.waveform },
+  barOnTrack: { backgroundColor: track.audioWave },
   playhead: { position: 'absolute', top: 12, bottom: 0, width: 12, alignItems: 'center' },
   playLine: { flex: 1, width: 2, marginTop: -2, backgroundColor: colors.accent, borderRadius: 1 },
 });

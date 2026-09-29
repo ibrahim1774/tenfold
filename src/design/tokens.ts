@@ -53,6 +53,21 @@ export const colors = {
   waveform: '#8E8E95',
 } as const;
 
+/**
+ * Timeline track colours (2026-09-29, the user's reference): pastel yellow for text and captions, lilac for
+ * sound. The only colour in the app besides footage; everything else stays black and white. Ink is the text
+ * and icon colour on the pastel; the icon sits on a lighter square chip at the left of each clip.
+ */
+export const track = {
+  text: '#F4D993',
+  textIcon: '#FFF2DB',
+  textInk: '#3A2E10',
+  audio: '#D6C5FB',
+  audioIcon: '#EFE8FF',
+  audioInk: '#2C2146',
+  audioWave: '#6A559E',
+} as const;
+
 /** Solid colours now; the names stay so progress bars and rings keep working. */
 export const gradients = {
   cta: ['#FFFFFF', '#FFFFFF'] as const,
@@ -80,16 +95,15 @@ export const spacing = {
 } as const;
 
 /**
- * Two faces. Headings, big figures, buttons and strong labels use Instrument Sans (OFL, bundled via
- * expo-font; iOS names are the PostScript names). Running text, secondary text and small print stay on the
- * iPhone's own SF Pro (`fontFamily` undefined + a weight) for legibility. Poppins and the other bundled
- * faces are for captions only (src/captions/presets.ts).
+ * One face: Inter (OFL, assets/fonts/Inter-OFL.txt, bundled via expo-font; iOS names are the PostScript
+ * names). Every text style names its weight's file directly, so no style depends on fontWeight picking a
+ * face. Poppins and the other bundled faces are for captions only (src/captions/presets.ts).
  */
 export const fonts = {
-  regular: undefined,
-  medium: 'InstrumentSans-Medium',
-  semiBold: 'InstrumentSans-SemiBold',
-  bold: 'InstrumentSans-Bold',
+  regular: 'Inter-Regular',
+  medium: 'Inter-Medium',
+  semiBold: 'Inter-SemiBold',
+  bold: 'Inter-Bold',
 } as const;
 
 export const weights = {
@@ -106,11 +120,11 @@ export const weights = {
 export const type = {
   display: { fontFamily: fonts.bold, fontSize: 30, lineHeight: 36, letterSpacing: -0.4 },
   title: { fontFamily: fonts.semiBold, fontSize: 20, lineHeight: 25, letterSpacing: -0.2 },
-  body: { fontWeight: weights.regular, fontSize: 15, lineHeight: 20 },
+  body: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 20 },
   bodyStrong: { fontFamily: fonts.semiBold, fontSize: 15, lineHeight: 20 },
-  chip: { fontWeight: weights.medium, fontSize: 14, lineHeight: 18 },
-  label: { fontWeight: weights.regular, fontSize: 13, lineHeight: 18 },
-  caption: { fontWeight: weights.regular, fontSize: 12, lineHeight: 16 },
+  chip: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 18 },
+  label: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18 },
+  caption: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 16 },
   // Legacy aliases (same sizes as above).
   hero: { fontFamily: fonts.bold, fontSize: 30, lineHeight: 36, letterSpacing: -0.4 },
   section: { fontFamily: fonts.semiBold, fontSize: 20, lineHeight: 25, letterSpacing: -0.2 },
