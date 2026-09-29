@@ -196,10 +196,10 @@ function Word({ word, index, t }: { word: string; index: number; t: SharedValue<
     const v = t.get();
     return {
       color: interpolateColor(v, [start - 0.004, start, start + WORD_STEP, start + WORD_STEP + 0.004], [
-        '#FFFFFF',
+        'rgba(255,255,255,0.6)',
         colors.accent,
         colors.accent,
-        '#FFFFFF',
+        'rgba(255,255,255,0.6)',
       ]),
     };
   });

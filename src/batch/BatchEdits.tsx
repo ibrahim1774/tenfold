@@ -23,9 +23,14 @@ export function BatchEdits({ batch, clips, selections }: { batch: Batch; clips: 
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
-        <AppText variant="title" accessibilityRole="header">
-          Edits
-        </AppText>
+        <View style={styles.titleRow}>
+          <AppText variant="title" accessibilityRole="header">
+            Edits
+          </AppText>
+          <AppText variant="label" color={colors.textSecondary} numberOfLines={1} style={styles.titleHint}>
+            (Select the edits you want)
+          </AppText>
+        </View>
         {!empty && (
           <Pressable
             hitSlop={6}
@@ -88,6 +93,8 @@ export function BatchEdits({ batch, clips, selections }: { batch: Batch; clips: 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.sm },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 32 },
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, flexShrink: 1 },
+  titleHint: { flexShrink: 1 },
   textButton: { minHeight: 32, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' },
   pressed: { opacity: 0.6 },
   grid: { gap: spacing.sm },

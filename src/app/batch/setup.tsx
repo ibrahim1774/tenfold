@@ -40,7 +40,7 @@ import { tourTarget } from '@/tour/targets';
 import { formatDuration, projectsOf, useLibrary } from '@/state/library';
 import { PRESET_OPTIONS } from '@/state/presets';
 import { BatchEdits } from '@/batch/BatchEdits';
-import { batchAspect, batchEdits, editsOf, sameEdits } from '@/batch/edits';
+import { batchAspect, batchEdits, EDITS, editsOf, sameEdits } from '@/batch/edits';
 import { Engine } from '@/engine';
 
 const SILENCE: { v: SilenceLevel; l: string }[] = [
@@ -101,6 +101,8 @@ export default function BatchSetupScreen() {
   const a = preset.analysis;
   const edits = clips.map((c) => editsOf(c, batch));
   const common = batchEdits(edits);
+  // Every edit starts unselected; Generate waits until at least one is picked.
+  const noEdits = edits.every((e) => EDITS.every((d) => !e[d.key]));
   const update = (patch: Parameters<typeof updatePreset>[1]) => updatePreset(batchId, patch);
   const setPresetId = (id: Parameters<typeof setPreset>[1]) => setPreset(batchId, id);
   const setCaptionStyle = (id: Parameters<typeof setStyle>[1]) => setStyle(batchId, id);
@@ -440,7 +442,11 @@ export default function BatchSetupScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 8 }]}>
-        {limitedExports && (
+        {clips.length > 0 && noEdits ? (
+          <AppText variant="caption" color={colors.textSecondary} style={styles.centerText}>
+            Select at least one edit.
+          </AppText>
+        ) : limitedExports && (
           <AppText variant="caption" color={colors.textSecondary} style={styles.centerText} tabular>
             {exportsLeft} of {monthlyExports} exports left this month
           </AppText>
@@ -449,7 +455,7 @@ export default function BatchSetupScreen() {
           <GradientButton
             title={importing ? 'Adding clips…' : `Generate ${clips.length} ${clips.length === 1 ? 'video' : 'videos'}`}
             shape="pill"
-            disabled={clips.length === 0 || importing}
+            disabled={clips.length === 0 || importing || noEdits}
             onPress={start}
           />
         </View>

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 import type { Analysis, Batch, BatchPreset, BatchStatus, EditDocument, EditSelection, ImportedAsset, Project } from '../engine/types';
-import { batchAspect, defaultEdits, editsForPreset, effectiveLevels, effectiveZoom } from '../batch/edits';
+import { ALL_OFF, batchAspect, batchEdits, defaultEdits, effectiveLevels, effectiveZoom } from '../batch/edits';
 import { persistStorage } from './storage';
 
 // Batches, projects and edit documents. Heavy per-project data (source video, transcript,
@@ -12,7 +12,7 @@ type LibraryState = {
   batches: Record<string, Batch>;
   projects: Record<string, Project>;
   docs: Record<string, EditDocument>;
-  createBatch: (assets: ImportedAsset[], preset: BatchPreset) => string;
+  createBatch: (assets: ImportedAsset[], preset: BatchPreset, edits?: EditSelection) => string;
   addToBatch: (batchId: string, assets: ImportedAsset[]) => void;
   removeProject: (projectId: string) => void;
   deleteBatch: (batchId: string) => void;
@@ -27,7 +27,7 @@ export const useLibrary = create<LibraryState>()(
       batches: {},
       projects: {},
       docs: {},
-      createBatch: (assets, preset) => {
+      createBatch: (assets, preset, edits = ALL_OFF) => {
         const id = `b${Date.now().toString(36)}`;
         const now = Date.now();
         const ok = assets.filter((a) => !a.error);
@@ -41,7 +41,8 @@ export const useLibrary = create<LibraryState>()(
             media: a.media,
             status: 'pending',
             progress: 0,
-            edits: editsForPreset(preset),
+            // Nothing is selected until the person picks the edits they want.
+            edits: { ...edits },
             createdAt: now + i,
           };
         });
@@ -61,6 +62,8 @@ export const useLibrary = create<LibraryState>()(
           if (!batch) return s;
           const ok = assets.filter((a) => !a.error && !batch.projectIds.includes(a.projectId));
           const projects = { ...s.projects };
+          const existing = batch.projectIds.map((pid) => s.projects[pid]).filter((p): p is Project => !!p);
+          const joinEdits = batchEdits(existing.map((p) => p.edits ?? defaultEdits(batch))) ?? ALL_OFF;
           ok.forEach((a, i) => {
             projects[a.projectId] = {
               id: a.projectId,
@@ -70,8 +73,8 @@ export const useLibrary = create<LibraryState>()(
               media: a.media,
               status: 'pending',
               progress: 0,
-              // New clips join with the same checks as the rest of the batch.
-              edits: editsForPreset(batch.preset, batch.captionsOff),
+              // New clips join with the edits the rest of the batch uses (none picked yet: none).
+              edits: { ...joinEdits },
               createdAt: Date.now() + i,
             };
           });

@@ -8,6 +8,7 @@ import { importIntoBatch, importJoinedBatch } from '@/batch/importClips';
 import { cancelBatch, queueExports, retryProject, setPaused, startBatch, startQueue, useQueueUI } from '@/batch/queue';
 import { clampPlacement, fillUserScale, fitScale, MAX_SCALE, MIN_SCALE } from '@/editor/frame';
 import { setAllEdits, setEdit, setPresetId } from '@/state/batchSetup';
+import { editsForPreset } from '@/batch/edits';
 import { maxBatchSize, useEntitlements } from '@/state/entitlements';
 import { runMonetizationTests } from './monetization';
 import { projectsOf, useLibrary } from '@/state/library';
@@ -24,7 +25,9 @@ async function until(pred: () => boolean, ms = 4000) {
 }
 function newBatch(n: number, autoExport = false) {
   const assets = Array.from({ length: n }, (_, i) => ({ projectId: `p${Math.random().toString(36).slice(2, 8)}${i}`, title: `IMG_000${i}.MOV`, media: { durationSec: 10, width: 1080, height: 1920, fps: 30, isHDR: false, hasAudio: true }, posterUri: 'file:///p.jpg' }));
-  const id = lib().createBatch(assets as any, { ...batchPreset('cleanTalk'), autoExport });
+  const preset = { ...batchPreset('cleanTalk'), autoExport };
+  // The app starts every edit unselected; these queue tests model a person who picked the preset's edits.
+  const id = lib().createBatch(assets as any, preset, editsForPreset(preset));
   return id;
 }
 const statuses = (bid: string) => projectsOf(lib().batches[bid], lib().projects).map((p) => p.status);
@@ -202,17 +205,25 @@ async function main() {
   const d = lib().docs[lib().batches[b].projectIds[0]];
   check(!d.captions.enabled && d.zoom.mode === 'off' && d.crop.aspect === 'original' && d.levels?.fillers === 'off', 'untouched edit');
 
-  console.log('• changing the preset keeps every video\'s checks in agreement');
+  console.log('• new batches start with every edit unselected; the preset never picks edits');
+  {
+    const assets = [0, 1].map((i) => ({ projectId: `z${Math.random().toString(36).slice(2, 8)}${i}`, title: `IMG_10${i}.MOV`, media: { durationSec: 10, width: 1080, height: 1920, fps: 30, isHDR: false, hasAudio: true }, posterUri: 'file:///p.jpg' }));
+    const zb = lib().createBatch(assets as any, batchPreset('punchy'));
+    const zed = () => lib().batches[zb].projectIds.map((id) => lib().projects[id].edits!);
+    check(zed().every((e) => Object.values(e).every((v) => v === false)), 'every edit starts unselected');
+    setPresetId(zb, 'punchy');
+    check(zed().every((e) => e.zoom === false && e.reframe === false), 'choosing a preset does not select edits');
+    setEdit(zb, 'captions', true);
+    setEdit(zb, 'pauses', true);
+    lib().addToBatch(zb, [{ ...assets[0], projectId: `z-late${Math.random().toString(36).slice(2, 6)}` }] as any);
+    const late = zed()[2];
+    check(late.captions && late.pauses && !late.zoom && !late.fillers, `a clip added later joins with the batch's picked edits (${JSON.stringify(late)})`);
+  }
   b = newBatch(3);
   const [q1, q2] = lib().batches[b].projectIds;
-  check(lib().projects[q1].edits?.captions === true, 'new clips get explicit checks');
   setEdit(b, 'captions', false, [q1]);
   setPresetId(b, 'podcast');
-  const ed = lib().batches[b].projectIds.map((id) => lib().projects[id].edits!);
-  check(ed.every((e) => e.zoom === false && e.reframe === false), `podcast turns zoom and reframe off everywhere (${JSON.stringify(ed.map((e) => [e.zoom, e.reframe]))})`);
   check(lib().projects[q1].edits?.captions === false && lib().projects[q2].edits?.captions === true, 'per-video caption choice survives the preset change');
-  setPresetId(b, 'punchy');
-  check(lib().batches[b].projectIds.every((id) => lib().projects[id].edits!.zoom === true), 'punchy turns zoom back on everywhere');
 
   console.log('• batch limit: free 10, starter 20, the 11th clip is refused on free');
   check(maxBatchSize('free') === 10 && maxBatchSize(false) === 10, `free batch size is 10 (${maxBatchSize(false)})`);

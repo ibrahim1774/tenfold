@@ -1,7 +1,7 @@
 // Design tokens: dark "cinematic" theme (docs/SPEC.md §5.1, reference docs/design-reference-v2.png).
 
 /**
- * "Graphite": flat near-black surfaces, white type, one accent used sparingly. The footage is the
+ * "Graphite": flat near-black surfaces, white type, black and white only (no colour accent). The footage is the
  * only colour on screen. (The earlier purple-glow theme lives in git history; swapping this block
  * back restores it.)
  */
@@ -30,15 +30,15 @@ export const colors = {
   textMuted: '#6B6B72',
   textInverse: '#000000',
 
-  // The one accent: progress, selection, the playhead, links.
-  accent: '#FFB020',
-  accentSoft: 'rgba(255,176,32,0.16)',
+  // Black and white only (2026-09-29): the "accent" is white. Progress, selection, the playhead, links.
+  accent: '#FFFFFF',
+  accentSoft: 'rgba(255,255,255,0.14)',
   /** Text for in-place actions and small accents (links, "Pro"). */
-  accentText: '#FFB020',
+  accentText: '#FFFFFF',
   // Legacy names, mapped onto the accent.
-  violet: '#FFB020',
-  violetSoft: 'rgba(255,176,32,0.16)',
-  orange: '#FFB020',
+  violet: '#FFFFFF',
+  violetSoft: 'rgba(255,255,255,0.14)',
+  orange: '#FFFFFF',
   danger: '#FF453A',
   dangerSoft: 'rgba(255,69,58,0.16)',
   success: '#30D158',
@@ -56,7 +56,7 @@ export const colors = {
 /** Solid colours now; the names stay so progress bars and rings keep working. */
 export const gradients = {
   cta: ['#FFFFFF', '#FFFFFF'] as const,
-  progress: ['#FFB020', '#FFB020'] as const,
+  progress: ['#FFFFFF', '#FFFFFF'] as const,
   glow: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)'] as const,
 };
 

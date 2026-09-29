@@ -18,6 +18,8 @@ export function Toggle({ value, onChange, label, disabled }: ToggleProps) {
       disabled={disabled}
       accessibilityLabel={label}
       trackColor={{ true: colors.accent, false: undefined }}
+      // White track when on, so the thumb goes black to stay visible.
+      thumbColor={value ? colors.textInverse : undefined}
       onValueChange={(v) => {
         Haptics.selectionAsync();
         onChange(v);
