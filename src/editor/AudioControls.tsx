@@ -108,11 +108,11 @@ export function Stepper({
       <AppText variant="body" style={styles.stepLabel}>
         {label}
       </AppText>
-      <IconButton icon="minus" label={`Shorter ${label.toLowerCase()}`} size={44} iconScale={0.36} disabled={value <= min + 1e-9} onPress={() => onChange(Math.max(min, value - step))} />
+      <IconButton icon="minus" label={`Shorter ${label.toLowerCase()}`} size={44} tone="filled" iconScale={0.36} disabled={value <= min + 1e-9} onPress={() => onChange(Math.max(min, value - step))} />
       <AppText variant="chip" tabular style={styles.stepValue}>
         {format(value)}
       </AppText>
-      <IconButton icon="plus" label={`Longer ${label.toLowerCase()}`} size={44} iconScale={0.36} disabled={value >= max - 1e-9} onPress={() => onChange(Math.min(max, value + step))} />
+      <IconButton icon="plus" label={`Longer ${label.toLowerCase()}`} size={44} tone="filled" iconScale={0.36} disabled={value >= max - 1e-9} onPress={() => onChange(Math.min(max, value + step))} />
     </View>
   );
 }
@@ -152,13 +152,13 @@ const styles = StyleSheet.create({
   row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg },
   rowOff: { opacity: 0.5 },
   rowTitle: { flex: 1 },
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg + 30, backgroundColor: colors.borderStrong },
+  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg + 30, backgroundColor: colors.separator },
   sliderRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   track: { flex: 1, height: 44, justifyContent: 'center' },
   hit: { height: 44, justifyContent: 'center' },
   rail: { position: 'absolute', left: THUMB / 2, right: THUMB / 2, height: 4, borderRadius: 2, backgroundColor: colors.cardHigh },
   railFill: { position: 'absolute', left: THUMB / 2, height: 4, borderRadius: 2, backgroundColor: colors.textPrimary },
-  mark: { position: 'absolute', top: 12, width: 2, height: 20, borderRadius: 1, backgroundColor: colors.borderStrong },
+  mark: { position: 'absolute', top: 16, width: 2, height: 12, borderRadius: 1, backgroundColor: colors.borderStrong },
   thumb: { position: 'absolute', left: 0, width: THUMB, height: THUMB, borderRadius: THUMB / 2, backgroundColor: colors.textPrimary },
   value: { width: 52, textAlign: 'right' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },

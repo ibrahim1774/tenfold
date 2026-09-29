@@ -6,7 +6,18 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { importJoinedBatch, importNewBatch, useImporting } from '@/batch/importClips';
-import { AppText, Background, Card, Chip, ChipGroup, GradientButton, IconButton, ProgressBar, Thumb } from '@/design/components';
+import {
+  AppText,
+  Background,
+  Card,
+  Chip,
+  ChipGroup,
+  GradientButton,
+  IconButton,
+  ProgressBar,
+  ScreenHeader,
+  Thumb,
+} from '@/design/components';
 import { sampleFrame } from '@/design/sampleFrames';
 import type { SFSymbol } from '@/design/symbols';
 import { colors, motion, radii, spacing } from '@/design/tokens';
@@ -63,7 +74,7 @@ export default function ImportScreen() {
       <Background />
       <View style={styles.top}>
         <View style={styles.grabber} />
-        <IconButton icon="xmark" label="Close" onPress={() => router.back()} disabled={busy} />
+        <ScreenHeader left={<IconButton icon="xmark" label="Close" onPress={() => router.back()} disabled={busy} />} />
       </View>
 
       <View style={styles.center}>
@@ -150,7 +161,8 @@ export default function ImportScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  top: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: spacing.md, paddingTop: spacing.md },
+  // Clears the grabber; the Close glass circle sits in the leading corner like an iOS 26 sheet.
+  top: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
   grabber: {
     position: 'absolute',
     top: 8,
@@ -169,7 +181,7 @@ const styles = StyleSheet.create({
     height: 164,
     borderRadius: radii.thumb,
     borderCurve: 'continuous',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderStrong,
   },
   text: { textAlign: 'center' },

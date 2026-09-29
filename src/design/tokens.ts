@@ -9,11 +9,16 @@ export const colors = {
   // Surfaces: black canvas, two steps of elevation.
   bg: '#000000',
   bgRaised: '#0C0C0E',
-  card: '#141416',
-  cardHigh: '#1E1E21',
+  // iOS dark grouped values, so borderless groups still read against black.
+  card: '#1C1C1E',
+  cardHigh: '#2C2C2E',
   border: 'rgba(255,255,255,0.08)',
   borderStrong: 'rgba(255,255,255,0.16)',
   overlay: 'rgba(0,0,0,0.72)',
+  /** Hairline between rows inside an inset group (iOS separator, dark). */
+  separator: 'rgba(84,84,88,0.45)',
+  /** What a glass control draws where Liquid Glass isn't available: translucent graphite. */
+  glassFallback: 'rgba(44,44,48,0.78)',
 
   // Legacy names for the old ambient glow (now flat).
   glowPlum: 'rgba(0,0,0,0)',
@@ -40,7 +45,7 @@ export const colors = {
   heart: '#FF453A',
 
   // Controls
-  chipFill: '#1E1E21',
+  chipFill: '#2C2C2E',
   chipText: '#FFFFFF',
   chipSelectedFill: '#FFFFFF',
   chipSelectedText: '#000000',

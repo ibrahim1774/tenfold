@@ -4,9 +4,10 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorText } from '@/batch/queue';
-import { AppText } from '@/design/components';
+import { SettingsGroup, ValueRow, ValueRowSkeleton } from '@/captions/SettingsRows';
+import { AppText, ScreenHeader } from '@/design/components';
 import { colors, spacing } from '@/design/tokens';
-import { GroupLabel, RowGroup, RowGroupSkeleton, type InfoRow } from '@/editor/Panel';
+import type { InfoRow } from '@/editor/Panel';
 import { Engine, type Analysis } from '@/engine';
 import { formatDuration, useLibrary } from '@/state/library';
 
@@ -63,14 +64,10 @@ export default function VideoInfoSheet() {
 
   return (
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
-      <View style={styles.head}>
-        <AppText variant="title" accessibilityRole="header" numberOfLines={2}>
-          {project?.title ?? 'Video info'}
-        </AppText>
-        <AppText variant="label" color={colors.textMuted}>
-          How this clip was analysed on this iPhone.
-        </AppText>
-      </View>
+      <ScreenHeader title={project?.title ?? 'Video info'} back={false} />
+      <AppText variant="label" color={colors.textMuted} style={styles.subline}>
+        How this clip was analysed on this iPhone.
+      </AppText>
 
       {error ? (
         <AppText variant="label" color={colors.danger} style={styles.error}>
@@ -78,24 +75,18 @@ export default function VideoInfoSheet() {
         </AppText>
       ) : !analysis ? (
         <>
-          <GroupLabel>Speech</GroupLabel>
-          <RowGroupSkeleton count={7} />
-          <GroupLabel>Video</GroupLabel>
-          <RowGroupSkeleton count={4} />
+          <SettingsGroup label="Speech">{skeleton(7)}</SettingsGroup>
+          <SettingsGroup label="Video">{skeleton(4)}</SettingsGroup>
         </>
       ) : (
         <>
-          <GroupLabel>Speech</GroupLabel>
-          <RowGroup rows={speech} />
-          {video.length > 0 && (
-            <>
-              <GroupLabel>Video</GroupLabel>
-              <RowGroup rows={video} />
-            </>
-          )}
+          <SettingsGroup label="Speech">{rowsOf(speech)}</SettingsGroup>
+          {video.length > 0 && <SettingsGroup label="Video">{rowsOf(video)}</SettingsGroup>}
           {warnings.length > 0 && (
-            <>
-              <GroupLabel>Notes</GroupLabel>
+            <View style={styles.notesWrap}>
+              <AppText variant="label" color={colors.textSecondary} style={styles.notesLabel} accessibilityRole="header">
+                Notes
+              </AppText>
               <View style={styles.notes}>
                 {warnings.map((w, i) => (
                   <AppText key={i} variant="label" color={colors.textSecondary}>
@@ -103,7 +94,7 @@ export default function VideoInfoSheet() {
                   </AppText>
                 ))}
               </View>
-            </>
+            </View>
           )}
         </>
       )}
@@ -111,9 +102,14 @@ export default function VideoInfoSheet() {
   );
 }
 
+const rowsOf = (rows: InfoRow[]) => rows.map((r) => <ValueRow key={r.label} label={r.label} value={r.value} />);
+const skeleton = (count: number) => Array.from({ length: count }, (_, i) => <ValueRowSkeleton key={i} />);
+
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.xxl },
-  head: { gap: 2, marginBottom: spacing.sm },
-  error: { marginTop: spacing.lg },
+  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.xl },
+  subline: { textAlign: 'center', marginTop: -spacing.md },
+  error: { marginHorizontal: spacing.lg },
+  notesWrap: { gap: spacing.sm },
+  notesLabel: { marginLeft: spacing.lg },
   notes: { gap: spacing.sm, paddingHorizontal: spacing.lg },
 });

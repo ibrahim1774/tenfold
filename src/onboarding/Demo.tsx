@@ -1,9 +1,9 @@
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 
-import { AppText, Card, GradientButton, ProgressBar, Thumb } from '@/design/components';
+import { AppText, Card, GlassSurface, GradientButton, ProgressBar, Thumb } from '@/design/components';
 import { colors, motion, radii, spacing } from '@/design/tokens';
 import {
   Engine,
@@ -242,7 +242,8 @@ function DemoResult({ result }: { result: Result }) {
   ].join(' · ');
 
   return (
-    <Animated.View entering={FadeIn.duration(motion.fast)} style={styles.stage}>
+    // No fade on the player: its glass mute badge wouldn't draw under a parent starting at opacity 0.
+    <View style={styles.stage}>
       <Pressable
         onPress={() => setMuted((m) => !m)}
         accessibilityRole="button"
@@ -261,12 +262,12 @@ function DemoResult({ result }: { result: Result }) {
             style={StyleSheet.absoluteFill}
           />
         )}
-        <View style={styles.mute}>
+        <GlassSurface variant="clear" pointerEvents="none" style={styles.mute}>
           <SymbolView name={muted ? 'speaker.slash.fill' : 'speaker.wave.2.fill'} size={14} tintColor={colors.textPrimary} />
-        </View>
+        </GlassSurface>
       </Pressable>
 
-      <View style={styles.resultText}>
+      <Animated.View entering={FadeIn.duration(motion.fast).reduceMotion(ReduceMotion.System)} style={styles.resultText}>
         <AppText variant="title" tabular accessibilityLabel={facts.replace('→', 'to')}>
           {facts}
         </AppText>
@@ -281,8 +282,8 @@ function DemoResult({ result }: { result: Result }) {
             Cut
           </AppText>
         </View>
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -313,8 +314,6 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     overflow: 'hidden',
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   posterCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   progressCard: { alignSelf: 'stretch', gap: spacing.md },
@@ -323,12 +322,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 8,
     bottom: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.overlay,
   },
   resultText: { alignSelf: 'stretch', gap: spacing.md, alignItems: 'center' },
   bar: { alignSelf: 'stretch', height: 16, borderRadius: 4, backgroundColor: colors.textSecondary, overflow: 'hidden' },

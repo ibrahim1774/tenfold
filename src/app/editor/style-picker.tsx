@@ -7,8 +7,8 @@ import { useSampleWords } from '@/captions/sampleWords';
 import { CAPTION_PRESETS, captionSettingsFromPreset, lookOf } from '@/captions/presets';
 import { StyleSample } from '@/captions/StyleSample';
 import { useCaptionTarget } from '@/captions/useCaptionTarget';
-import { AppText } from '@/design/components';
-import { colors, radii, spacing } from '@/design/tokens';
+import { AppText, Card, ScreenHeader } from '@/design/components';
+import { colors, spacing } from '@/design/tokens';
 import { usePaywallGate } from '@/monetization/superwall';
 import { lowestTierWhere } from '@/onboarding/plans';
 import { captionStyleUnlocked, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
@@ -26,11 +26,9 @@ export default function StylePicker() {
   const words = useSampleWords(projectId);
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <AppText variant="title" accessibilityRole="header" style={styles.title}>
-        Caption style
-      </AppText>
-      <View style={styles.group}>
+    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+      <ScreenHeader title="Caption style" back={false} />
+      <Card padded={false}>
         {CAPTION_PRESETS.map((p, i) => {
           const locked = !captionStyleUnlocked(tier, p.free);
           const apply = () => {
@@ -65,11 +63,9 @@ export default function StylePicker() {
                 <View style={styles.text}>
                   <AppText variant="body">{p.name}</AppText>
                   {locked && (
-                    <View style={styles.pro}>
-                      <AppText variant="caption" color={colors.accentText}>
-                        {TIER_NAMES[unlockTier]}
-                      </AppText>
-                    </View>
+                    <AppText variant="label" color={colors.accentText}>
+                      {TIER_NAMES[unlockTier]}
+                    </AppText>
                   )}
                 </View>
                 {selected ? <SymbolView name="checkmark" size={15} weight="semibold" tintColor={colors.accent} /> : <View style={styles.check} />}
@@ -77,26 +73,17 @@ export default function StylePicker() {
             </View>
           );
         })}
-      </View>
+      </Card>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: spacing.xl, paddingTop: spacing.xxl, gap: spacing.lg },
-  title: { marginLeft: spacing.xs },
-  group: {
-    backgroundColor: colors.card,
-    borderRadius: radii.card,
-    borderCurve: 'continuous',
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.borderStrong },
-  row: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: 8 },
+  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.sm },
+  // Hairlines start where the text does, like iOS.
+  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.md + 132 + spacing.md, backgroundColor: colors.separator },
+  row: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   pressed: { backgroundColor: colors.cardHigh },
   text: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  pro: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: colors.accentSoft },
   check: { width: 15 },
 });

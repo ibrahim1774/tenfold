@@ -81,15 +81,17 @@ function Swatches({ label, list, current, onPick }: { label?: string; list: stri
         {list.map((c) => {
           const on = c.toUpperCase() === current;
           return (
+            // The selected colour gets a white ring with a small gap, like the system colour wells.
             <Pressable
               key={c}
               onPress={() => onPick(c)}
-              hitSlop={4}
+              hitSlop={2}
               accessibilityRole="button"
               accessibilityLabel={NAMES[c.toUpperCase()] ?? c}
               accessibilityState={{ selected: on }}
-              style={[styles.dot, { backgroundColor: c }, on && styles.dotOn]}
-            />
+              style={[styles.ring, on && styles.ringOn]}>
+              <View style={[styles.dot, { backgroundColor: c }]} />
+            </Pressable>
           );
         })}
       </View>
@@ -98,10 +100,12 @@ function Swatches({ label, list, current, onPick }: { label?: string; list: stri
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.md },
+  wrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.md, gap: spacing.md },
   section: { gap: spacing.sm },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  dot: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)' },
-  dotOn: { borderColor: colors.textPrimary, borderWidth: 3 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  ring: { width: 42, height: 42, borderRadius: 21, borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+  ringOn: { borderColor: colors.textPrimary },
+  // A hairline edge so black stays visible on graphite.
+  dot: { width: 30, height: 30, borderRadius: 15, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong },
   more: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
 });

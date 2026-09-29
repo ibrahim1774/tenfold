@@ -51,7 +51,9 @@ export function ChoiceList<T extends string>({
             accessibilityRole={multi ? 'checkbox' : 'radio'}
             accessibilityState={{ checked: on }}
             accessibilityLabel={c.detail ? `${c.label}. ${c.detail}` : c.label}
-            style={({ pressed }) => [styles.row, i > 0 && styles.divider, pressed && styles.pressed]}>
+            style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+            {/* iOS inset-group hairline: starts where the text starts, not at the edge. */}
+            {i > 0 ? <View style={[styles.divider, { left: c.icon ? DIVIDER_ICON_INSET : spacing.lg }]} /> : null}
             {c.icon ? <SymbolView name={c.icon} size={20} tintColor={colors.textPrimary} weight="regular" style={styles.icon} /> : null}
             <View style={styles.flex}>
               <AppText variant="bodyStrong">{c.label}</AppText>
@@ -74,6 +76,9 @@ export function ChoiceList<T extends string>({
   );
 }
 
+const ICON_SIZE = 24;
+const DIVIDER_ICON_INSET = spacing.lg + ICON_SIZE + spacing.lg;
+
 export const onboardingStyles = StyleSheet.create({
   pad: { flexGrow: 1, paddingHorizontal: spacing.gutter, gap: spacing.xxl, paddingBottom: spacing.lg },
 });
@@ -84,13 +89,11 @@ const styles = StyleSheet.create({
   group: {
     borderRadius: radii.card,
     borderCurve: 'continuous',
-    borderWidth: 1,
-    borderColor: colors.border,
     backgroundColor: colors.card,
     overflow: 'hidden',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, minHeight: 56, paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
-  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderStrong },
+  divider: { position: 'absolute', top: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: colors.separator },
   pressed: { backgroundColor: colors.cardHigh },
-  icon: { width: 24, height: 24 },
+  icon: { width: ICON_SIZE, height: ICON_SIZE },
 });

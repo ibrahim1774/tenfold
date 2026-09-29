@@ -8,7 +8,7 @@ import { ColorChoices } from '@/captions/ColorChoices';
 import { CAPTION_FONTS, CAPTION_FORMATS, lookOf, presetById, withLook, type CaptionAnimation } from '@/captions/presets';
 import { ColorRow, CheckRow, NavRow, RowBody, SegmentRow, SettingsGroup, SwitchRow } from '@/captions/SettingsRows';
 import { useCaptionTarget } from '@/captions/useCaptionTarget';
-import { AppText, GradientButton, IconButton, Thumb } from '@/design/components';
+import { AppText, GradientButton, IconButton, ScreenHeader, Thumb } from '@/design/components';
 import { sampleFrame } from '@/design/sampleFrames';
 import { colors, radii, spacing } from '@/design/tokens';
 import type { CaptionBackground, CaptionOutline, CaptionSettings } from '@/engine';
@@ -83,32 +83,29 @@ export default function CaptionsSheet() {
   const params = projectId ? { projectId } : { batchId: batchId ?? '' };
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <View style={styles.head}>
-        <View style={styles.headText}>
-          <AppText variant="title" accessibilityRole="header">
-            Captions
-          </AppText>
-          <AppText variant="label" color={colors.textMuted}>
-            {batchId ? 'Word-by-word captions for every video in this batch.' : 'Changes show in the preview straight away.'}
-          </AppText>
-        </View>
-        {projectId && (
-          <Pressable
-            onPress={() => playCaptionSample(3)}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Play 3 seconds"
-            accessibilityHint="Plays the video from the first caption for 3 seconds."
-            style={styles.play}>
-            <AppText variant="chip" color={colors.accentText}>
-              Play 3 s
-            </AppText>
-          </Pressable>
-        )}
-      </View>
+    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+      {/* Small centred title under the grabber; the one in-place action sits on the right. */}
+      <ScreenHeader
+        title="Captions"
+        back={false}
+        right={
+          projectId ? (
+            <Pressable
+              onPress={() => playCaptionSample(3)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Play 3 seconds"
+              accessibilityHint="Plays the video from the first caption for 3 seconds."
+              style={styles.play}>
+              <AppText variant="chip" color={colors.accentText}>
+                Play 3 s
+              </AppText>
+            </Pressable>
+          ) : undefined
+        }
+      />
 
-      <SettingsGroup>
+      <SettingsGroup footer={batchId ? 'Word-by-word captions for every video in this batch.' : 'Changes show in the preview straight away.'}>
         <SwitchRow label="Show captions" value={enabled} onChange={setEnabled} />
       </SettingsGroup>
 
@@ -157,6 +154,7 @@ export default function CaptionsSheet() {
             icon="minus"
             label="Smaller"
             size={36}
+            tone="filled"
             onPress={() => update((c) => ({ ...c, sizeScale: Math.max(0.7, +(c.sizeScale - 0.1).toFixed(1)) }))}
             disabled={settings.sizeScale <= 0.7}
           />
@@ -167,6 +165,7 @@ export default function CaptionsSheet() {
             icon="plus"
             label="Larger"
             size={36}
+            tone="filled"
             onPress={() => update((c) => ({ ...c, sizeScale: Math.min(1.5, +(c.sizeScale + 0.1).toFixed(1)) }))}
             disabled={settings.sizeScale >= 1.5}
           />
@@ -189,6 +188,7 @@ export default function CaptionsSheet() {
               icon="arrow.up"
               label="Move captions up"
               size={36}
+              tone="filled"
               onPress={() => update((c) => ({ ...c, position: { y: Math.max(0.12, +(c.position.y - 0.04).toFixed(2)) } }))}
               disabled={settings.position.y <= 0.12}
             />
@@ -196,6 +196,7 @@ export default function CaptionsSheet() {
               icon="arrow.down"
               label="Move captions down"
               size={36}
+              tone="filled"
               onPress={() => update((c) => ({ ...c, position: { y: Math.min(0.7, +(c.position.y + 0.04).toFixed(2)) } }))}
               disabled={settings.position.y >= 0.7}
             />
@@ -228,17 +229,16 @@ export default function CaptionsSheet() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { paddingHorizontal: spacing.xl, paddingTop: spacing.xxl, gap: spacing.xl },
-  missing: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  head: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  headText: { flex: 1, gap: 2 },
+  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.xl },
+  missing: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
   play: { minHeight: 44, justifyContent: 'center' },
-  stepRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 8 },
+  stepRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   stepValue: { minWidth: 48, textAlign: 'center' },
   positionRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   miniFrame: { width: 54, aspectRatio: 9 / 16, borderRadius: radii.thumb },
-  zone: { position: 'absolute', left: 0, right: 0, backgroundColor: 'rgba(255,90,110,0.22)' },
+  // Areas the TikTok and Reels buttons cover: a light neutral shade over the frame.
+  zone: { position: 'absolute', left: 0, right: 0, backgroundColor: 'rgba(255,255,255,0.22)' },
   handle: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   handleText: { fontWeight: '700' },
-  done: { marginTop: spacing.sm },
+  done: { marginTop: spacing.xs },
 });

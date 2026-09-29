@@ -2,9 +2,8 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Background, Chip, GradientButton, useTabBarSpace } from '@/design/components';
+import { AppText, Background, Chip, GradientButton, IconButton } from '@/design/components';
 import { colors, motion, spacing } from '@/design/tokens';
 import type { BatchStatus } from '@/engine/types';
 import { BatchCard } from '@/library/BatchCard';
@@ -21,8 +20,6 @@ const FILTERS: { v: Filter; l: string; none: string }[] = [
 ];
 
 export default function LibraryScreen() {
-  const insets = useSafeAreaInsets();
-  const bottom = useTabBarSpace();
   const [filter, setFilter] = useState<Filter>('all');
   const batchMap = useLibrary((s) => s.batches);
   const projects = useLibrary((s) => s.projects);
@@ -39,17 +36,23 @@ export default function LibraryScreen() {
     <View style={styles.flex}>
       <Background />
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md, paddingBottom: bottom }]}
+        // The status bar and the native tab bar inset the scroll view (UIKit's automatic content insets).
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}>
-        <View style={styles.head}>
-          <AppText variant="display" accessibilityRole="header">
-            Library
-          </AppText>
-          {total > 0 && (
-            <AppText variant="label" color={colors.textSecondary} tabular>
-              {total} {total === 1 ? 'batch' : 'batches'}
+        <View style={styles.headRow}>
+          <View style={styles.head}>
+            <AppText variant="display" accessibilityRole="header">
+              Library
             </AppText>
-          )}
+            {total > 0 && (
+              <AppText variant="label" color={colors.textSecondary} tabular>
+                {total} {total === 1 ? 'batch' : 'batches'}
+              </AppText>
+            )}
+          </View>
+          {/* What the old tab bar's centre + did: start a new batch from here. */}
+          {total > 0 && <IconButton icon="plus" label="New batch" onPress={() => router.push('/import')} />}
         </View>
 
         {total === 0 ? (
@@ -103,11 +106,12 @@ export default function LibraryScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { paddingHorizontal: spacing.gutter, gap: spacing.lg },
-  head: { gap: 2 },
+  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.xl },
+  headRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.md },
+  head: { gap: 2, flex: 1 },
   chipsScroll: { marginHorizontal: -spacing.gutter, flexGrow: 0 },
   chips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.gutter },
-  grid: { gap: spacing.md },
+  grid: { gap: spacing.xl },
   gridRow: { flexDirection: 'row', gap: spacing.md },
   empty: { alignItems: 'center', gap: spacing.md, marginTop: spacing.xxl * 2, paddingHorizontal: spacing.lg },
   center: { textAlign: 'center' },

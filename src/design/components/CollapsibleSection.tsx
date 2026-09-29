@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { colors, motion, spacing } from '../tokens';
 import { AppText } from './AppText';
@@ -35,11 +35,14 @@ export function CollapsibleSection({ title, summary, initiallyOpen = false, chil
             icon={open ? 'chevron.up' : 'chevron.down'}
             label={open ? `Collapse ${title}` : `Expand ${title}`}
             size={36}
+            tone="filled"
             onPress={() => setOpen((o) => !o)}
           />
         </View>
         {open && (
-          <Animated.View entering={FadeIn.duration(motion.fast)} exiting={FadeOut.duration(120)} style={styles.body}>
+          // No fade-in: glass buttons inside don't render if a parent starts at opacity 0. The card's
+          // layout transition already shows the change.
+          <Animated.View exiting={FadeOut.duration(120)} style={styles.body}>
             {children}
           </Animated.View>
         )}

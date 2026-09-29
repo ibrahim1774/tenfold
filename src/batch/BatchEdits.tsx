@@ -60,7 +60,7 @@ export function BatchEdits({ batch, clips, selections }: { batch: Batch; clips: 
                     accessibilityLabel={mixed ? `${e.label}, on for ${n} of ${clips.length} clips` : e.label}
                     accessibilityHint={e.detail}
                     style={[styles.chip, all && styles.on, mixed && styles.mixed, empty && styles.disabled]}>
-                    {mixed && <SymbolView name="minus" size={12} weight="regular" tintColor={colors.accent} />}
+                    {mixed && <SymbolView name="minus" size={12} weight="semibold" tintColor={colors.textPrimary} />}
                     <AppText variant="chip" numberOfLines={1} color={all ? colors.chipSelectedText : colors.chipText}>
                       {e.label}
                     </AppText>
@@ -103,10 +103,12 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: spacing.sm,
     backgroundColor: colors.chipFill,
+    // Transparent by default so the mixed state's outline doesn't shift the layout.
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'transparent',
   },
+  // On for every clip: white fill. On for some: a white outline and a minus.
   on: { backgroundColor: colors.chipSelectedFill, borderColor: colors.chipSelectedFill },
-  mixed: { borderColor: colors.accent },
+  mixed: { borderColor: colors.textSecondary },
   disabled: { opacity: 0.4 },
 });

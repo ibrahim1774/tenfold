@@ -30,7 +30,7 @@ export function Included() {
         {INCLUDED.map((f) => (
           <View key={f.title} style={styles.row} accessible accessibilityLabel={`${f.title}. ${f.body}`}>
             <View style={styles.icon}>
-              <SymbolView name={f.icon} size={18} tintColor={colors.accent} weight="semibold" />
+              <SymbolView name={f.icon} size={18} tintColor={colors.textPrimary} weight="medium" />
             </View>
             <View style={styles.text}>
               <AppText variant="bodyStrong">{f.title}</AppText>
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.round,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,176,32,0.12)',
+    backgroundColor: colors.card,
   },
   text: { flex: 1, gap: 2 },
 });

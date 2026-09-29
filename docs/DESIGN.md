@@ -6,14 +6,20 @@ gets out of the footage's way. Tokens live in `src/design/tokens.ts`; these rule
 ## 0. Look ("graphite")
 
 - **Surfaces:** flat black (`bg`), two elevation steps (`bgRaised`, `card`, `cardHigh`). No ambient glows,
-  no gradients, no blur, no drop shadows. The video thumbnails are the only colour on screen.
+  no decorative gradients, no drop shadows. The video thumbnails are the only colour on screen.
+- **Liquid Glass (iOS 26):** chrome that floats over content is glass (`GlassSurface`, `GlassCapsule`,
+  `IconButton` default tone): top-corner circle buttons (back, close, more, +), floating control groups
+  over the preview, badges over thumbnails. Never on ordinary list content. Glass doesn't render under a
+  parent that starts at opacity 0, so no fade-in around it.
 - **Type:** the iPhone's own font (SF Pro) for all interface text. Bundled faces (Poppins, TikTok Sans…)
   are for captions only.
 - **Accent:** one colour (`accent`, amber) for progress, selection, the playhead and links. Never for
   large fills.
-- **Primary button:** solid white with black text. Secondary: `cardHigh` fill, no border.
-- **Corners:** 12–14 pt (`radii`). Icons: SF Symbols, regular weight, monochrome.
-- **Tab bar:** standard opaque bottom bar, icon over a 10 pt label.
+- **Primary button:** a solid white capsule with black text. Secondary: a glass capsule (`OutlineButton`).
+- **Corners:** 12–14 pt (`radii`), continuous. Icons: SF Symbols, monochrome.
+- **Tab bar:** the system tab bar (expo-router `NativeTabs`), which iOS 26 draws as Liquid Glass.
+- **Titles:** tab roots get a large left title; pushed and modal screens a small centred title between
+  glass corner buttons (`ScreenHeader`).
 
 ## 1. Hierarchy
 
@@ -72,6 +78,7 @@ Motion explains a change; it never decorates.
 ## 7. Details
 
 - Minimum touch target 44 pt. Icons one weight (`regular`), sized to the text next to them.
-- Cards: one radius (`radii.card`), hairline border, no drop shadows except the primary button.
+- Cards: one radius (`radii.card`), no border, no drop shadows. Hairlines (`separator`) only between rows
+  inside a group, inset to where the text starts.
 - Haptics: selection tick for toggles and snaps, light impact for primary actions, success for exports.
   Nothing else.

@@ -10,6 +10,8 @@ import {
   Chip,
   ChipGroup,
   CollapsibleSection,
+  GlassCapsule,
+  GlassSurface,
   GradientButton,
   OptionLabel,
   OutlineButton,
@@ -214,12 +216,16 @@ export default function BatchSetupScreen() {
                 accessibilityHint="Shows this clip's edits"
                 style={({ pressed }) => pressed && styles.pressed}>
                 <Thumb seed={seedOf(c.id)} uri={c.posterUri} style={styles.thumb}>
-                  {differs && <View style={styles.differs} />}
-                  <View style={styles.duration}>
-                    <AppText variant="caption" tabular>
+                  {differs && (
+                    <GlassSurface variant="clear" pointerEvents="none" style={styles.differs}>
+                      <SymbolView name="slider.horizontal.3" size={10} tintColor={colors.textPrimary} weight="semibold" />
+                    </GlassSurface>
+                  )}
+                  <GlassCapsule variant="clear" pointerEvents="none" style={styles.duration}>
+                    <AppText variant="caption" tabular numberOfLines={1}>
                       {dur}
                     </AppText>
-                  </View>
+                  </GlassCapsule>
                 </Thumb>
               </Pressable>
             );
@@ -477,15 +483,26 @@ const styles = StyleSheet.create({
   muted: { opacity: 0.45 },
   strip: { paddingHorizontal: spacing.gutter, gap: spacing.sm },
   thumb: { width: 64, height: 88, borderRadius: radii.thumb, borderCurve: 'continuous' },
+  // A clear glass badge over the frame; bounded on both sides so a long label truncates inside the tile.
   duration: {
     position: 'absolute',
-    bottom: 5,
-    left: 5,
-    paddingHorizontal: 5,
-    borderRadius: 6,
-    backgroundColor: colors.overlay,
+    bottom: 4,
+    left: 4,
+    maxWidth: 56,
+    minHeight: 20,
+    paddingHorizontal: 6,
+    gap: 0,
   },
-  differs: { position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
+  differs: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   addTile: {
     width: 64,
     height: 88,
@@ -501,9 +518,9 @@ const styles = StyleSheet.create({
   note: { marginTop: spacing.xs },
   frameRow: { paddingVertical: 4 },
   hRow: { flexDirection: 'row', gap: 10 },
-  dot: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: 'rgba(255,255,255,0.15)' },
+  dot: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: colors.border },
   dotSelected: { borderColor: '#FFFFFF', borderWidth: 3 },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: spacing.xs },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.separator, marginVertical: spacing.xs },
   footer: {
     position: 'absolute',
     left: 0,
@@ -513,8 +530,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 8,
     backgroundColor: 'rgba(0,0,0,0.92)',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
   },
   centerText: { textAlign: 'center' },
   missing: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: spacing.gutter },

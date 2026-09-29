@@ -1,18 +1,23 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
-import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { thumbGradients } from '../tokens';
+import { colors } from '../tokens';
 
-/** Video thumbnail: a real frame when `uri` is given, otherwise a moody gradient keyed by `seed`. */
+/**
+ * Video thumbnail: a real frame when `uri` (or a bundled `source`) is given, otherwise a flat graphite
+ * tile. The footage is the only colour on screen, so there are no decorative gradient fallbacks. A soft
+ * scrim at the bottom keeps overlaid labels legible on bright frames.
+ */
 export function Thumb({
-  seed,
+  seed: _seed,
   uri,
   source,
   style,
   children,
 }: {
+  /** Kept for call sites; fallbacks no longer vary by seed. */
   seed: number;
   uri?: string | null;
   /** A bundled image (require()), used when there is no uri. */
@@ -20,22 +25,24 @@ export function Thumb({
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
 }) {
-  const g = thumbGradients[Math.abs(seed) % thumbGradients.length];
+  const hasImage = !!uri || source != null;
   return (
-    <LinearGradient colors={g} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={[styles.base, style]}>
+    <View style={[styles.base, style]}>
       {uri ? (
         <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
       ) : source != null ? (
         <Image source={source} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} />
       ) : null}
-      <LinearGradient
-        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.45)']}
-        locations={[0.55, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
+      {hasImage && (
+        <LinearGradient
+          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.35)']}
+          locations={[0.6, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+      )}
       {children}
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -47,5 +54,5 @@ export function seedOf(id: string): number {
 }
 
 const styles = StyleSheet.create({
-  base: { overflow: 'hidden' },
+  base: { overflow: 'hidden', backgroundColor: colors.cardHigh, borderCurve: 'continuous' },
 });

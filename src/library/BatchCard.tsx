@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { StyleSheet, View } from 'react-native';
 
-import { AppText, PressableScale, ProgressRing, Thumb, seedOf } from '@/design/components';
+import { AppText, GlassSurface, PressableScale, ProgressRing, Thumb, seedOf } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
 import type { Batch, BatchStatus, Project } from '@/engine/types';
 import { batchStatus, formatDuration, projectsOf, timeAgo, useLibrary } from '@/state/library';
@@ -82,7 +82,7 @@ export function clipCount(n: number) {
   return `${n} ${n === 1 ? 'clip' : 'clips'}`;
 }
 
-/** Grid card: thumbnail, title, then facts (clips · length, status · age). */
+/** Grid item like Photos albums: the thumbnail carries the colour, text sits under it with no card box. */
 export function BatchCard({ batch }: { batch: Batch }) {
   const all = useLibrary((s) => s.projects);
   const docs = useLibrary((s) => s.docs);
@@ -104,13 +104,13 @@ export function BatchCard({ batch }: { batch: Batch }) {
       onPress={() => openBatch(batch, s.status)}>
       <Thumb seed={seedOf(batch.id)} uri={first?.posterUri} style={styles.thumb}>
         {s.status === 'processing' ? (
-          <View style={styles.status}>
-            <ProgressRing progress={s.progress} size={22} stroke={2.5} showLabel={false} />
-          </View>
+          <GlassSurface variant="clear" style={styles.status} pointerEvents="none">
+            <ProgressRing progress={s.progress} size={20} stroke={2.5} showLabel={false} />
+          </GlassSurface>
         ) : s.status === 'exported' ? (
-          <View style={styles.status}>
-            <SymbolView name="checkmark" size={12} tintColor={colors.textPrimary} weight="regular" />
-          </View>
+          <GlassSurface variant="clear" style={styles.status} pointerEvents="none">
+            <SymbolView name="checkmark" size={12} tintColor={colors.textPrimary} weight="semibold" />
+          </GlassSurface>
         ) : null}
       </Thumb>
       <View style={styles.text}>
@@ -129,16 +129,8 @@ export function BatchCard({ batch }: { batch: Batch }) {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    flex: 1,
-    padding: 6,
-    borderRadius: radii.card,
-    borderCurve: 'continuous',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  thumb: { height: 164, borderRadius: radii.card - 6, borderCurve: 'continuous' },
+  card: { flex: 1 },
+  thumb: { height: 200, borderRadius: radii.card, borderCurve: 'continuous' },
   status: {
     position: 'absolute',
     top: 8,
@@ -148,7 +140,6 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.55)',
   },
-  text: { paddingHorizontal: spacing.sm + 2, paddingTop: spacing.sm + 2, paddingBottom: spacing.sm, gap: 2 },
+  text: { paddingHorizontal: 2, paddingTop: spacing.sm, gap: 1 },
 });

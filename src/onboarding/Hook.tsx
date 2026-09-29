@@ -2,9 +2,9 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View } from 'react-native';
 
-import { AppText } from '@/design/components';
+import { AppText, GlassCapsule } from '@/design/components';
 import { SAMPLE_FRAMES } from '@/design/sampleFrames';
-import { colors, fonts, spacing } from '@/design/tokens';
+import { colors, spacing } from '@/design/tokens';
 
 /**
  * First screen: a wall of ten finished takes (the batch idea at a glance), the promise underneath.
@@ -40,23 +40,22 @@ export function Hook() {
               {col.items.map((i) => (
                 <View key={i} style={styles.tile}>
                   <Image source={TAKES[i].src} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} />
-                  <View style={styles.badge}>
-                    <AppText variant="caption" style={styles.badgeText}>
+                  <GlassCapsule variant="clear" pointerEvents="none" style={styles.badge}>
+                    <AppText variant="caption" tabular>
                       {TAKES[i].cut}
                     </AppText>
-                  </View>
+                  </GlassCapsule>
                 </View>
               ))}
             </View>
           ))}
         </View>
+        {/* Edge fades so the wall dissolves into the black page. */}
         <LinearGradient colors={[colors.bg, 'rgba(0,0,0,0)']} style={styles.fadeTop} pointerEvents="none" />
         <LinearGradient colors={['rgba(0,0,0,0)', colors.bg]} style={styles.fadeBottom} pointerEvents="none" />
-        <View style={styles.pill} pointerEvents="none">
-          <AppText variant="caption" style={styles.pillText}>
-            10 of 10 ready
-          </AppText>
-        </View>
+        <GlassCapsule pointerEvents="none" style={styles.pill}>
+          <AppText variant="chip">10 of 10 ready</AppText>
+        </GlassCapsule>
       </View>
       <View style={styles.text}>
         <AppText variant="display" accessibilityRole="header">
@@ -85,31 +84,12 @@ const styles = StyleSheet.create({
     aspectRatio: 9 / 16,
     borderRadius: 14,
     overflow: 'hidden',
-    backgroundColor: '#15161A',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderCurve: 'continuous',
+    backgroundColor: colors.card,
   },
-  badge: {
-    position: 'absolute',
-    left: 6,
-    bottom: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: 'rgba(0,0,0,0.62)',
-  },
-  badgeText: { color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontVariant: ['tabular-nums'] },
+  badge: { position: 'absolute', left: 6, bottom: 6, minHeight: 22, paddingHorizontal: 8 },
   fadeTop: { position: 'absolute', left: 0, right: 0, top: 0, height: 110 },
   fadeBottom: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 120 },
-  pill: {
-    position: 'absolute',
-    alignSelf: 'center',
-    bottom: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: colors.accent,
-  },
-  pillText: { color: '#000000', fontFamily: fonts.semiBold },
+  pill: { position: 'absolute', alignSelf: 'center', bottom: spacing.xl, paddingHorizontal: spacing.lg },
   text: { paddingHorizontal: spacing.gutter, paddingTop: spacing.xl, gap: spacing.md },
 });

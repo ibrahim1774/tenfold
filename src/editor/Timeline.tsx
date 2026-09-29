@@ -1012,6 +1012,8 @@ function EdgeFrame({ left, width, top, height, radius, color, startRange, endRan
   );
 }
 
+const SELECTED_FILL = '#3A3A3C';
+
 const styles = StyleSheet.create({
   wrap: { flexDirection: 'row' },
   flex: { flex: 1 },
@@ -1074,11 +1076,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: colors.cardHigh,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  captionHidden: { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: colors.borderStrong },
-  captionSelected: { backgroundColor: colors.accentSoft },
+  captionHidden: { backgroundColor: 'transparent', borderWidth: 1, borderStyle: 'dashed', borderColor: colors.borderStrong },
+  // Selected: one step lighter than the chip (the accent edge frame marks it), not a coloured fill.
+  captionSelected: { backgroundColor: SELECTED_FILL },
   captionText: { flexShrink: 1 },
   edgeFrame: { position: 'absolute', borderWidth: 2 },
   edge: { position: 'absolute', top: -2, bottom: -2, width: 12, alignItems: 'center', justifyContent: 'center' },
@@ -1091,8 +1092,8 @@ const styles = StyleSheet.create({
   soundRows: { marginTop: 2 },
   soundClip: { position: 'absolute', borderRadius: 8, overflow: 'hidden', justifyContent: 'center' },
   originalClip: { top: 4, height: 40, backgroundColor: colors.card },
-  fileClip: { height: 26, backgroundColor: colors.cardHigh, borderWidth: 1, borderColor: colors.border },
-  soundSelected: { backgroundColor: colors.accentSoft },
+  fileClip: { height: 26, backgroundColor: colors.cardHigh },
+  soundSelected: { backgroundColor: SELECTED_FILL },
   soundLabel: { position: 'absolute', top: 3, left: 6, right: 6, flexDirection: 'row', alignItems: 'center', gap: 4 },
   fileBar: { position: 'absolute', bottom: 2, width: 2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.18)' },
   wave: { height: 48, marginTop: 4, justifyContent: 'center' },

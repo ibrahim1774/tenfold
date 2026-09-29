@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { errorText } from '@/batch/queue';
 import { postAddedClip } from '@/editor/clipBus';
 import { Engine } from '@/engine';
-import { AppText, GradientButton, IconButton, OutlineButton, Thumb } from '@/design/components';
+import { AppText, GlassCapsule, GradientButton, IconButton, OutlineButton, Thumb } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
 import { canImportFiles, importFile } from '@/onboarding/fileImport';
 import { formatDuration, useLibrary } from '@/state/library';
@@ -29,11 +29,7 @@ export default function RecordScreen() {
   const [cam, requestCam] = useCameraPermissions();
   const [mic, requestMic] = useMicrophonePermissions();
 
-  const close = (
-    <View style={[styles.close, { top: insets.top + spacing.xs }]}>
-      <IconButton icon="xmark" label="Close" size={44} tone="solid" iconScale={0.4} onPress={() => router.back()} />
-    </View>
-  );
+  const close = <CloseButton top={insets.top + spacing.xs} />;
 
   if (!cam || !mic) return <View style={styles.black}>{close}</View>;
 
@@ -70,6 +66,15 @@ export default function RecordScreen() {
   return <Recorder close={close} projectId={projectId} />;
 }
 
+/** Glass Close circle in the top-leading corner. */
+function CloseButton({ top }: { top: number }) {
+  return (
+    <View style={[styles.close, { top }]}>
+      <IconButton icon="xmark" label="Close" onPress={() => router.back()} />
+    </View>
+  );
+}
+
 function Recorder({ close, projectId }: { close: ReactNode; projectId?: string }) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -86,6 +91,9 @@ function Recorder({ close, projectId }: { close: ReactNode; projectId?: string }
   // 9:16 frame, as tall as the screen allows.
   const frameH = Math.min(height, (width * 16) / 9);
   const frameW = (frameH * 9) / 16;
+  const frameTop = Math.max(0, (height - frameH) / 2);
+  // Chrome floats over the preview itself, below the status bar.
+  const chromeTop = Math.max(insets.top, frameTop) + spacing.md;
 
   useEffect(() => {
     if (!recording) return;
@@ -127,7 +135,7 @@ function Recorder({ close, projectId }: { close: ReactNode; projectId?: string }
 
   return (
     <View style={styles.black}>
-      <View style={[styles.frame, { width: frameW, height: frameH, marginTop: Math.max(0, (height - frameH) / 2) }]}>
+      <View style={[styles.frame, { width: frameW, height: frameH, marginTop: frameTop }]}>
         <CameraView
           ref={camera}
           style={StyleSheet.absoluteFill}
@@ -139,11 +147,11 @@ function Recorder({ close, projectId }: { close: ReactNode; projectId?: string }
         />
       </View>
 
-      {!recording && close}
+      {!recording && <CloseButton top={chromeTop} />}
 
-      <View style={[styles.timer, { top: insets.top + spacing.md }]} accessibilityLiveRegion="polite">
+      <View style={[styles.timer, { top: chromeTop + 6 }]} accessibilityLiveRegion="polite">
         {recording && (
-          <View style={styles.timerPill}>
+          <GlassCapsule style={styles.timerPill}>
             <View style={styles.recDot} />
             <AppText variant="bodyStrong" tabular>
               {formatDuration(elapsed)}
@@ -153,7 +161,7 @@ function Recorder({ close, projectId }: { close: ReactNode; projectId?: string }
                 {formatDuration(left)} left
               </AppText>
             )}
-          </View>
+          </GlassCapsule>
         )}
       </View>
 
@@ -184,9 +192,6 @@ function Recorder({ close, projectId }: { close: ReactNode; projectId?: string }
               <IconButton
                 icon="arrow.triangle.2.circlepath.camera"
                 label={facing === 'front' ? 'Use back camera' : 'Use front camera'}
-                size={48}
-                tone="solid"
-                iconScale={0.42}
                 onPress={() => {
                   Haptics.selectionAsync();
                   setFacing((f) => (f === 'front' ? 'back' : 'front'));
@@ -269,21 +274,13 @@ function Review({ take, close, projectId, onRetake }: { take: Take; close: React
 const styles = StyleSheet.create({
   black: { flex: 1, backgroundColor: colors.bg },
   center: { textAlign: 'center' },
-  close: { position: 'absolute', left: spacing.md, zIndex: 2 },
+  close: { position: 'absolute', left: spacing.lg, zIndex: 2 },
   permission: { justifyContent: 'center', paddingHorizontal: spacing.gutter },
   permissionText: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
   permissionButton: { alignSelf: 'stretch' },
   frame: { alignSelf: 'center', overflow: 'hidden', borderRadius: radii.card, borderCurve: 'continuous', backgroundColor: colors.card },
   timer: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  timerPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    minHeight: 32,
-    borderRadius: radii.round,
-    backgroundColor: colors.overlay,
-  },
+  timerPill: { gap: spacing.sm },
   recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
   controls: { position: 'absolute', left: 0, right: 0, bottom: 0, gap: spacing.md, paddingHorizontal: spacing.gutter },
   controlRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

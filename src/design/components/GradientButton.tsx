@@ -4,6 +4,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { SFSymbol } from '../symbols';
 import { colors, radii, sizes } from '../tokens';
 import { AppText } from './AppText';
+import { GlassSurface } from './Glass';
 import { PressableScale } from './PressableScale';
 
 export type GradientButtonProps = {
@@ -17,7 +18,10 @@ export type GradientButtonProps = {
   shape?: 'rounded' | 'pill';
 };
 
-/** The one primary action on a screen: solid white, black text (docs/DESIGN.md §1). */
+/**
+ * The one primary action on a screen: a flat white capsule with black text, like iOS 26's prominent
+ * buttons (docs/DESIGN.md §1). No gradient, glow or shadow; the name stays for its many call sites.
+ */
 export function GradientButton({
   title,
   onPress,
@@ -26,7 +30,7 @@ export function GradientButton({
   disabled,
   style,
   height = sizes.ctaHeight,
-  shape = 'rounded',
+  shape = 'pill',
 }: GradientButtonProps) {
   const radius = shape === 'pill' ? height / 2 : radii.button;
   return (
@@ -55,12 +59,25 @@ export type OutlineButtonProps = {
   icon?: SFSymbol;
   height?: number;
   style?: StyleProp<ViewStyle>;
+  /** 'outline' (default): glass capsule. 'violet' (legacy name): the same with accent text. */
   tone?: 'outline' | 'violet';
   disabled?: boolean;
+  shape?: 'rounded' | 'pill';
 };
 
-/** Hairline-bordered secondary button ("+ New Project", "Export", "Cancel" in the reference). */
-export function OutlineButton({ title, onPress, icon, height = sizes.ctaHeight, style, tone = 'outline', disabled }: OutlineButtonProps) {
+/** Secondary button: a Liquid Glass capsule (graphite fill where glass isn't available). */
+export function OutlineButton({
+  title,
+  onPress,
+  icon,
+  height = sizes.ctaHeight,
+  style,
+  tone = 'outline',
+  disabled,
+  shape = 'pill',
+}: OutlineButtonProps) {
+  const radius = shape === 'pill' ? height / 2 : Math.min(radii.button, height / 2);
+  const tint = tone === 'violet' ? colors.accentText : colors.textPrimary;
   return (
     <PressableScale
       onPress={onPress}
@@ -68,16 +85,15 @@ export function OutlineButton({ title, onPress, icon, height = sizes.ctaHeight, 
       accessibilityRole="button"
       accessibilityLabel={title}
       accessibilityState={{ disabled }}
-      style={[
-        styles.outline,
-        tone === 'violet' && styles.violet,
-        { height, borderRadius: Math.min(radii.button, height / 2), opacity: disabled ? 0.45 : 1 },
-        style,
-      ]}>
-      <View style={styles.row}>
-        {icon ? <SymbolView name={icon} size={17} tintColor={colors.textPrimary} weight="regular" /> : null}
-        <AppText variant={height < 44 ? 'chip' : 'bodyStrong'}>{title}</AppText>
-      </View>
+      style={[{ height, borderRadius: radius, opacity: disabled ? 0.45 : 1 }, style]}>
+      <GlassSurface interactive style={[styles.outline, { height, borderRadius: radius }]}>
+        <View style={styles.row}>
+          {icon ? <SymbolView name={icon} size={17} tintColor={tint} weight="medium" /> : null}
+          <AppText variant={height < 44 ? 'chip' : 'bodyStrong'} color={tint}>
+            {title}
+          </AppText>
+        </View>
+      </GlassSurface>
     </PressableScale>
   );
 }
@@ -89,10 +105,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.textPrimary,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
-  outline: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.cardHigh,
-  },
-  violet: { backgroundColor: colors.accentSoft },
+  outline: { justifyContent: 'center', alignItems: 'center' },
 });

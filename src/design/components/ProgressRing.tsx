@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedProps, useSharedValue, withSpring } from 'react-native-reanimated';
-import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 
-import { gradients, motion } from '../tokens';
+import { colors, motion } from '../tokens';
 import { AppText } from './AppText';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -33,19 +33,12 @@ export function ProgressRing({ progress, size = 120, stroke = 10, label, showLab
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
       <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
-        <Defs>
-          <LinearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
-            {gradients.progress.map((color, i) => (
-              <Stop key={`${color}-${i}`} offset={i / (gradients.progress.length - 1)} stopColor={color} />
-            ))}
-          </LinearGradient>
-        </Defs>
         <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.14)" strokeWidth={stroke} fill="none" />
         <AnimatedCircle
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke="url(#ring)"
+          stroke={colors.accent}
           strokeWidth={stroke}
           strokeLinecap="round"
           fill="none"

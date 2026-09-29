@@ -3,31 +3,31 @@ import { SymbolView } from 'expo-symbols';
 import { Children, Fragment, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, Toggle } from '@/design/components';
-import { colors, radii, spacing } from '@/design/tokens';
+import { AppText, Card, Toggle } from '@/design/components';
+import { colors, spacing } from '@/design/tokens';
 
-// Grouped inset rows like iOS Settings (docs/DESIGN.md §5): hairline dividers, chevrons only on rows
-// that navigate. Every row is at least 48 pt tall.
+// Grouped inset rows like iOS Settings (docs/DESIGN.md §5): a borderless graphite group, hairlines that
+// start at the text inset, sentence-case headers, chevrons only on rows that navigate. Rows are 48 pt or taller.
 
 export function SettingsGroup({ label, footer, children }: { label?: string; footer?: string; children: ReactNode }) {
   const rows = Children.toArray(children).filter(Boolean);
   return (
     <View style={styles.wrap}>
       {label ? (
-        <AppText variant="caption" color={colors.textMuted} style={styles.groupLabel}>
-          {label.toUpperCase()}
+        <AppText variant="label" color={colors.textSecondary} style={styles.groupLabel} accessibilityRole="header">
+          {label}
         </AppText>
       ) : null}
-      <View style={styles.group}>
+      <Card padded={false}>
         {rows.map((row, i) => (
           <Fragment key={i}>
             {i > 0 && <View style={styles.divider} />}
             {row}
           </Fragment>
         ))}
-      </View>
+      </Card>
       {footer ? (
-        <AppText variant="caption" color={colors.textMuted} style={styles.footer}>
+        <AppText variant="label" color={colors.textMuted} style={styles.footer}>
           {footer}
         </AppText>
       ) : null}
@@ -135,7 +135,7 @@ export function SegmentRow<T extends string>({
               accessibilityRole="radio"
               accessibilityLabel={o.label}
               accessibilityState={{ selected: on }}
-              hitSlop={{ top: 4, bottom: 4 }}
+              hitSlop={{ top: 6, bottom: 6 }}
               style={[styles.segmentItem, on && styles.segmentOn]}>
               <AppText variant="chip" color={on ? colors.textInverse : colors.textPrimary} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                 {o.label}
@@ -148,6 +148,31 @@ export function SegmentRow<T extends string>({
   );
 }
 
+/** A read-only fact: label on the left, value on the right (no chevron, nothing to tap). */
+export function ValueRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.row} accessible accessibilityLabel={`${label}: ${value}`}>
+      <AppText variant="body" style={styles.factLabel}>
+        {label}
+      </AppText>
+      <AppText variant="body" tabular color={colors.textSecondary} style={styles.value}>
+        {value}
+      </AppText>
+    </View>
+  );
+}
+
+/** Placeholder in the shape of a ValueRow while the facts load. */
+export function ValueRowSkeleton() {
+  return (
+    <View style={styles.row}>
+      <View style={[styles.bone, styles.boneLabel]} />
+      <View style={styles.label} />
+      <View style={[styles.bone, styles.boneValue]} />
+    </View>
+  );
+}
+
 /** Free-form content inside a group (a stepper, a swatch grid), padded like a row. */
 export function RowBody({ children }: { children: ReactNode }) {
   return <View style={styles.body}>{children}</View>;
@@ -155,27 +180,24 @@ export function RowBody({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.sm },
-  groupLabel: { marginLeft: spacing.lg, letterSpacing: 0.4 },
+  groupLabel: { marginLeft: spacing.lg },
   footer: { marginHorizontal: spacing.lg },
-  group: {
-    backgroundColor: colors.card,
-    borderRadius: radii.card,
-    borderCurve: 'continuous',
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.borderStrong },
+  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.separator },
   row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 10 },
   pressed: { backgroundColor: colors.cardHigh },
   label: { flex: 1 },
+  factLabel: { flexShrink: 0 },
   value: { flexShrink: 1, textAlign: 'right' },
-  swatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: colors.borderStrong },
-  swatchNone: { backgroundColor: colors.bg, borderStyle: 'dashed' },
+  // A hairline edge so black and dark swatches still read on graphite.
+  swatch: { width: 26, height: 26, borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong },
+  swatchNone: { backgroundColor: 'transparent', borderWidth: 1, borderStyle: 'dashed' },
   checkSpace: { width: 15 },
-  segmentRow: { paddingHorizontal: spacing.lg, paddingVertical: 12, gap: spacing.sm },
-  segment: { flexDirection: 'row', gap: 2, padding: 2, borderRadius: 10, backgroundColor: colors.bg },
-  segmentItem: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderRadius: 8 },
+  segmentRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.sm },
+  segment: { flexDirection: 'row', gap: 2, padding: 2, borderRadius: 9, borderCurve: 'continuous', backgroundColor: colors.cardHigh },
+  segmentItem: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderRadius: 7, borderCurve: 'continuous' },
   segmentOn: { backgroundColor: colors.chipSelectedFill },
-  body: { paddingHorizontal: spacing.lg, paddingVertical: 12, gap: spacing.md },
+  body: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.md },
+  bone: { height: 12, borderRadius: 6, backgroundColor: colors.cardHigh },
+  boneLabel: { width: 110 },
+  boneValue: { width: 70 },
 });

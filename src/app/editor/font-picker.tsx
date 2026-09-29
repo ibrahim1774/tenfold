@@ -5,8 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CAPTION_FONTS, withLook } from '@/captions/presets';
 import { useCaptionTarget } from '@/captions/useCaptionTarget';
-import { AppText } from '@/design/components';
-import { colors, radii, spacing } from '@/design/tokens';
+import { AppText, Card, ScreenHeader } from '@/design/components';
+import { colors, spacing } from '@/design/tokens';
 
 // Caption fonts, each name drawn in its own face. Picking one keeps the rest of the look (style → Custom).
 export default function FontPicker() {
@@ -15,11 +15,9 @@ export default function FontPicker() {
   const { settings, update } = useCaptionTarget(projectId, batchId);
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-      <AppText variant="title" accessibilityRole="header" style={styles.title}>
-        Caption font
-      </AppText>
-      <View style={styles.group}>
+    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+      <ScreenHeader title="Caption font" back={false} />
+      <Card padded={false}>
         {CAPTION_FONTS.map((f, i) => {
           const selected = settings?.font === f.id;
           const face: TextStyle = f.family !== 'System' ? { fontFamily: f.family } : { fontWeight: '900' };
@@ -43,23 +41,15 @@ export default function FontPicker() {
             </View>
           );
         })}
-      </View>
+      </Card>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: spacing.xl, paddingTop: spacing.xxl, gap: spacing.lg },
-  title: { marginLeft: spacing.xs },
-  group: {
-    backgroundColor: colors.card,
-    borderRadius: radii.card,
-    borderCurve: 'continuous',
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.borderStrong },
+  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.sm },
+  // Hairlines start where the text does, like iOS.
+  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.separator },
   row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg },
   pressed: { backgroundColor: colors.cardHigh },
   name: { flex: 1 },

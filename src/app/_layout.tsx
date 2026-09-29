@@ -3,6 +3,7 @@ import { Stack } from 'expo-router/stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { Appearance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { startQueue } from '@/batch/queue';
@@ -13,6 +14,8 @@ import { refreshSpeechStatus } from '@/state/speech';
 import { TourHost } from '@/tour/TourHost';
 
 SplashScreen.preventAutoHideAsync();
+// Tenfold is dark only: system chrome (tab bar, glass, switches, sheets) follows the app, not the phone.
+Appearance.setColorScheme('dark');
 
 // Fonts (Poppins) are embedded at build time by the expo-font config plugin, so no runtime loading.
 const theme = {

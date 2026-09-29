@@ -143,10 +143,10 @@ export default function VoiceoverSheet() {
   return (
     <View style={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}>
       <View style={styles.head}>
-        <AppText variant="title" accessibilityRole="header">
+        <AppText variant="bodyStrong" accessibilityRole="header" style={styles.centre}>
           Record voiceover
         </AppText>
-        <AppText variant="label" color={colors.textMuted}>
+        <AppText variant="label" color={colors.textMuted} style={styles.centre}>
           {phase === 'recorded'
             ? `Adds at ${stopwatch(at)} at full volume.`
             : `The video plays from ${stopwatch(at)} while you record. Headphones keep its sound out of the recording.`}
@@ -183,7 +183,7 @@ export default function VoiceoverSheet() {
       )}
 
       {error && (
-        <AppText variant="label" color={colors.danger}>
+        <AppText variant="label" color={colors.danger} style={styles.centre}>
           {error}
         </AppText>
       )}
@@ -200,7 +200,9 @@ export default function VoiceoverSheet() {
 
 const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: spacing.gutter, paddingTop: spacing.xl, gap: spacing.lg },
-  head: { gap: 2 },
+  // Small centred sheet title under the grabber, like the system's own sheets.
+  head: { gap: spacing.xs, alignItems: 'center' },
+  centre: { textAlign: 'center' },
   recorder: { alignItems: 'center', gap: spacing.lg, paddingVertical: spacing.sm },
   recordRing: {
     width: 76,

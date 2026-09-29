@@ -8,6 +8,8 @@ import { cancelBatch, queueExports, retryProject, setPaused, STAGE_LABELS, start
 import {
   AppText,
   Background,
+  GlassCapsule,
+  GlassSurface,
   GradientButton,
   IconButton,
   OutlineButton,
@@ -169,7 +171,7 @@ export default function ProcessingScreen() {
           <ScreenHeader
             title={batch.title}
             onBack={() => router.dismissTo('/')}
-            right={<IconButton icon="ellipsis" label="More actions" size={46} onPress={more} />}
+            right={<IconButton icon="ellipsis" label="More actions" onPress={more} />}
           />
         </View>
 
@@ -367,24 +369,24 @@ function ResultCard({ project: p, batch, saved }: { project: Project; batch: Bat
                 </View>
               </View>
             ) : retryable ? (
-              <View style={styles.posterBadge}>
-                <SymbolView name="arrow.clockwise" size={16} tintColor={colors.textPrimary} weight="regular" />
-              </View>
+              <GlassSurface pointerEvents="none" style={styles.posterBadge}>
+                <SymbolView name="arrow.clockwise" size={17} tintColor={colors.textPrimary} weight="medium" />
+              </GlassSurface>
             ) : (
               <SymbolView name="clock" size={18} tintColor={colors.textSecondary} weight="regular" />
             )}
           </View>
         )}
         {p.status === 'done' && (
-          <View style={styles.doneBadge}>
-            <SymbolView name="checkmark" size={12} weight="regular" tintColor={colors.textInverse} />
-          </View>
+          <GlassSurface variant="clear" pointerEvents="none" style={styles.doneBadge}>
+            <SymbolView name="checkmark" size={12} weight="semibold" tintColor={colors.textPrimary} />
+          </GlassSurface>
         )}
-        <View style={styles.durationBadge}>
-          <AppText variant="caption" tabular>
+        <GlassCapsule variant="clear" pointerEvents="none" style={styles.durationBadge}>
+          <AppText variant="caption" tabular numberOfLines={1}>
             {durText}
           </AppText>
-        </View>
+        </GlassCapsule>
       </Thumb>
       <View style={styles.cardText}>
         <AppText variant="chip" numberOfLines={1}>
@@ -441,29 +443,29 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.md, rowGap: spacing.xl },
   card: { width: '48%', flexGrow: 1, maxWidth: '50%', gap: spacing.sm },
   cardText: { gap: 2 },
-  poster: { width: '100%', aspectRatio: 9 / 13, borderRadius: radii.tile, borderCurve: 'continuous', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  poster: { width: '100%', aspectRatio: 9 / 13, borderRadius: radii.tile, borderCurve: 'continuous' },
   posterCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   posterDim: { backgroundColor: 'rgba(0,0,0,0.45)' },
-  posterBadge: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.overlay },
+  posterBadge: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  // Clear glass over the frame: the footage shows through, no coloured fills.
   doneBadge: {
     position: 'absolute',
     top: 8,
     right: 8,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.success,
   },
   durationBadge: {
     position: 'absolute',
     left: 8,
     bottom: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: colors.overlay,
+    maxWidth: '84%',
+    minHeight: 24,
+    paddingHorizontal: 8,
+    gap: 0,
   },
   footer: {
     position: 'absolute',
@@ -474,7 +476,5 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 8,
     backgroundColor: 'rgba(0,0,0,0.92)',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
   },
 });

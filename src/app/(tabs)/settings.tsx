@@ -5,9 +5,8 @@ import { SymbolView } from 'expo-symbols';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useState, type ReactNode } from 'react';
 import { ActionSheetIOS, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Background, ProgressBar, Toggle, useTabBarSpace } from '@/design/components';
+import { AppText, Background, ProgressBar, Toggle } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
 import { colors, radii, spacing } from '@/design/tokens';
 import { Engine, engineAvailable } from '@/engine';
@@ -44,8 +43,6 @@ const ICON_GAP = 14;
 const ACTION = colors.accentText;
 
 export default function SettingsScreen() {
-  const insets = useSafeAreaInsets();
-  const bottom = useTabBarSpace();
   const { speech, speechProgress, speechLocale, defaultPreset, keepHDR, setDefaultPreset, setKeepHDR, setOnboarded } = useSettings();
   const ent = useEntitlements();
   const tier = tierOf(ent);
@@ -133,7 +130,9 @@ export default function SettingsScreen() {
     <View style={styles.flex}>
       <Background />
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md, paddingBottom: bottom }]}
+        // The native tab bar and status bar inset the scroll view (UIKit's automatic content insets).
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}>
         <AppText variant="display" accessibilityRole="header" style={styles.screenTitle}>
           Settings
@@ -243,8 +242,8 @@ export default function SettingsScreen() {
 function Group({ title, footer, children }: { title: string; footer?: string; children: ReactNode }) {
   return (
     <View style={styles.group}>
-      <AppText variant="caption" color={colors.textMuted} style={styles.groupTitle} accessibilityRole="header">
-        {title.toUpperCase()}
+      <AppText variant="label" color={colors.textSecondary} style={styles.groupTitle} accessibilityRole="header">
+        {title}
       </AppText>
       <View style={styles.groupCard}>{children}</View>
       {footer ? (
@@ -299,7 +298,12 @@ function Row({ icon, title, subtitle, value, toggle, onPress, accessory, selecte
           {value}
         </AppText>
       ) : null}
-      {toggle ? <Toggle value={toggle.value} onChange={toggle.onChange} label={title} /> : null}
+      {toggle ? (
+        // The whole row is the switch (touch and VoiceOver); the UISwitch is only its picture.
+        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <Toggle value={toggle.value} onChange={toggle.onChange} label={title} />
+        </View>
+      ) : null}
       {selected ? <SymbolView name="checkmark" size={15} tintColor={colors.textPrimary} weight="regular" /> : null}
       {accessory === 'chevron' ? <SymbolView name="chevron.right" size={13} tintColor={colors.textMuted} weight="regular" /> : null}
       {accessory === 'external' ? <SymbolView name="arrow.up.right" size={13} tintColor={colors.textMuted} weight="regular" /> : null}
@@ -342,17 +346,15 @@ function Row({ icon, title, subtitle, value, toggle, onPress, accessory, selecte
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { paddingHorizontal: spacing.gutter, gap: spacing.xxl },
-  screenTitle: { marginBottom: -spacing.sm },
-  group: { gap: spacing.sm },
-  groupTitle: { letterSpacing: 0.6, paddingHorizontal: ROW_PAD },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.xxl },
+  screenTitle: { paddingHorizontal: spacing.xs, marginBottom: -spacing.sm },
+  group: { gap: 6 },
+  groupTitle: { paddingHorizontal: ROW_PAD },
   groupFooter: { paddingHorizontal: ROW_PAD },
   groupCard: {
     borderRadius: radii.card,
     borderCurve: 'continuous',
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
   },
   row: {
@@ -361,7 +363,7 @@ const styles = StyleSheet.create({
     gap: ICON_GAP,
     paddingHorizontal: ROW_PAD,
     paddingVertical: 11,
-    minHeight: 48,
+    minHeight: 50,
   },
   rowPressed: { backgroundColor: colors.cardHigh },
   iconBox: { width: ICON_BOX, alignItems: 'center' },
@@ -371,7 +373,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
+    backgroundColor: colors.separator,
   },
   progress: { paddingLeft: ROW_PAD + ICON_BOX + ICON_GAP, paddingRight: ROW_PAD, paddingBottom: 14, marginTop: -4 },
   meter: { gap: spacing.sm, paddingLeft: ROW_PAD + ICON_BOX + ICON_GAP, paddingRight: ROW_PAD, paddingBottom: 12, marginTop: -2 },

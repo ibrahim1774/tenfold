@@ -63,8 +63,12 @@ export default function ClipEditsSheet() {
 
       <View style={styles.group}>
         {EDITS.map((e, i) => (
-          <View key={e.key} style={[styles.row, i < EDITS.length - 1 && styles.divider]}>
-            <ToggleRow title={e.label} subtitle={e.detail} value={edits[e.key]} onChange={(v) => setEdit(batchId, e.key, v, [projectId])} />
+          <View key={e.key}>
+            <View style={styles.row}>
+              <ToggleRow title={e.label} subtitle={e.detail} value={edits[e.key]} onChange={(v) => setEdit(batchId, e.key, v, [projectId])} />
+            </View>
+            {/* Inset hairline, starting at the text like an iOS grouped list. */}
+            {i < EDITS.length - 1 && <View style={styles.divider} />}
           </View>
         ))}
       </View>
@@ -101,12 +105,10 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     borderCurve: 'continuous',
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
   },
   row: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, minHeight: 56, justifyContent: 'center' },
-  divider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.separator },
   actions: { gap: spacing.xs },
   action: { minHeight: 44, justifyContent: 'center' },
   pressed: { opacity: 0.6 },

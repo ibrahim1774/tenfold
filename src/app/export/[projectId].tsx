@@ -8,7 +8,7 @@ import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { queueExports, STAGE_LABELS, unpark, useQueueUI } from '@/batch/queue';
-import { AppText, Background, GradientButton, OutlineButton, ProgressRing } from '@/design/components';
+import { AppText, Background, GradientButton, IconButton, OutlineButton, ProgressRing, ScreenHeader } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
 import { usePaywallGate } from '@/monetization/superwall';
 import { limitsFor, lowestTierWhere } from '@/onboarding/plans';
@@ -143,14 +143,11 @@ export default function ExportScreen() {
   return (
     <View style={[styles.screen, { paddingBottom: insets.bottom + spacing.lg }]}>
       <Background />
-      <View style={styles.header}>
-        <AppText variant="title" style={styles.center} accessibilityRole="header">
-          {title}
-        </AppText>
-        <AppText variant="label" color={colors.textSecondary} style={styles.center} numberOfLines={1}>
-          {project.title}
-        </AppText>
-      </View>
+      {/* Small centred title with the glass Close in the leading corner, like an iOS 26 sheet. */}
+      <ScreenHeader title={title} left={<IconButton icon="xmark" label="Close" onPress={() => router.back()} />} />
+      <AppText variant="label" color={colors.textSecondary} style={[styles.center, styles.subtitle]} numberOfLines={1}>
+        {project.title}
+      </AppText>
 
       <View style={styles.middle}>
         {choosing ? (
@@ -169,8 +166,8 @@ export default function ExportScreen() {
               </View>
             ) : null}
 
-            <AppText variant="caption" color={colors.textMuted} style={styles.groupTitle}>
-              QUALITY
+            <AppText variant="label" color={colors.textSecondary} style={styles.groupTitle}>
+              Quality
             </AppText>
             <View style={styles.group}>
               <QualityRow
@@ -262,7 +259,7 @@ export default function ExportScreen() {
           onPress={start}
         />
       )}
-      {!choosing && !finished && <OutlineButton title="Close" height={50} onPress={() => router.back()} />}
+      {/* While exporting, the header's Close is the way out (the export keeps running). */}
       {saved && (
         <View style={styles.actions}>
           <GradientButton title="Open TikTok" icon="arrow.up.right" shape="pill" onPress={openTikTok} />
@@ -312,8 +309,9 @@ function QualityRow({ title, subtitle, selected, onPress, badge, disabled, last 
             </AppText>
           </View>
           {badge ? (
-            <View style={styles.proBadge}>
-              <AppText variant="caption" color={colors.textSecondary}>
+            <View style={styles.planTag}>
+              <SymbolView name="lock.fill" size={11} tintColor={colors.textSecondary} weight="regular" />
+              <AppText variant="label" color={colors.textSecondary}>
                 {badge}
               </AppText>
             </View>
@@ -327,10 +325,10 @@ function QualityRow({ title, subtitle, selected, onPress, badge, disabled, last 
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, paddingHorizontal: spacing.gutter, paddingTop: spacing.xxl, gap: spacing.md },
+  screen: { flex: 1, paddingHorizontal: spacing.gutter, paddingTop: spacing.lg, gap: spacing.md },
   flex: { flex: 1 },
   center: { textAlign: 'center' },
-  header: { gap: 2, paddingHorizontal: spacing.xl },
+  subtitle: { marginTop: -spacing.sm, paddingHorizontal: spacing.xxl },
   middle: { flex: 1, justifyContent: 'center' },
 
   choose: { gap: spacing.sm },
@@ -344,13 +342,11 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: colors.dangerSoft,
   },
-  groupTitle: { letterSpacing: 0.6, paddingHorizontal: spacing.lg },
+  groupTitle: { paddingHorizontal: spacing.lg },
   group: {
     borderRadius: radii.card,
     borderCurve: 'continuous',
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 12, minHeight: 60 },
@@ -362,15 +358,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
+    backgroundColor: colors.separator,
   },
-  proBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radii.round,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderStrong,
-  },
+  planTag: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   notice: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg },
 
   status: { alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl },
@@ -382,10 +372,10 @@ const styles = StyleSheet.create({
     borderRadius: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(74,222,128,0.12)',
+    backgroundColor: colors.card,
     marginBottom: spacing.sm,
   },
-  doneMarkMuted: { backgroundColor: colors.cardHigh },
+  doneMarkMuted: { backgroundColor: colors.card },
 
   actions: { gap: spacing.md },
   actionRow: { flexDirection: 'row', gap: spacing.md },

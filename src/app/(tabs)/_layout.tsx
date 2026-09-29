@@ -1,16 +1,26 @@
-import { Tabs } from 'expo-router';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
-import { TabBar } from '@/design/components';
 import { colors } from '@/design/tokens';
 
+/**
+ * The system tab bar (UITabBarController), so iOS 26 draws its Liquid Glass bar, selection pill and
+ * minimize-on-scroll itself. New batches start from Home's primary button and Library's + button.
+ */
 export default function TabsLayout() {
   return (
-    <Tabs
-      tabBar={(props) => <TabBar {...props} />}
-      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.bg }, animation: 'fade' }}>
-      <Tabs.Screen name="index" options={{ title: 'Home' }} />
-      <Tabs.Screen name="library" options={{ title: 'Library' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
-    </Tabs>
+    <NativeTabs tintColor={colors.accent} minimizeBehavior="onScrollDown">
+      <NativeTabs.Trigger name="index" contentStyle={{ backgroundColor: colors.bg }}>
+        <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} />
+        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="library" contentStyle={{ backgroundColor: colors.bg }}>
+        <NativeTabs.Trigger.Icon sf={{ default: 'film.stack', selected: 'film.stack.fill' }} />
+        <NativeTabs.Trigger.Label>Library</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="settings" contentStyle={{ backgroundColor: colors.bg }}>
+        <NativeTabs.Trigger.Icon sf={{ default: 'gearshape', selected: 'gearshape.fill' }} />
+        <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }

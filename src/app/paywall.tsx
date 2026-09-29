@@ -4,7 +4,7 @@ import { SymbolView } from 'expo-symbols';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Background, GradientButton, IconButton } from '@/design/components';
@@ -148,7 +148,7 @@ export default function PaywallScreen() {
       <Background />
 
       <View style={styles.top}>
-        <IconButton icon="xmark" label={fromOnboarding ? 'Not now' : 'Close'} size={44} tone="ghost" onPress={close} />
+        <IconButton icon="xmark" label={fromOnboarding ? 'Not now' : 'Close'} onPress={close} />
       </View>
 
       <ScrollView style={styles.flex} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -214,7 +214,7 @@ export default function PaywallScreen() {
           onPress={confirm}
         />
         {notice ? (
-          <Animated.View entering={FadeIn.duration(motion.fast)}>
+          <Animated.View entering={FadeIn.duration(motion.fast).reduceMotion(ReduceMotion.System)}>
             <AppText variant="caption" color={colors.textPrimary} style={styles.center} accessibilityLiveRegion="polite">
               {notice}
             </AppText>
@@ -327,7 +327,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.sm, paddingBottom: spacing.xl, gap: spacing.xl },
   head: { gap: spacing.sm },
 
-  segment: { flexDirection: 'row', padding: 3, borderRadius: radii.button, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  segment: { flexDirection: 'row', padding: 3, borderRadius: radii.button, backgroundColor: colors.card },
   segmentItem: {
     flex: 1,
     minHeight: 40,
@@ -347,11 +347,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderRadius: radii.card,
     borderCurve: 'continuous',
-    borderWidth: 1,
-    borderColor: colors.border,
+    // Constant width so selecting a plan doesn't shift the layout; only the selected plan shows a ring.
+    borderWidth: 1.5,
+    borderColor: 'transparent',
     backgroundColor: colors.card,
   },
-  planOn: { borderColor: colors.textPrimary, backgroundColor: colors.cardHigh },
+  planOn: { borderColor: colors.textPrimary },
   planHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
   planName: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   features: { paddingLeft: 22 + spacing.md, gap: 2 },

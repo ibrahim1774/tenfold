@@ -13,7 +13,7 @@ export default function DemoScreen() {
     <View style={[styles.flex, { paddingTop: insets.top + spacing.xs, paddingBottom: insets.bottom + spacing.md }]}>
       <Background />
       <View style={styles.top}>
-        <IconButton icon="xmark" label="Close" size={44} tone="ghost" iconScale={0.45} onPress={() => router.back()} />
+        <IconButton icon="xmark" label="Close" onPress={() => router.back()} />
       </View>
       <Demo mode="replay" onContinue={() => router.replace('/import')} />
     </View>

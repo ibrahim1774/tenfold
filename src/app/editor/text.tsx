@@ -7,9 +7,9 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { AppText } from '@/design/components';
+import { AppText, GlassCapsule, PressableScale } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
-import { colors } from '@/design/tokens';
+import { colors, radii, sizes, spacing } from '@/design/tokens';
 import { HOOKS, MAX_SIZE, MIN_SIZE, nextBox, overlayMetrics, TEXT_COLORS, TEXT_STYLES } from '@/editor/textLayout';
 import { newOverlay, normalizeText, removeOverlay, upsertOverlay } from '@/editor/textOverlays';
 import { Engine, type TextAlign, type TextOverlay, type TextOverlayBox } from '@/engine';
@@ -27,6 +27,7 @@ const ALIGN_ICON: Record<TextAlign, SFSymbol> = { left: 'text.alignleft', center
 const ALIGN_LABEL: Record<TextAlign, string> = { left: 'Align left', center: 'Align centre', right: 'Align right' };
 
 const SLIDER_H = 220;
+const TOOLBAR_H = 56;
 const SLIDER_PAD = 12; // track inset from the top of the slider's touch area
 
 /** Unique id for a new overlay (module scope: ids use the clock, which render code must not). */
@@ -134,22 +135,29 @@ export default function TextEditorScreen() {
       </View>
 
       <KeyboardAvoidingView behavior="padding" style={[styles.flex, { paddingTop: insets.top }]}>
+        {/* Floating chrome over the still: the look tools in one glass capsule, Done in another. */}
         <View style={styles.toolbar}>
-          <ToolButton icon="textformat.size" label="Size" on={sizing} onPress={() => setSizing((s) => !s)} />
-          <Pressable
-            onPress={() => setPanel((p) => (p === 'colors' ? 'styles' : 'colors'))}
-            accessibilityRole="button"
-            accessibilityLabel="Colour"
-            accessibilityState={{ selected: panel === 'colors' }}
-            style={styles.tool}>
-            <View style={[styles.colorDot, { backgroundColor: draft.color }, panel === 'colors' && styles.colorDotOn]} />
-          </Pressable>
-          <ToolButton icon={BOX_ICON[draft.box].icon} label={BOX_ICON[draft.box].label} dim={draft.box === 'translucent'} onPress={() => set({ box: nextBox(draft.box) })} />
-          <ToolButton icon={ALIGN_ICON[draft.align]} label={ALIGN_LABEL[draft.align]} onPress={() => set({ align: ALIGN_NEXT[draft.align] })} />
+          <GlassCapsule style={styles.tools}>
+            <ToolButton icon="textformat.size" label="Size" on={sizing} onPress={() => setSizing((s) => !s)} />
+            <Pressable
+              onPress={() => setPanel((p) => (p === 'colors' ? 'styles' : 'colors'))}
+              accessibilityRole="button"
+              accessibilityLabel="Colour"
+              accessibilityState={{ selected: panel === 'colors' }}
+              style={styles.tool}>
+              <View style={[styles.colorRing, panel === 'colors' && styles.colorRingOn]}>
+                <View style={[styles.colorDot, { backgroundColor: draft.color }]} />
+              </View>
+            </Pressable>
+            <ToolButton icon={BOX_ICON[draft.box].icon} label={BOX_ICON[draft.box].label} dim={draft.box === 'translucent'} onPress={() => set({ box: nextBox(draft.box) })} />
+            <ToolButton icon={ALIGN_ICON[draft.align]} label={ALIGN_LABEL[draft.align]} onPress={() => set({ align: ALIGN_NEXT[draft.align] })} />
+          </GlassCapsule>
           <View style={styles.flex} />
-          <Pressable onPress={done} accessibilityRole="button" accessibilityLabel="Done" hitSlop={8} style={styles.done}>
-            <AppText variant="bodyStrong">Done</AppText>
-          </Pressable>
+          <PressableScale onPress={done} haptic="impact" accessibilityRole="button" accessibilityLabel="Done" hitSlop={8}>
+            <GlassCapsule interactive style={styles.done}>
+              <AppText variant="bodyStrong">Done</AppText>
+            </GlassCapsule>
+          </PressableScale>
         </View>
 
         {/* Tapping the empty space around the text keeps typing, like TikTok. */}
@@ -189,7 +197,7 @@ export default function TextEditorScreen() {
                     accessibilityLabel={`Style: ${s.name}`}
                     hitSlop={{ top: 4, bottom: 4 }}
                     style={[styles.chip, on && styles.chipOn]}>
-                    <Text allowFontScaling={false} style={[styles.chipText, { fontFamily: s.family }]}>
+                    <Text allowFontScaling={false} style={[styles.chipText, on && styles.chipTextOn, { fontFamily: s.family }]}>
                       {s.name}
                     </Text>
                   </Pressable>
@@ -199,7 +207,7 @@ export default function TextEditorScreen() {
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={styles.row}>
               {Engine.canPickColor() && (
-                <Pressable onPress={pickSystemColor} accessibilityRole="button" accessibilityLabel="More colours" style={styles.swatchHit}>
+                <Pressable onPress={pickSystemColor} accessibilityRole="button" accessibilityLabel="More colours" hitSlop={2} style={styles.swatchHit}>
                   <View style={[styles.swatch, styles.swatchMore]}>
                     <SymbolView name="eyedropper" size={14} tintColor={colors.textPrimary} />
                   </View>
@@ -214,8 +222,9 @@ export default function TextEditorScreen() {
                     accessibilityRole="button"
                     accessibilityState={{ selected: on }}
                     accessibilityLabel={`Colour ${c}`}
-                    style={styles.swatchHit}>
-                    <View style={[styles.swatch, { backgroundColor: c }, on && styles.swatchOn]} />
+                    hitSlop={2}
+                    style={[styles.swatchHit, on && styles.swatchHitOn]}>
+                    <View style={[styles.swatch, { backgroundColor: c }]} />
                   </Pressable>
                 );
               })}
@@ -232,7 +241,7 @@ export default function TextEditorScreen() {
       </KeyboardAvoidingView>
 
       {sizing && (
-        <View style={[styles.slider, { top: insets.top + 64 }]}>
+        <View style={[styles.slider, { top: insets.top + TOOLBAR_H + spacing.sm }]}>
           <GestureDetector gesture={slide}>
             <View
               style={styles.sliderHit}
@@ -258,43 +267,47 @@ export default function TextEditorScreen() {
 function ToolButton({ icon, label, onPress, on, dim }: { icon: SFSymbol; label: string; onPress: () => void; on?: boolean; dim?: boolean }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={on === undefined ? undefined : { selected: on }} style={[styles.tool, on && styles.toolOn]}>
-      <SymbolView name={icon} size={22} weight="regular" tintColor={colors.textPrimary} style={dim ? styles.dimIcon : undefined} />
+      <SymbolView name={icon} size={19} weight="regular" tintColor={on ? colors.textInverse : colors.textPrimary} style={dim ? styles.dimIcon : undefined} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  frame: { position: 'absolute', overflow: 'hidden', backgroundColor: '#000000' },
+  frame: { position: 'absolute', overflow: 'hidden', backgroundColor: colors.bg },
   dim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)' },
-  toolbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, gap: 2, height: 56 },
+  toolbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, height: TOOLBAR_H },
+  tools: { minHeight: sizes.iconButton, paddingHorizontal: 0, gap: 0 },
   tool: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
-  toolOn: { backgroundColor: 'rgba(255,255,255,0.18)' },
+  // Selected tool: a white disc with a black glyph, as in the system's own editors.
+  toolOn: { backgroundColor: colors.textPrimary },
   dimIcon: { opacity: 0.6 },
-  colorDot: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#FFFFFF' },
-  colorDotOn: { transform: [{ scale: 1.1 }] },
-  done: { height: 44, paddingHorizontal: 12, justifyContent: 'center' },
-  middle: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
-  bottom: { gap: 8, paddingBottom: 8 },
-  row: { paddingHorizontal: 12, gap: 8, alignItems: 'center' },
+  colorRing: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+  colorRingOn: { borderColor: colors.textPrimary },
+  colorDot: { width: 20, height: 20, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.5)' },
+  done: { minHeight: sizes.iconButton, paddingHorizontal: spacing.lg },
+  middle: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
+  bottom: { gap: spacing.sm, paddingBottom: spacing.sm },
+  row: { paddingHorizontal: spacing.md, gap: spacing.sm, alignItems: 'center' },
+  // Style chips: dark translucent so they read over any frame; the chosen one is white with black text.
   chip: {
-    height: 36,
+    height: sizes.chipHeight,
     paddingHorizontal: 14,
-    borderRadius: 18,
+    borderRadius: radii.chip,
     justifyContent: 'center',
-    backgroundColor: 'rgba(40,40,44,0.85)',
-    borderWidth: 2,
-    borderColor: 'transparent',
+    backgroundColor: 'rgba(28,28,30,0.82)',
   },
-  chipOn: { borderColor: '#FFFFFF' },
-  chipText: { fontSize: 15, color: '#FFFFFF' },
-  swatchHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  swatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
-  swatchOn: { borderWidth: 3, borderColor: '#FFFFFF' },
-  swatchMore: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(40,40,44,0.85)' },
+  chipOn: { backgroundColor: colors.chipSelectedFill },
+  chipText: { fontSize: 15, color: colors.textPrimary },
+  chipTextOn: { color: colors.chipSelectedText },
+  // Swatches: a white ring with a small gap marks the chosen colour; the hairline keeps black visible.
+  swatchHit: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+  swatchHitOn: { borderColor: colors.textPrimary },
+  swatch: { width: 28, height: 28, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.4)' },
+  swatchMore: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(28,28,30,0.82)' },
   hooks: { paddingBottom: 2 },
-  hook: { height: 32, paddingHorizontal: 12, borderRadius: 16, justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)' },
-  slider: { position: 'absolute', left: 4, height: SLIDER_H + SLIDER_PAD * 2, width: 44 },
+  hook: { height: 32, paddingHorizontal: spacing.md, borderRadius: radii.round, justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)' },
+  slider: { position: 'absolute', left: spacing.xs, height: SLIDER_H + SLIDER_PAD * 2, width: 44 },
   sliderHit: { flex: 1, alignItems: 'center', paddingTop: SLIDER_PAD },
   sliderTrack: { width: 4, height: SLIDER_H, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.5)' },
   sliderThumb: {
@@ -303,6 +316,6 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.textPrimary,
   },
 });

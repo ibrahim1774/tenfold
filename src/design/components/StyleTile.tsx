@@ -4,6 +4,7 @@ import type { CaptionAnimation } from '../../captions/presets';
 import { sampleFrame } from '../sampleFrames';
 import { colors, radii } from '../tokens';
 import { AppText } from './AppText';
+import { GlassCapsule } from './Glass';
 import { PressableScale } from './PressableScale';
 import { Thumb } from './Thumb';
 
@@ -87,13 +88,13 @@ export function StyleTile({
             </View>
           </View>
           {locked ? (
-            <View style={styles.lock}>
-              <AppText style={styles.lockText}>PRO</AppText>
-            </View>
+            <GlassCapsule style={styles.lock} pointerEvents="none">
+              <AppText style={styles.lockText}>Pro</AppText>
+            </GlassCapsule>
           ) : null}
         </Thumb>
       </View>
-      <AppText variant="label" style={styles.label} color={selected ? '#FFFFFF' : '#B3B0BD'} numberOfLines={1}>
+      <AppText variant="label" style={styles.label} color={selected ? colors.textPrimary : colors.textSecondary} numberOfLines={1}>
         {name}
       </AppText>
     </PressableScale>
@@ -102,9 +103,9 @@ export function StyleTile({
 
 const styles = StyleSheet.create({
   wrap: { gap: 8 },
-  frame: { borderRadius: radii.tile, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.08)', padding: 2 },
-  frameSelected: { borderColor: '#A98BFF', boxShadow: '0 0 18px rgba(139,92,246,0.45)' },
-  thumb: { height: 128, borderRadius: radii.tile - 3, justifyContent: 'flex-end' },
+  frame: { borderRadius: radii.tile + 3, borderCurve: 'continuous', borderWidth: 2, borderColor: 'transparent', padding: 2 },
+  frameSelected: { borderColor: colors.textPrimary },
+  thumb: { height: 128, borderRadius: radii.tile - 1, borderCurve: 'continuous', justifyContent: 'flex-end' },
   captionWrap: { padding: 8, paddingBottom: 18, alignItems: 'center' },
   line: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', columnGap: 3, rowGap: 1 },
   word: { fontWeight: '700', fontSize: 12, lineHeight: 16, color: '#FFFFFF', textAlign: 'center' },
@@ -114,15 +115,7 @@ const styles = StyleSheet.create({
   classic: { backgroundColor: 'rgba(0,0,0,0.9)', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
   pill: { borderRadius: 5, paddingHorizontal: 3 },
   cursor: { color: '#FFFFFF', opacity: 0.8 },
-  lock: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-  },
+  lock: { position: 'absolute', top: 6, right: 6, minHeight: 20, paddingHorizontal: 7 },
   lockText: { fontWeight: '600', fontSize: 12, lineHeight: 16, color: colors.accentText },
   label: { textAlign: 'center' },
 });

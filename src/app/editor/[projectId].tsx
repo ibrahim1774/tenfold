@@ -10,6 +10,8 @@ import {
   Background,
   Chip,
   ChipGroup,
+  GlassCapsule,
+  GlassSurface,
   GradientButton,
   IconButton,
   OptionLabel,
@@ -1247,24 +1249,27 @@ export default function EditorScreen() {
     <View style={styles.flex}>
       <Background />
       <View style={[styles.flex, { paddingTop: insets.top + 4 }]}>
-        <View ref={tourTarget('editor.header')} style={styles.gutter}>
-          <ScreenHeader
-            title={project.title}
-            right={
-              <>
-                <IconButton icon="ellipsis" label="More: revert, re-apply edit, reset caption edits, copy text to the batch, video info" size={44} iconScale={0.45} onPress={openMenu} />
-                <GradientButton
-                  title="Export"
-                  height={44}
-                  shape="pill"
-                  onPress={() => {
-                    setPlaying(false);
-                    router.push({ pathname: '/export/[projectId]', params: { projectId } });
-                  }}
-                />
-              </>
-            }
-          />
+        {/* iOS 26 editor bar: glass back and undo/redo on the left, More and the one primary action (Export) on the right. */}
+        <View ref={tourTarget('editor.header')} style={[styles.gutter, styles.topBar]}>
+          <View style={styles.topSide}>
+            <IconButton icon="chevron.left" label="Back" onPress={() => router.back()} />
+            <GlassCapsule style={styles.undoGroup}>
+              <IconButton icon="arrow.uturn.backward" label="Undo" tone="ghost" size={40} onPress={undo} disabled={!canUndo} />
+              <IconButton icon="arrow.uturn.forward" label="Redo" tone="ghost" size={40} onPress={redo} disabled={!canRedo} />
+            </GlassCapsule>
+          </View>
+          <View style={styles.topSide}>
+            <IconButton icon="ellipsis" label="More: revert, re-apply edit, reset caption edits, copy text to the batch, video info" onPress={openMenu} />
+            <GradientButton
+              title="Export"
+              height={44}
+              shape="pill"
+              onPress={() => {
+                setPlaying(false);
+                router.push({ pathname: '/export/[projectId]', params: { projectId } });
+              }}
+            />
+          </View>
         </View>
 
         {/* Preview and transport stay put (like CapCut); only the tools below scroll. */}
@@ -1325,50 +1330,42 @@ export default function EditorScreen() {
             />
           </View>
           <View style={[styles.overlay, { width: frameW, height: frameH }]} pointerEvents="none">
-            {!playing && previewReady && (
-              <View style={styles.bigPlay}>
-                <SymbolView name="play.fill" size={26} tintColor={colors.textPrimary} />
-              </View>
-            )}
             {previewError && (
-              <View style={styles.previewErrorBox}>
+              <GlassSurface style={styles.previewErrorBox}>
                 <AppText variant="caption">Preview couldn’t update: {previewError}</AppText>
-              </View>
+              </GlassSurface>
             )}
             {!previewReady && (
               <View style={styles.previewLoading}>
                 <ActivityIndicator color={colors.textPrimary} />
               </View>
             )}
-            <View style={styles.badge}>
+            <GlassCapsule variant="clear" style={styles.badge}>
               <AppText variant="caption" tabular>
                 {untouched ? 'Original' : `${formatDuration(sourceDuration)} → ${formatDuration(total)}`}
               </AppText>
-            </View>
+            </GlassCapsule>
           </View>
-        </View>
-
-        <View style={[styles.gutter, styles.transport]}>
-          <View style={styles.transportSide}>
-            <IconButton icon="arrow.uturn.backward" label="Undo" tone="ghost" size={44} iconScale={0.45} onPress={undo} disabled={!canUndo} />
-            <IconButton icon="arrow.uturn.forward" label="Redo" tone="ghost" size={44} iconScale={0.45} onPress={redo} disabled={!canRedo} />
-          </View>
-          <PressableScale
-            onPress={() => setPlaying((p) => !p)}
-            haptic={false}
-            accessibilityRole="button"
-            accessibilityLabel={playing ? 'Pause' : 'Play'}
-            scaleTo={0.9}
-            style={styles.play}>
-            <SymbolView name={playing ? 'pause.fill' : 'play.fill'} size={26} tintColor={colors.textPrimary} />
-          </PressableScale>
-          <View style={[styles.transportSide, styles.transportRight]}>
-            <AppText variant="label" tabular accessibilityLabel={`${formatDuration(time)} of ${formatDuration(total)}`}>
-              {formatDuration(time)}
-              <AppText variant="label" tabular color={colors.textMuted}>
-                {` / ${formatDuration(total)}`}
+          {/* Play and the clock float over the footage as one glass capsule, like the Photos player. */}
+          <View style={[styles.overlay, styles.transportLayer, { width: frameW, height: frameH }]} pointerEvents="box-none">
+            <GlassCapsule style={styles.transport}>
+              <PressableScale
+                onPress={() => setPlaying((p) => !p)}
+                haptic={false}
+                accessibilityRole="button"
+                accessibilityLabel={playing ? 'Pause' : 'Play'}
+                scaleTo={0.9}
+                hitSlop={6}
+                style={styles.play}>
+                <SymbolView name={playing ? 'pause.fill' : 'play.fill'} size={17} tintColor={colors.textPrimary} />
+              </PressableScale>
+              <AppText variant="label" tabular style={styles.clock} accessibilityLabel={`${formatDuration(time)} of ${formatDuration(total)}`}>
+                {formatDuration(time)}
+                <AppText variant="label" tabular color={colors.textSecondary}>
+                  {` / ${formatDuration(total)}`}
+                </AppText>
               </AppText>
-            </AppText>
+            </GlassCapsule>
           </View>
         </View>
 
@@ -1963,9 +1960,9 @@ const styles = StyleSheet.create({
   gutter: { paddingHorizontal: spacing.gutter },
   previewSlot: { alignItems: 'center', justifyContent: 'center' },
   overlay: { position: 'absolute', alignSelf: 'center' },
-  bone: { borderRadius: radii.card, borderCurve: 'continuous', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
-  skeletonTools: { flexDirection: 'row', gap: 4, marginTop: 72 },
-  skeletonTool: { flex: 1, height: 56, borderRadius: 14 },
+  bone: { borderRadius: radii.card, borderCurve: 'continuous', backgroundColor: colors.card },
+  skeletonTools: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.lg },
+  skeletonTool: { flex: 1, height: 58, borderRadius: radii.tile },
   group: { gap: spacing.sm },
   buttonRow: { flexDirection: 'row', gap: spacing.md },
   segment: { flexDirection: 'row', gap: 8 },
@@ -1975,60 +1972,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    borderRadius: 14,
+    borderRadius: radii.tile,
     borderCurve: 'continuous',
     backgroundColor: colors.chipFill,
   },
   segmentOn: { backgroundColor: colors.chipSelectedFill },
   previewLoading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  badge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52, marginBottom: spacing.sm },
+  topSide: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  undoGroup: { paddingHorizontal: 2, gap: 0, minHeight: 44 },
+  badge: { position: 'absolute', top: spacing.md, left: spacing.md, minHeight: 28, paddingHorizontal: 10 },
   previewErrorBox: {
     position: 'absolute',
-    left: 10,
-    right: 10,
-    bottom: 10,
+    left: spacing.md,
+    right: spacing.md,
+    top: 48,
     padding: 10,
-    borderRadius: 12,
-    backgroundColor: 'rgba(120,20,30,0.85)',
+    borderRadius: radii.tile,
   },
-  bigPlay: {
-    position: 'absolute',
-    alignSelf: 'center',
-    top: '50%',
-    marginTop: -30,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    paddingLeft: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md },
-  transportSide: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
-  transportRight: { justifyContent: 'flex-end' },
-  play: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
-  toolRow: { marginTop: spacing.sm, marginBottom: spacing.lg },
+  transportLayer: { justifyContent: 'flex-end', alignItems: 'center', paddingBottom: spacing.md },
+  transport: { minHeight: 40, paddingLeft: 4, paddingRight: 14, gap: 2 },
+  play: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  clock: { minWidth: 72 },
+  toolRow: { marginTop: spacing.lg, marginBottom: spacing.lg },
   editBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
   editAction: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    height: 44,
+    height: 36,
     paddingHorizontal: 14,
-    borderRadius: 22,
+    borderRadius: 18,
+    borderCurve: 'continuous',
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   editActionOff: { opacity: 0.5 },
   editHint: { flex: 1, marginLeft: spacing.xs },
@@ -2040,10 +2016,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     paddingVertical: 8,
-    borderRadius: 14,
+    borderRadius: radii.tile,
     borderCurve: 'continuous',
     backgroundColor: colors.chipFill,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: 'transparent',
   },
   aspectOn: { borderColor: colors.textPrimary, backgroundColor: colors.cardHigh },

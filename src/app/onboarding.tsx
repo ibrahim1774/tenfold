@@ -6,6 +6,7 @@ import Animated, {
   FadeInLeft,
   FadeInRight,
   FadeOut,
+  ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -122,7 +123,7 @@ export default function OnboardingScreen() {
 
       {step !== 'hook' && (
         <View style={styles.topBar}>
-          <IconButton icon="chevron.left" label="Back" size={44} tone="ghost" iconScale={0.45} onPress={back} />
+          <IconButton icon="chevron.left" label="Back" onPress={back} />
           <StepProgress step={shownAt} total={ALL_STEPS.length - 1} />
           {isQuestion ? (
             <Pressable onPress={skip} accessibilityRole="button" accessibilityLabel="Skip this question" style={({ pressed }) => [styles.skip, pressed && styles.pressed]}>
@@ -139,8 +140,14 @@ export default function OnboardingScreen() {
       <View style={styles.flex}>
         <Animated.View
           key={step}
-          entering={(dir === 1 ? FadeInRight : FadeInLeft).duration(motion.base)}
-          exiting={FadeOut.duration(motion.fast)}
+          // Steps with Liquid Glass (the hook's badges, the demo's player) skip the fade-in: glass
+          // doesn't draw under a parent that starts at opacity 0.
+          entering={
+            step === 'hook' || step === 'demo'
+              ? undefined
+              : (dir === 1 ? FadeInRight : FadeInLeft).duration(motion.base).reduceMotion(ReduceMotion.System)
+          }
+          exiting={FadeOut.duration(motion.fast).reduceMotion(ReduceMotion.System)}
           style={StyleSheet.absoluteFill}>
           {step === 'hook' ? (
             <Hook />
@@ -246,7 +253,7 @@ function StepProgress({ step, total }: { step: number; total: number }) {
   const fill = useAnimatedStyle(() => ({ width: `${p.value * 100}%` }));
   return (
     <Animated.View
-      entering={FadeIn.duration(motion.fast)}
+      entering={FadeIn.duration(motion.fast).reduceMotion(ReduceMotion.System)}
       style={styles.progressTrack}
       accessible
       accessibilityRole="progressbar"

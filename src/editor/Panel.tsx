@@ -1,25 +1,25 @@
 import { SymbolView } from 'expo-symbols';
 import { Fragment, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { AppText, Card, PressableScale } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
-import { colors, motion, radii, spacing } from '@/design/tokens';
+import { colors, radii, spacing } from '@/design/tokens';
 
 /**
- * One structure for every editor tool: title (20), one line of explanation (13, muted), then controls.
- * `animate` fades the panel in quickly when a tool is opened by a tap (docs/DESIGN.md §4).
+ * One structure for every editor tool: title (20), one line of explanation (13, secondary), then controls.
+ * No entrance fade: panels hold glass buttons, and glass doesn't draw under a parent that starts at
+ * opacity 0. `animate` is kept for call sites and has no effect.
  */
-export function Panel({ title, detail, children, animate = true }: { title: string; detail?: string; children?: ReactNode; animate?: boolean }) {
-  const body = (
+export function Panel({ title, detail, children }: { title: string; detail?: string; children?: ReactNode; animate?: boolean }) {
+  return (
     <Card style={styles.card}>
       <View style={styles.head}>
         <AppText variant="title" accessibilityRole="header">
           {title}
         </AppText>
         {detail ? (
-          <AppText variant="label" color={colors.textMuted}>
+          <AppText variant="label" color={colors.textSecondary}>
             {detail}
           </AppText>
         ) : null}
@@ -27,14 +27,13 @@ export function Panel({ title, detail, children, animate = true }: { title: stri
       {children}
     </Card>
   );
-  return animate ? <Animated.View entering={FadeIn.duration(motion.fast)}>{body}</Animated.View> : body;
 }
 
-/** Small uppercase group label, as above an iOS Settings group. */
+/** Sentence-case label above an inset group (iOS 26 grouped lists). */
 export function GroupLabel({ children }: { children: string }) {
   return (
-    <AppText variant="caption" color={colors.textMuted} style={styles.groupLabel}>
-      {children.toUpperCase()}
+    <AppText variant="label" color={colors.textSecondary} style={styles.groupLabel} accessibilityRole="header">
+      {children}
     </AppText>
   );
 }
@@ -85,7 +84,7 @@ export type ToolId = 'cuts' | 'words' | 'captions' | 'text' | 'zoom' | 'crop' | 
 const OPENS_SCREEN: ToolId[] = ['captions', 'text'];
 
 /**
- * The editor's tool row. The open tool sits on a raised fill so it reads as selected at a glance;
+ * The editor's tool row, flat on black: icon over label. The open tool turns white on a quiet raised fill;
  * Captions and Text open their own screens, so they are plain buttons that never stay selected.
  */
 export function ToolBar({ tools, active, onPress }: { tools: { id: ToolId; icon: SFSymbol; label: string }[]; active: ToolId | null; onPress: (id: ToolId) => void }) {
@@ -103,8 +102,8 @@ export function ToolBar({ tools, active, onPress }: { tools: { id: ToolId; icon:
             accessibilityLabel={t.label}
             accessibilityState={OPENS_SCREEN.includes(t.id) ? undefined : { selected: on }}
             style={[styles.tool, on && styles.toolOn]}>
-            <SymbolView name={t.icon} size={22} weight="regular" tintColor={on ? colors.textPrimary : colors.textSecondary} />
-            <AppText variant="caption" color={on ? colors.textPrimary : colors.textSecondary} numberOfLines={1} style={styles.toolLabel}>
+            <SymbolView name={t.icon} size={21} weight={on ? 'medium' : 'regular'} tintColor={on ? colors.textPrimary : colors.textSecondary} />
+            <AppText variant="caption" color={on ? colors.textPrimary : colors.textSecondary} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.toolLabel}>
               {t.label}
             </AppText>
           </PressableScale>
@@ -137,8 +136,8 @@ export function ActionBar({ actions, label }: { actions: BarAction[]; label: str
             accessibilityLabel={a.label}
             accessibilityState={a.on === undefined ? { disabled: a.disabled } : { disabled: a.disabled, checked: a.on }}
             style={[styles.tool, a.on && styles.toolOn, a.disabled && styles.toolOff]}>
-            <SymbolView name={a.icon} size={22} weight="regular" tintColor={tint} />
-            <AppText variant="caption" color={tint} numberOfLines={1} style={styles.toolLabel}>
+            <SymbolView name={a.icon} size={21} weight={a.on ? 'medium' : 'regular'} tintColor={tint} />
+            <AppText variant="caption" color={tint} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.toolLabel}>
               {a.label}
             </AppText>
           </PressableScale>
@@ -152,22 +151,15 @@ const styles = StyleSheet.create({
   toolOff: { opacity: 0.5 },
   card: { gap: spacing.lg },
   head: { gap: 2 },
-  groupLabel: { marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.lg, letterSpacing: 0.4 },
-  group: {
-    backgroundColor: colors.card,
-    borderRadius: radii.card,
-    borderCurve: 'continuous',
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
+  groupLabel: { marginTop: spacing.xl, marginBottom: spacing.sm, marginLeft: spacing.lg },
+  group: { backgroundColor: colors.card, borderRadius: radii.card, borderCurve: 'continuous', overflow: 'hidden' },
   row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 12 },
   rowLabel: { flexShrink: 0 },
   rowValue: { flexShrink: 1, textAlign: 'right' },
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.borderStrong },
+  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.separator },
   bone: { height: 12, borderRadius: 6, backgroundColor: colors.cardHigh },
-  tools: { flexDirection: 'row', gap: 2 },
-  tool: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: radii.tile, borderCurve: 'continuous', paddingHorizontal: 2 },
+  tools: { flexDirection: 'row', gap: spacing.xs },
+  tool: { flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: radii.tile, borderCurve: 'continuous', paddingHorizontal: 2 },
   toolOn: { backgroundColor: colors.cardHigh },
-  toolLabel: { fontSize: 11, lineHeight: 13 },
+  toolLabel: { textAlign: 'center' },
 });

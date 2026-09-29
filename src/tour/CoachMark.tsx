@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Rect as SvgRect } from 'react-native-svg';
 
@@ -11,6 +11,8 @@ import type { Rect } from './steps';
 const PAD = 6;
 const RADIUS = radii.card;
 const CARD_GAP = 14;
+// A calm outline around the highlighted control: white at low alpha, no accent glow.
+const RING = 'rgba(255,255,255,0.5)';
 
 function roundedRect({ x, y, width: w, height: h }: Rect, r: number) {
   const rr = Math.min(r, w / 2, h / 2);
@@ -54,10 +56,11 @@ export function CoachMark({ target, title, body, index, total, onNext, onSkip }:
 
   return (
     <Animated.View
-      entering={FadeIn.duration(motion.fast)}
-      exiting={FadeOut.duration(motion.fast)}
+      entering={FadeIn.duration(motion.fast).reduceMotion(ReduceMotion.System)}
+      exiting={FadeOut.duration(motion.fast).reduceMotion(ReduceMotion.System)}
       style={StyleSheet.absoluteFill}
       accessibilityViewIsModal>
+      {/* The overlay fades in from 0, so the bubble is flat graphite, not glass (glass can't start at opacity 0). */}
       {/* Swallows taps outside the card: the tour asks for Next or Skip. */}
       <Pressable style={StyleSheet.absoluteFill} accessible={false} onPress={() => {}}>
         <Svg width={win.width} height={win.height}>
@@ -70,13 +73,13 @@ export function CoachMark({ target, title, body, index, total, onNext, onSkip }:
             rx={RADIUS}
             ry={RADIUS}
             fill="none"
-            stroke={colors.accent}
-            strokeWidth={1.5}
+            stroke={RING}
+            strokeWidth={1}
           />
         </Svg>
       </Pressable>
 
-      <Animated.View layout={LinearTransition.duration(motion.base)} style={[styles.card, cardPos]}>
+      <Animated.View layout={LinearTransition.duration(motion.base).reduceMotion(ReduceMotion.System)} style={[styles.card, cardPos]}>
         <View style={styles.head}>
           <AppText variant="title" style={styles.flex} accessibilityRole="header">
             {title}
@@ -113,10 +116,8 @@ const styles = StyleSheet.create({
     right: spacing.gutter,
     padding: spacing.lg,
     gap: spacing.sm,
-    borderRadius: radii.card,
+    borderRadius: 22,
     borderCurve: 'continuous',
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
     backgroundColor: colors.cardHigh,
   },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

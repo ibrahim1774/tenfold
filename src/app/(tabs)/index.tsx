@@ -3,19 +3,19 @@ import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   AppText,
   Background,
   Card,
+  GlassSurface,
   GradientButton,
+  IconButton,
   OutlineButton,
   PressableScale,
   ProgressBar,
   Thumb,
   seedOf,
-  useTabBarSpace,
 } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
 import { colors, motion, radii, spacing } from '@/design/tokens';
@@ -31,8 +31,6 @@ import { useSettings } from '@/state/settings';
 import { prepareSpeech } from '@/state/speech';
 
 export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
-  const bottom = useTabBarSpace();
   const tier = useEntitlements((s) => tierOf(s));
   const isPro = tier !== 'free';
   const limit = maxBatchSize(tier);
@@ -50,13 +48,17 @@ export default function HomeScreen() {
     <View style={styles.flex}>
       <Background />
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md, paddingBottom: bottom }]}
+        // The status bar and the native tab bar inset the scroll view (UIKit's automatic content insets).
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <AppText variant="display" accessibilityRole="header" style={styles.flex}>
             Tenfold
           </AppText>
           <ProPill isPro={isPro} name={TIER_NAMES[tier]} />
+          {/* The old tab bar's centre +: on an empty Home the primary button imports instead. */}
+          {empty && <IconButton icon="plus" label="New batch" onPress={() => router.push('/import')} />}
         </View>
 
         {empty ? (
@@ -194,9 +196,11 @@ function ProPill({ isPro, name }: { isPro: boolean; name: string }) {
   const gate = usePaywallGate();
   if (isPro) {
     return (
-      <View style={styles.proPill} accessible accessibilityLabel={`Tenfold ${name} is active`}>
-        <SymbolView name="crown.fill" size={15} tintColor="#FFC24D" weight="regular" />
-        <AppText variant="chip">{name}</AppText>
+      <View style={styles.proBadge} accessible accessibilityLabel={`Tenfold ${name} is active`}>
+        <SymbolView name="crown.fill" size={13} tintColor={colors.accent} weight="regular" />
+        <AppText variant="label" color={colors.textSecondary}>
+          {name}
+        </AppText>
       </View>
     );
   }
@@ -204,11 +208,12 @@ function ProPill({ isPro, name }: { isPro: boolean; name: string }) {
     <PressableScale
       onPress={() => gate({ placement: 'settings_upgrade', params: { source: 'home' }, allowed: () => false })}
       haptic={false}
-      style={styles.proPill}
       accessibilityRole="button"
       accessibilityLabel="See plans">
-      <SymbolView name="crown" size={15} tintColor={colors.textPrimary} weight="regular" />
-      <AppText variant="chip">Upgrade</AppText>
+      <GlassSurface interactive style={styles.proPill}>
+        <SymbolView name="crown" size={15} tintColor={colors.textPrimary} weight="medium" />
+        <AppText variant="chip">Upgrade</AppText>
+      </GlassSurface>
     </PressableScale>
   );
 }
@@ -318,8 +323,9 @@ function HowItWorks({ limit }: { limit: number }) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { textAlign: 'center' },
-  content: { paddingHorizontal: spacing.gutter, gap: spacing.xxl },
+  content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.xxl },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
+  proBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   action: { gap: spacing.sm },
   actionRow: { flexDirection: 'row', gap: spacing.sm },
   record: { paddingHorizontal: spacing.sm },
@@ -331,15 +337,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     height: 44,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: 16,
     borderRadius: radii.round,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
   },
   section: { gap: spacing.md },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  grid: { gap: spacing.md },
+  grid: { gap: spacing.xl },
   gridRow: { flexDirection: 'row', gap: spacing.md },
   bannerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
   bannerIcon: {
@@ -355,7 +358,7 @@ const styles = StyleSheet.create({
   runThumb: { width: 44, height: 60, borderRadius: 10, borderCurve: 'continuous' },
   runBody: { gap: spacing.xs },
   runHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
   howRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md + 2 },
   howIcon: { width: 24, height: 24 },
 });
