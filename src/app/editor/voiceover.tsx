@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorText } from '@/batch/queue';
 import { AppText, GradientButton, OutlineButton, PressableScale } from '@/design/components';
-import { colors, spacing } from '@/design/tokens';
+import { dark, spacing } from '@/design/tokens';
 import { addFileClip, nextVoiceoverTitle } from '@/editor/audioClips';
 import { setPreviewPlaying } from '@/editor/previewBus';
 import { Engine, type AddedAudio } from '@/engine';
@@ -146,7 +146,7 @@ export default function VoiceoverSheet() {
         <AppText variant="bodyStrong" accessibilityRole="header" style={styles.centre}>
           Record voiceover
         </AppText>
-        <AppText variant="label" color={colors.textMuted} style={styles.centre}>
+        <AppText variant="label" color={dark.textMuted} style={styles.centre}>
           {phase === 'recorded'
             ? `Adds at ${stopwatch(at)} at full volume.`
             : `The video plays from ${stopwatch(at)} while you record. Headphones keep its sound out of the recording.`}
@@ -162,7 +162,7 @@ export default function VoiceoverSheet() {
         <View style={styles.recorder}>
           <AppText variant="title" tabular accessibilityLiveRegion="polite" accessibilityLabel={`${elapsed.toFixed(1)} seconds recorded`}>
             {stopwatch(elapsed)}
-            <AppText variant="label" tabular color={colors.textMuted}>
+            <AppText variant="label" tabular color={dark.textMuted}>
               {` / ${stopwatch(limit)}`}
             </AppText>
           </AppText>
@@ -183,7 +183,7 @@ export default function VoiceoverSheet() {
       )}
 
       {error && (
-        <AppText variant="label" color={colors.danger} style={styles.centre}>
+        <AppText variant="label" color={dark.danger} style={styles.centre}>
           {error}
         </AppText>
       )}
@@ -209,12 +209,12 @@ const styles = StyleSheet.create({
     height: 76,
     borderRadius: 38,
     borderWidth: 4,
-    borderColor: colors.textPrimary,
+    borderColor: dark.textPrimary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recordDot: { width: 58, height: 58, borderRadius: 29, backgroundColor: colors.danger },
-  stopSquare: { width: 28, height: 28, borderRadius: 6, backgroundColor: colors.danger },
+  recordDot: { width: 58, height: 58, borderRadius: 29, backgroundColor: dark.danger },
+  stopSquare: { width: 28, height: 28, borderRadius: 6, backgroundColor: dark.danger },
   dim: { opacity: 0.5 },
   denied: { gap: spacing.md },
   actions: { gap: spacing.md },

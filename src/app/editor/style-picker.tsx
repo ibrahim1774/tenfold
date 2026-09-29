@@ -8,14 +8,17 @@ import { CAPTION_PRESETS, captionSettingsFromPreset, lookOf } from '@/captions/p
 import { StyleSample } from '@/captions/StyleSample';
 import { useCaptionTarget } from '@/captions/useCaptionTarget';
 import { AppText, Card, ScreenHeader } from '@/design/components';
-import { colors, spacing } from '@/design/tokens';
+import { spacing } from '@/design/tokens';
 import { usePaywallGate } from '@/monetization/superwall';
 import { lowestTierWhere } from '@/onboarding/plans';
 import { captionStyleUnlocked, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
+import { themedStyles, useScheme, useTheme } from '@/design/theme';
 
 // Every caption style as a row with a real sample. Picking one replaces the look (font, colours,
 // background, outline, animation) and keeps the size and the on/off switch; the sheet then shows it.
 export default function StylePicker() {
+  const colors = useTheme();
+  const styles = themed[useScheme()];
   const insets = useSafeAreaInsets();
   const { projectId, batchId } = useLocalSearchParams<{ projectId?: string; batchId?: string }>();
   const { settings, update } = useCaptionTarget(projectId, batchId);
@@ -78,7 +81,7 @@ export default function StylePicker() {
   );
 }
 
-const styles = StyleSheet.create({
+const themed = themedStyles((colors) => ({
   content: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.sm },
   // Hairlines start where the text does, like iOS.
   divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.md + 132 + spacing.md, backgroundColor: colors.separator },
@@ -86,4 +89,4 @@ const styles = StyleSheet.create({
   pressed: { backgroundColor: colors.cardHigh },
   text: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   check: { width: 15 },
-});
+}));

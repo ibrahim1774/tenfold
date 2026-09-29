@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 
 import { AppText, Card, GlassSurface, GradientButton, ProgressBar, Thumb } from '@/design/components';
-import { colors, motion, radii, spacing } from '@/design/tokens';
+import { light, media, motion, radii, spacing } from '@/design/tokens';
 import {
   Engine,
   EngineEvents,
@@ -160,7 +160,7 @@ export function Demo({ mode, onContinue }: { mode: DemoMode; onContinue: () => v
                     ? 'Demo stopped'
                     : 'Editing a real take'}
           </AppText>
-          <AppText variant="body" color={colors.textSecondary}>
+          <AppText variant="body" color={light.textSecondary}>
             {phase.kind === 'missing'
               ? 'This build doesn’t include the sample clip, so the demo can’t run. Your own clips work the same way.'
               : phase.kind === 'unsupported'
@@ -184,12 +184,12 @@ export function Demo({ mode, onContinue }: { mode: DemoMode; onContinue: () => v
         {/* A failed run never blocks the way on: skip the demo and carry on. */}
         {phase.kind === 'failed' && (
           <Pressable onPress={onContinue} accessibilityRole="button" style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
-            <AppText variant="bodyStrong" color={colors.textSecondary}>
+            <AppText variant="bodyStrong" color={light.textSecondary}>
               {mode === 'onboarding' ? 'Continue' : 'Import clips'}
             </AppText>
           </Pressable>
         )}
-        <AppText variant="caption" color={colors.textMuted} style={styles.center}>
+        <AppText variant="caption" color={light.textMuted} style={styles.center}>
           {unavailable ? 'Nothing uploaded, no permissions needed.' : 'Real sample clip. Nothing uploaded, no permissions needed.'}
         </AppText>
       </View>
@@ -204,7 +204,7 @@ function DemoPending({ phase }: { phase: Phase }) {
       <Thumb seed={3} style={styles.poster}>
         {phase.kind === 'missing' || phase.kind === 'unsupported' ? (
           <View style={styles.posterCenter}>
-            <SymbolView name="film" size={28} tintColor={colors.textSecondary} weight="regular" />
+            <SymbolView name="film" size={28} tintColor={light.textSecondary} weight="regular" />
           </View>
         ) : null}
       </Thumb>
@@ -214,7 +214,7 @@ function DemoPending({ phase }: { phase: Phase }) {
             <AppText variant="bodyStrong" style={styles.flex}>
               {phase.stage}
             </AppText>
-            <AppText variant="label" color={colors.textSecondary} tabular>
+            <AppText variant="label" color={light.textSecondary} tabular>
               {pct}%
             </AppText>
           </View>
@@ -263,7 +263,7 @@ function DemoResult({ result }: { result: Result }) {
           />
         )}
         <GlassSurface variant="clear" pointerEvents="none" style={styles.mute}>
-          <SymbolView name={muted ? 'speaker.slash.fill' : 'speaker.wave.2.fill'} size={14} tintColor={colors.textPrimary} />
+          <SymbolView name={muted ? 'speaker.slash.fill' : 'speaker.wave.2.fill'} size={14} tintColor={media.text} />
         </GlassSurface>
       </Pressable>
 
@@ -274,11 +274,11 @@ function DemoResult({ result }: { result: Result }) {
         <SegmentBar removed={result.removed} />
         <View style={styles.legend}>
           <View style={[styles.swatch, styles.kept]} />
-          <AppText variant="caption" color={colors.textSecondary}>
+          <AppText variant="caption" color={light.textSecondary}>
             Kept
           </AppText>
           <View style={[styles.swatch, styles.cut]} />
-          <AppText variant="caption" color={colors.textSecondary}>
+          <AppText variant="caption" color={light.textSecondary}>
             Cut
           </AppText>
         </View>
@@ -287,7 +287,7 @@ function DemoResult({ result }: { result: Result }) {
   );
 }
 
-/** The source clip end to end: kept regions light, removed regions in the accent. */
+/** The source clip end to end: kept regions neutral grey, removed regions in the brand colour. */
 function SegmentBar({ removed }: { removed: { start: number; end: number }[] }) {
   return (
     <View style={styles.bar} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     borderCurve: 'continuous',
     overflow: 'hidden',
-    backgroundColor: colors.card,
+    backgroundColor: light.card,
   },
   posterCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   progressCard: { alignSelf: 'stretch', gap: spacing.md },
@@ -329,12 +329,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   resultText: { alignSelf: 'stretch', gap: spacing.md, alignItems: 'center' },
-  bar: { alignSelf: 'stretch', height: 16, borderRadius: 4, backgroundColor: colors.textSecondary, overflow: 'hidden' },
-  barCut: { position: 'absolute', top: 0, bottom: 0, backgroundColor: colors.accent },
+  bar: { alignSelf: 'stretch', height: 16, borderRadius: 4, backgroundColor: light.glyph, overflow: 'hidden' },
+  barCut: { position: 'absolute', top: 0, bottom: 0, backgroundColor: light.accent },
   legend: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   swatch: { width: 10, height: 10, borderRadius: 2 },
-  kept: { backgroundColor: colors.textSecondary },
-  cut: { backgroundColor: colors.accent, marginLeft: spacing.sm },
+  kept: { backgroundColor: light.glyph },
+  cut: { backgroundColor: light.accent, marginLeft: spacing.sm },
   footer: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.md },
   textButton: { minHeight: 44, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
   pressed: { opacity: 0.6 },

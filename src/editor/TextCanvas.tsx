@@ -5,7 +5,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { colors } from '@/design/tokens';
+import { dark } from '@/design/tokens';
 import type { TextOverlay } from '@/engine/types';
 import { OverlayText } from './OverlayText';
 import { clampCenter, clampSize, overlayWindow } from './textLayout';
@@ -49,7 +49,7 @@ export function TextCanvas({ overlays, width, height, time, total, selectedId, o
   const trashStyle = useAnimatedStyle(() => ({
     opacity: trash.get() > 0 ? 1 : 0,
     transform: [{ scale: trash.get() > 1 ? 1.15 : 1 }],
-    backgroundColor: trash.get() > 1 ? colors.danger : 'rgba(0,0,0,0.6)',
+    backgroundColor: trash.get() > 1 ? dark.danger : 'rgba(0,0,0,0.6)',
   }));
 
   const shown = overlays.filter((o) => {
@@ -78,7 +78,7 @@ export function TextCanvas({ overlays, width, height, time, total, selectedId, o
         />
       ))}
       <Animated.View pointerEvents="none" style={[styles.trash, trashStyle]} accessibilityElementsHidden>
-        <SymbolView name="trash" size={22} tintColor={colors.textPrimary} />
+        <SymbolView name="trash" size={22} tintColor={dark.textPrimary} />
       </Animated.View>
     </View>
   );

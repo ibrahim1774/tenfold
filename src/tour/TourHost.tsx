@@ -2,6 +2,7 @@ import { usePathname } from 'expo-router';
 import { useEffect, useReducer, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 
+import { ThemeScope } from '@/design/theme';
 import { tourDue, useOnboarding, type TourScreen } from '@/state/onboarding';
 
 import { CoachMark } from './CoachMark';
@@ -67,15 +68,18 @@ export function TourHost() {
   }, [tour.done, tour.screen, markTourSeen]);
 
   if (!step || !area || !tour.screen) return null;
+  // The coach mark draws in the palette of the screen it explains: dark over the editor, light over setup.
   return (
-    <CoachMark
-      target={area}
-      title={step.title}
-      body={step.body}
-      index={tour.index}
-      total={TOUR_STEPS[tour.screen].length}
-      onNext={() => dispatch({ type: 'next' })}
-      onSkip={() => dispatch({ type: 'skip' })}
-    />
+    <ThemeScope scheme={tour.screen === 'editor' ? 'dark' : 'light'}>
+      <CoachMark
+        target={area}
+        title={step.title}
+        body={step.body}
+        index={tour.index}
+        total={TOUR_STEPS[tour.screen].length}
+        onNext={() => dispatch({ type: 'next' })}
+        onSkip={() => dispatch({ type: 'skip' })}
+      />
+    </ThemeScope>
   );
 }

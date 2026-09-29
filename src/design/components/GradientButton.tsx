@@ -1,8 +1,10 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { SFSymbol } from '../symbols';
-import { colors, radii, sizes } from '../tokens';
+import { useScheme, useTheme } from '../theme';
+import { brand, radii, shadows, sizes } from '../tokens';
 import { AppText } from './AppText';
 import { GlassSurface } from './Glass';
 import { PressableScale } from './PressableScale';
@@ -19,8 +21,8 @@ export type GradientButtonProps = {
 };
 
 /**
- * The one primary action on a screen: a flat white capsule with black text, like iOS 26's prominent
- * buttons (docs/DESIGN.md §1). No gradient, glow or shadow; the name stays for its many call sites.
+ * The one primary action on a screen (docs/DESIGN.md §1): a capsule of the red-orange brand gradient
+ * with a white label, the same on light and dark screens.
  */
 export function GradientButton({
   title,
@@ -42,12 +44,19 @@ export function GradientButton({
       accessibilityState={{ disabled }}
       haptic="impact"
       style={[styles.wrap, { height, borderRadius: radius, opacity: disabled ? 0.4 : 1 }, style]}>
+      <LinearGradient
+        colors={brand.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[StyleSheet.absoluteFill, { borderRadius: radius }]}
+        pointerEvents="none"
+      />
       <View style={styles.row}>
-        {icon ? <SymbolView name={icon} size={18} tintColor={colors.textInverse} weight="semibold" /> : null}
-        <AppText variant="bodyStrong" color={colors.textInverse}>
+        {icon ? <SymbolView name={icon} size={18} tintColor={brand.onBrand} weight="semibold" /> : null}
+        <AppText variant="bodyStrong" color={brand.onBrand}>
           {title}
         </AppText>
-        {trailingArrow ? <SymbolView name="arrow.right" size={16} tintColor={colors.textInverse} weight="semibold" /> : null}
+        {trailingArrow ? <SymbolView name="arrow.right" size={16} tintColor={brand.onBrand} weight="semibold" /> : null}
       </View>
     </PressableScale>
   );
@@ -59,13 +68,16 @@ export type OutlineButtonProps = {
   icon?: SFSymbol;
   height?: number;
   style?: StyleProp<ViewStyle>;
-  /** 'outline' (default): glass capsule. 'violet' (legacy name): the same with accent text. */
+  /** 'outline' (default): the neutral secondary. 'violet' (legacy name): the same with brand-coloured text. */
   tone?: 'outline' | 'violet';
   disabled?: boolean;
   shape?: 'rounded' | 'pill';
 };
 
-/** Secondary button: a Liquid Glass capsule (graphite fill where glass isn't available). */
+/**
+ * Secondary button. On light screens a white capsule that lifts off the page with the soft control
+ * shadow; on dark screens a Liquid Glass capsule (graphite where glass isn't available).
+ */
 export function OutlineButton({
   title,
   onPress,
@@ -76,8 +88,18 @@ export function OutlineButton({
   disabled,
   shape = 'pill',
 }: OutlineButtonProps) {
+  const scheme = useScheme();
+  const theme = useTheme();
   const radius = shape === 'pill' ? height / 2 : Math.min(radii.button, height / 2);
-  const tint = tone === 'violet' ? colors.accentText : colors.textPrimary;
+  const tint = tone === 'violet' ? theme.accentText : theme.textPrimary;
+  const label = (
+    <View style={styles.row}>
+      {icon ? <SymbolView name={icon} size={17} tintColor={tint} weight="medium" /> : null}
+      <AppText variant={height < 44 ? 'chip' : 'bodyStrong'} color={tint}>
+        {title}
+      </AppText>
+    </View>
+  );
   return (
     <PressableScale
       onPress={onPress}
@@ -86,14 +108,13 @@ export function OutlineButton({
       accessibilityLabel={title}
       accessibilityState={{ disabled }}
       style={[{ height, borderRadius: radius, opacity: disabled ? 0.45 : 1 }, style]}>
-      <GlassSurface interactive style={[styles.outline, { height, borderRadius: radius }]}>
-        <View style={styles.row}>
-          {icon ? <SymbolView name={icon} size={17} tintColor={tint} weight="medium" /> : null}
-          <AppText variant={height < 44 ? 'chip' : 'bodyStrong'} color={tint}>
-            {title}
-          </AppText>
-        </View>
-      </GlassSurface>
+      {scheme === 'light' ? (
+        <View style={[styles.outline, styles.lightFill, { height, borderRadius: radius, backgroundColor: theme.card }]}>{label}</View>
+      ) : (
+        <GlassSurface interactive style={[styles.outline, { height, borderRadius: radius }]}>
+          {label}
+        </GlassSurface>
+      )}
     </PressableScale>
   );
 }
@@ -102,8 +123,9 @@ const styles = StyleSheet.create({
   wrap: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.textPrimary,
+    borderCurve: 'continuous',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
-  outline: { justifyContent: 'center', alignItems: 'center' },
+  outline: { justifyContent: 'center', alignItems: 'center', borderCurve: 'continuous' },
+  lightFill: shadows.control,
 });

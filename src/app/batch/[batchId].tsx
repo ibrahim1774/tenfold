@@ -19,7 +19,7 @@ import {
   Thumb,
   seedOf,
 } from '@/design/components';
-import { colors, radii, spacing } from '@/design/tokens';
+import { light, media, radii, shadows, spacing } from '@/design/tokens';
 import { Engine, type Batch, type Project } from '@/engine';
 import { usePaywallGate, type GateRequest } from '@/monetization/superwall';
 import { exportsLeft, useEntitlements } from '@/state/entitlements';
@@ -190,19 +190,19 @@ export default function ProcessingScreen() {
               <AppText variant="title" tabular>
                 {headline}
               </AppText>
-              <AppText variant="label" color={colors.textSecondary} tabular numberOfLines={2}>
+              <AppText variant="label" color={light.textSecondary} tabular numberOfLines={2}>
                 {activity}
               </AppText>
               {working && !batch.paused && (
                 <View style={styles.onDevice}>
-                  <SymbolView name="iphone" size={12} tintColor={colors.textMuted} weight="regular" />
-                  <AppText variant="caption" color={colors.textMuted}>
+                  <SymbolView name="iphone" size={12} tintColor={light.textMuted} weight="regular" />
+                  <AppText variant="caption" color={light.textMuted}>
                     Keep Tenfold open
                   </AppText>
                 </View>
               )}
               {lowPower && working && (
-                <AppText variant="caption" color={colors.orange}>
+                <AppText variant="caption" color={light.warning}>
                   Low Power Mode slows this down
                 </AppText>
               )}
@@ -240,7 +240,7 @@ export default function ProcessingScreen() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 8 }]}>
         {Number.isFinite(left) && (
-          <AppText variant="caption" color={colors.textSecondary} style={styles.center} tabular>
+          <AppText variant="caption" color={light.textSecondary} style={styles.center} tabular>
             {Math.max(0, left)} {left === 1 ? 'export' : 'exports'} left this month
           </AppText>
         )}
@@ -351,38 +351,41 @@ function ResultCard({ project: p, batch, saved }: { project: Project; batch: Bat
       accessibilityState={{ disabled: !openable && !retryable, busy: running || waiting }}
       onPress={() => (retryable ? retryProject(p.id) : router.push({ pathname: '/editor/[projectId]', params: { projectId: p.id } }))}
       style={styles.card}>
-      <Thumb seed={seedOf(p.id)} uri={p.posterUri} style={styles.poster}>
-        {(running || waiting || retryable) && (
-          <View style={[styles.posterCenter, styles.posterDim]}>
-            {running ? (
-              <View>
-                <ProgressRing progress={p.progress} size={48} stroke={3} showLabel={false} />
-                <View style={styles.ringLabel}>
-                  <AppText variant="caption" tabular>
-                    {Math.round(p.progress * 100)}
-                  </AppText>
+      {/* The take lifts off the page: shadow here, clipping on the thumbnail. */}
+      <View style={styles.lift}>
+        <Thumb seed={seedOf(p.id)} uri={p.posterUri} style={styles.poster}>
+          {(running || waiting || retryable) && (
+            <View style={[styles.posterCenter, styles.posterDim]}>
+              {running ? (
+                <View>
+                  <ProgressRing progress={p.progress} size={48} stroke={3} showLabel={false} />
+                  <View style={styles.ringLabel}>
+                    <AppText variant="caption" tabular>
+                      {Math.round(p.progress * 100)}
+                    </AppText>
+                  </View>
                 </View>
-              </View>
-            ) : retryable ? (
-              <GlassSurface pointerEvents="none" style={styles.posterBadge}>
-                <SymbolView name="arrow.clockwise" size={17} tintColor={colors.textPrimary} weight="medium" />
-              </GlassSurface>
-            ) : (
-              <SymbolView name="clock" size={18} tintColor={colors.textSecondary} weight="regular" />
-            )}
-          </View>
-        )}
-        {p.status === 'done' && (
-          <GlassSurface variant="clear" pointerEvents="none" style={styles.doneBadge}>
-            <SymbolView name="checkmark" size={12} weight="semibold" tintColor={colors.textPrimary} />
-          </GlassSurface>
-        )}
-        <GlassCapsule variant="clear" pointerEvents="none" style={styles.durationBadge}>
-          <AppText variant="caption" tabular numberOfLines={1}>
-            {durText}
-          </AppText>
-        </GlassCapsule>
-      </Thumb>
+              ) : retryable ? (
+                <GlassSurface pointerEvents="none" style={styles.posterBadge}>
+                  <SymbolView name="arrow.clockwise" size={17} tintColor={media.text} weight="medium" />
+                </GlassSurface>
+              ) : (
+                <SymbolView name="clock" size={18} tintColor={media.textSecondary} weight="regular" />
+              )}
+            </View>
+          )}
+          {p.status === 'done' && (
+            <GlassSurface variant="clear" pointerEvents="none" style={styles.doneBadge}>
+              <SymbolView name="checkmark" size={12} weight="semibold" tintColor={media.text} />
+            </GlassSurface>
+          )}
+          <GlassCapsule variant="clear" pointerEvents="none" style={styles.durationBadge}>
+            <AppText variant="caption" tabular numberOfLines={1}>
+              {durText}
+            </AppText>
+          </GlassCapsule>
+        </Thumb>
+      </View>
       <View style={styles.cardText}>
         <AppText variant="chip" numberOfLines={1}>
           {p.title}
@@ -391,7 +394,7 @@ function ResultCard({ project: p, batch, saved }: { project: Project; batch: Bat
           variant="caption"
           numberOfLines={2}
           tabular
-          color={p.status === 'failed' ? colors.danger : p.error ? colors.orange : colors.textMuted}>
+          color={p.status === 'failed' ? light.danger : p.error ? light.warning : light.textMuted}>
           {detail}
         </AppText>
       </View>
@@ -438,9 +441,10 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.md, rowGap: spacing.xl },
   card: { width: '48%', flexGrow: 1, maxWidth: '50%', gap: spacing.sm },
   cardText: { gap: 2 },
-  poster: { width: '100%', aspectRatio: 9 / 13, borderRadius: radii.tile, borderCurve: 'continuous' },
+  lift: { borderRadius: radii.card, borderCurve: 'continuous', backgroundColor: light.card, ...shadows.soft },
+  poster: { width: '100%', aspectRatio: 9 / 13, borderRadius: radii.card, borderCurve: 'continuous' },
   posterCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  posterDim: { backgroundColor: 'rgba(0,0,0,0.45)' },
+  posterDim: { backgroundColor: media.dim },
   posterBadge: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   // Clear glass over the frame: the footage shows through, no coloured fills.
   doneBadge: {
@@ -470,6 +474,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.gutter,
     paddingTop: 12,
     gap: 8,
-    backgroundColor: 'rgba(0,0,0,0.92)',
+    backgroundColor: light.chrome,
   },
 });

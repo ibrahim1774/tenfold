@@ -7,7 +7,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { AppText, IconButton, PressableScale } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
-import { colors, radii, spacing } from '@/design/tokens';
+import { dark, radii, spacing } from '@/design/tokens';
 
 const THUMB = 26;
 
@@ -135,11 +135,11 @@ export function ActionRows({ rows }: { rows: ActionRow[] }) {
             accessibilityLabel={r.title}
             accessibilityState={{ disabled: r.disabled, busy: r.busy }}
             style={[styles.row, r.disabled && styles.rowOff]}>
-            <SymbolView name={r.icon} size={18} weight="regular" tintColor={colors.textPrimary} />
+            <SymbolView name={r.icon} size={18} weight="regular" tintColor={dark.textPrimary} />
             <AppText variant="body" style={styles.rowTitle}>
               {r.title}
             </AppText>
-            {r.busy ? <ActivityIndicator color={colors.textSecondary} /> : <SymbolView name="chevron.right" size={13} tintColor={colors.textMuted} />}
+            {r.busy ? <ActivityIndicator color={dark.textSecondary} /> : <SymbolView name="chevron.right" size={13} tintColor={dark.textMuted} />}
           </PressableScale>
         </Fragment>
       ))}
@@ -148,18 +148,18 @@ export function ActionRows({ rows }: { rows: ActionRow[] }) {
 }
 
 const styles = StyleSheet.create({
-  group: { backgroundColor: colors.cardHigh, borderRadius: radii.tile, borderCurve: 'continuous', overflow: 'hidden' },
+  group: { backgroundColor: dark.cardHigh, borderRadius: radii.tile, borderCurve: 'continuous', overflow: 'hidden' },
   row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg },
   rowOff: { opacity: 0.5 },
   rowTitle: { flex: 1 },
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg + 30, backgroundColor: colors.separator },
+  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg + 30, backgroundColor: dark.separator },
   sliderRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   track: { flex: 1, height: 44, justifyContent: 'center' },
   hit: { height: 44, justifyContent: 'center' },
-  rail: { position: 'absolute', left: THUMB / 2, right: THUMB / 2, height: 4, borderRadius: 2, backgroundColor: colors.cardHigh },
-  railFill: { position: 'absolute', left: THUMB / 2, height: 4, borderRadius: 2, backgroundColor: colors.textPrimary },
-  mark: { position: 'absolute', top: 16, width: 2, height: 12, borderRadius: 1, backgroundColor: colors.borderStrong },
-  thumb: { position: 'absolute', left: 0, width: THUMB, height: THUMB, borderRadius: THUMB / 2, backgroundColor: colors.textPrimary },
+  rail: { position: 'absolute', left: THUMB / 2, right: THUMB / 2, height: 4, borderRadius: 2, backgroundColor: dark.cardHigh },
+  railFill: { position: 'absolute', left: THUMB / 2, height: 4, borderRadius: 2, backgroundColor: dark.textPrimary },
+  mark: { position: 'absolute', top: 16, width: 2, height: 12, borderRadius: 1, backgroundColor: dark.borderStrong },
+  thumb: { position: 'absolute', left: 0, width: THUMB, height: THUMB, borderRadius: THUMB / 2, backgroundColor: dark.textPrimary },
   value: { width: 52, textAlign: 'right' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stepLabel: { flex: 1 },

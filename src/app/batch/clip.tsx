@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { batchEdits, EDITS, editsOf, sameEdits } from '@/batch/edits';
 import { AppText, Thumb, ToggleRow, seedOf } from '@/design/components';
-import { colors, radii, spacing } from '@/design/tokens';
+import { light, radii, spacing } from '@/design/tokens';
 import { Engine } from '@/engine';
 import { setClipEdits, setEdit } from '@/state/batchSetup';
 import { formatDuration, projectsOf, useLibrary } from '@/state/library';
@@ -21,7 +21,7 @@ export default function ClipEditsSheet() {
   if (!batch || !project) {
     return (
       <View style={[styles.content, styles.missing]}>
-        <AppText variant="label" color={colors.textMuted}>
+        <AppText variant="label" color={light.textMuted}>
           This clip is no longer in the batch.
         </AppText>
       </View>
@@ -54,7 +54,7 @@ export default function ClipEditsSheet() {
           <AppText variant="title" accessibilityRole="header" numberOfLines={2}>
             {project.title}
           </AppText>
-          <AppText variant="label" color={colors.textMuted} tabular>
+          <AppText variant="label" color={light.textMuted} tabular>
             {(project.clips?.length ?? 1) > 1 ? `${project.clips?.length} clips · ` : ''}
             {formatDuration(project.media?.durationSec ?? 0)}
           </AppText>
@@ -80,13 +80,13 @@ export default function ClipEditsSheet() {
             style={({ pressed }) => [styles.action, pressed && styles.pressed]}
             accessibilityRole="button"
             accessibilityHint="Uses the same edits as most clips in this batch">
-            <AppText variant="bodyStrong" color={colors.accentText}>
+            <AppText variant="bodyStrong" color={light.accentText}>
               Same as batch
             </AppText>
           </Pressable>
         )}
         <Pressable onPress={remove} style={({ pressed }) => [styles.action, pressed && styles.pressed]} accessibilityRole="button">
-          <AppText variant="bodyStrong" color={colors.danger}>
+          <AppText variant="bodyStrong" color={light.danger}>
             Remove clip
           </AppText>
         </Pressable>
@@ -104,11 +104,11 @@ const styles = StyleSheet.create({
   group: {
     borderRadius: radii.card,
     borderCurve: 'continuous',
-    backgroundColor: colors.card,
+    backgroundColor: light.card,
     overflow: 'hidden',
   },
   row: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, minHeight: 56, justifyContent: 'center' },
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: colors.separator },
+  divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg, backgroundColor: light.separator },
   actions: { gap: spacing.xs },
   action: { minHeight: 44, justifyContent: 'center' },
   pressed: { opacity: 0.6 },

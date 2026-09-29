@@ -2,7 +2,8 @@ import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'ex
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { colors, radii } from '../tokens';
+import { ThemeScope } from '../theme';
+import { dark, radii } from '../tokens';
 
 let available: boolean | undefined;
 
@@ -40,8 +41,10 @@ export type GlassSurfaceProps = {
  * Liquid Glass surface for chrome that floats over content: top-corner buttons, floating control
  * groups and badges over footage. Never for ordinary list content (docs/DESIGN.md §0).
  *
- * Falls back to a translucent dark fill with a hairline edge where Liquid Glass isn't available.
- * Glass doesn't render if the view (or a parent) starts at opacity 0, so don't fade it in from 0.
+ * Glass is always dark glass (it sits on footage), so its children draw in the dark palette whatever the
+ * page theme: white text and glyphs. Falls back to a translucent dark fill with a hairline edge where
+ * Liquid Glass isn't available. Glass doesn't render if the view (or a parent) starts at opacity 0, so
+ * don't fade it in from 0.
  */
 export function GlassSurface({ children, style, interactive, variant = 'regular', tint, pointerEvents }: GlassSurfaceProps) {
   if (glassAvailable()) {
@@ -53,13 +56,13 @@ export function GlassSurface({ children, style, interactive, variant = 'regular'
         colorScheme="dark"
         pointerEvents={pointerEvents}
         style={[styles.clip, style]}>
-        {children}
+        <ThemeScope scheme="dark">{children}</ThemeScope>
       </GlassView>
     );
   }
   return (
     <View pointerEvents={pointerEvents} style={[styles.clip, styles.fallback, tint ? { backgroundColor: tint } : null, style]}>
-      {children}
+      <ThemeScope scheme="dark">{children}</ThemeScope>
     </View>
   );
 }
@@ -76,9 +79,9 @@ export function GlassCapsule({ children, style, ...rest }: GlassSurfaceProps) {
 const styles = StyleSheet.create({
   clip: { overflow: 'hidden', borderCurve: 'continuous' },
   fallback: {
-    backgroundColor: colors.glassFallback,
+    backgroundColor: dark.glassFallback,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderStrong,
+    borderColor: dark.borderStrong,
   },
   capsule: {
     borderRadius: radii.round,

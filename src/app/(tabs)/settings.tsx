@@ -8,7 +8,7 @@ import { ActionSheetIOS, Alert, Pressable, ScrollView, StyleSheet, View } from '
 
 import { AppText, Background, ProgressBar, Toggle } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
-import { colors, radii, spacing } from '@/design/tokens';
+import { light, radii, spacing } from '@/design/tokens';
 import { Engine, engineAvailable } from '@/engine';
 import { usePaywallGate, useStoreActions } from '@/monetization/superwall';
 import { hasSampleClip } from '@/onboarding/fileImport';
@@ -48,8 +48,8 @@ function formatBytes(n: number) {
 const ROW_PAD = 16;
 const ICON_BOX = 24;
 const ICON_GAP = 14;
-// Accent for in-place action rows (iOS tints these instead of adding a chevron).
-const ACTION = colors.accentText;
+// Brand text for in-place action rows (iOS tints these instead of adding a chevron).
+const ACTION = light.accentText;
 
 export default function YouScreen() {
   const { speech, speechProgress, speechLocale, defaultPreset, keepHDR, setDefaultPreset, setKeepHDR, setOnboarded } = useSettings();
@@ -156,7 +156,7 @@ export default function YouScreen() {
           <Row icon="crown" title="Plan" value={planLabel(tier, ent.billing)} />
           <View style={styles.meter} accessible accessibilityLabel={usage}>
             {limited && <ProgressBar progress={used / limit} height={4} />}
-            <AppText variant="caption" color={colors.textSecondary} tabular>
+            <AppText variant="caption" color={light.textSecondary} tabular>
               {usage}
             </AppText>
             <View style={[styles.divider, { left: ROW_PAD + ICON_BOX + ICON_GAP }]} />
@@ -239,12 +239,12 @@ export default function YouScreen() {
 function Group({ title, footer, children }: { title: string; footer?: string; children: ReactNode }) {
   return (
     <View style={styles.group}>
-      <AppText variant="label" color={colors.textSecondary} style={styles.groupTitle} accessibilityRole="header">
+      <AppText variant="label" color={light.textSecondary} style={styles.groupTitle} accessibilityRole="header">
         {title}
       </AppText>
       <View style={styles.groupCard}>{children}</View>
       {footer ? (
-        <AppText variant="caption" color={colors.textMuted} style={styles.groupFooter}>
+        <AppText variant="caption" color={light.textMuted} style={styles.groupFooter}>
           {footer}
         </AppText>
       ) : null}
@@ -273,13 +273,13 @@ type RowProps = {
 };
 
 function Row({ icon, title, subtitle, hint, value, toggle, onPress, accessory, selected, action, danger, last }: RowProps) {
-  const tint = danger ? colors.danger : action ? ACTION : colors.textPrimary;
+  const tint = danger ? light.danger : action ? ACTION : light.textPrimary;
   const inset = icon ? ROW_PAD + ICON_BOX + ICON_GAP : ROW_PAD;
   const content = (pressed: boolean) => (
     <View style={[styles.row, pressed && styles.rowPressed]}>
       {icon ? (
         <View style={styles.iconBox}>
-          <SymbolView name={icon} size={18} tintColor={danger ? colors.danger : colors.textSecondary} weight="regular" />
+          <SymbolView name={icon} size={18} tintColor={danger ? light.danger : light.textSecondary} weight="regular" />
         </View>
       ) : null}
       <View style={styles.flex}>
@@ -287,13 +287,13 @@ function Row({ icon, title, subtitle, hint, value, toggle, onPress, accessory, s
           {title}
         </AppText>
         {subtitle ? (
-          <AppText variant="label" color={colors.textMuted}>
+          <AppText variant="label" color={light.textMuted}>
             {subtitle}
           </AppText>
         ) : null}
       </View>
       {value ? (
-        <AppText variant="body" color={colors.textSecondary} tabular numberOfLines={1} style={styles.value}>
+        <AppText variant="body" color={light.textSecondary} tabular numberOfLines={1} style={styles.value}>
           {value}
         </AppText>
       ) : null}
@@ -303,9 +303,9 @@ function Row({ icon, title, subtitle, hint, value, toggle, onPress, accessory, s
           <Toggle value={toggle.value} onChange={toggle.onChange} label={title} />
         </View>
       ) : null}
-      {selected ? <SymbolView name="checkmark" size={15} tintColor={colors.textPrimary} weight="regular" /> : null}
-      {accessory === 'chevron' ? <SymbolView name="chevron.right" size={13} tintColor={colors.textMuted} weight="regular" /> : null}
-      {accessory === 'external' ? <SymbolView name="arrow.up.right" size={13} tintColor={colors.textMuted} weight="regular" /> : null}
+      {selected ? <SymbolView name="checkmark" size={15} tintColor={light.accent} weight="semibold" /> : null}
+      {accessory === 'chevron' ? <SymbolView name="chevron.right" size={13} tintColor={light.glyph} weight="semibold" /> : null}
+      {accessory === 'external' ? <SymbolView name="arrow.up.right" size={13} tintColor={light.glyph} weight="semibold" /> : null}
       {!last ? <View style={[styles.divider, { left: inset }]} /> : null}
     </View>
   );
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
   groupCard: {
     borderRadius: radii.card,
     borderCurve: 'continuous',
-    backgroundColor: colors.card,
+    backgroundColor: light.card,
     overflow: 'hidden',
   },
   row: {
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     minHeight: 50,
   },
-  rowPressed: { backgroundColor: colors.cardHigh },
+  rowPressed: { backgroundColor: light.cardHigh },
   iconBox: { width: ICON_BOX, alignItems: 'center' },
   value: { flexShrink: 1, maxWidth: '55%', textAlign: 'right' },
   divider: {
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.separator,
+    backgroundColor: light.separator,
   },
   progress: { paddingLeft: ROW_PAD + ICON_BOX + ICON_GAP, paddingRight: ROW_PAD, paddingBottom: 14, marginTop: -4 },
   meter: { gap: spacing.sm, paddingLeft: ROW_PAD + ICON_BOX + ICON_GAP, paddingRight: ROW_PAD, paddingBottom: 12, marginTop: -2 },

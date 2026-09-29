@@ -3,7 +3,8 @@ import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedProps, useSharedValue, withSpring } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 
-import { colors, motion } from '../tokens';
+import { useTheme } from '../theme';
+import { motion } from '../tokens';
 import { AppText } from './AppText';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -17,6 +18,7 @@ export type ProgressRingProps = {
 };
 
 export function ProgressRing({ progress, size = 120, stroke = 10, label, showLabel = true }: ProgressRingProps) {
+  const colors = useTheme();
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const p = useSharedValue(0);
@@ -33,7 +35,7 @@ export function ProgressRing({ progress, size = 120, stroke = 10, label, showLab
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
       <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.14)" strokeWidth={stroke} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={colors.track} strokeWidth={stroke} fill="none" />
         <AnimatedCircle
           cx={size / 2}
           cy={size / 2}

@@ -1,4 +1,4 @@
-import { DarkTheme, ThemeProvider } from 'expo-router';
+import { DefaultTheme, ThemeProvider } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -7,21 +7,34 @@ import { Appearance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { startQueue } from '@/batch/queue';
-import { colors } from '@/design/tokens';
+import { schemeForRoute, ThemeScope } from '@/design/theme';
+import { brand, light, palettes } from '@/design/tokens';
 import { MonetizationProvider } from '@/monetization/superwall';
 import { useSettings } from '@/state/settings';
 import { refreshSpeechStatus } from '@/state/speech';
 import { TourHost } from '@/tour/TourHost';
 
 SplashScreen.preventAutoHideAsync();
-// Tenfold is dark only: system chrome (tab bar, glass, switches, sheets) follows the app, not the phone.
-Appearance.setColorScheme('dark');
+// Tenfold's shell is light whatever the phone's setting: system chrome (tab bar, alerts, sheets, pickers,
+// switches) draws light. The editor, export and record screens paint their own dark palette, set
+// `keyboardAppearance` and `userInterfaceStyle: 'dark'` on their alerts, and use dark glass.
+Appearance.setColorScheme('light');
 
 // Fonts (Poppins) are embedded at build time by the expo-font config plugin, so no runtime loading.
 const theme = {
-  ...DarkTheme,
-  colors: { ...DarkTheme.colors, background: colors.bg, card: colors.bg, primary: colors.violet },
+  ...DefaultTheme,
+  colors: { ...DefaultTheme.colors, background: light.bg, card: light.bg, text: light.textPrimary, primary: brand.primary },
 };
+
+// Form sheets draw on the sheet colour of their palette; everything else on the page colour.
+const SHEETS = new Set([
+  'batch/clip',
+  'editor/captions',
+  'editor/info',
+  'editor/style-picker',
+  'editor/font-picker',
+  'editor/voiceover',
+]);
 
 export default function RootLayout() {
   const onboarded = useSettings((s) => s.onboarded);
@@ -38,8 +51,24 @@ export default function RootLayout() {
       {/* Superwall: paywalls, subscription status → tier. A pass-through in builds without the module. */}
       <MonetizationProvider>
         <ThemeProvider value={theme}>
-          <StatusBar style="light" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+          {/*
+            Each route draws in its palette (light shell, dark editor), with a status bar to match: the
+            topmost mounted screen's StatusBar wins, and popping it restores the one below.
+          */}
+          <Stack
+            screenOptions={({ route }) => {
+              const p = palettes[schemeForRoute(route.name, route.params)];
+              return { headerShown: false, contentStyle: { backgroundColor: SHEETS.has(route.name) ? p.bgRaised : p.bg } };
+            }}
+            screenLayout={({ route, children }) => {
+              const scheme = schemeForRoute(route.name, route.params);
+              return (
+                <ThemeScope scheme={scheme}>
+                  <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+                  {children}
+                </ThemeScope>
+              );
+            }}>
             <Stack.Protected guard={!onboarded}>
               <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
             </Stack.Protected>
@@ -56,7 +85,6 @@ export default function RootLayout() {
                   sheetAllowedDetents: [0.5, 1],
                   sheetGrabberVisible: true,
                   sheetCornerRadius: 28,
-                  contentStyle: { backgroundColor: colors.bgRaised },
                 }}
               />
               <Stack.Screen name="batch/[batchId]" />
@@ -68,7 +96,6 @@ export default function RootLayout() {
                   sheetAllowedDetents: [0.5, 1],
                   sheetGrabberVisible: true,
                   sheetCornerRadius: 28,
-                  contentStyle: { backgroundColor: colors.bgRaised },
                 }}
               />
               <Stack.Screen
@@ -78,7 +105,6 @@ export default function RootLayout() {
                   sheetAllowedDetents: [0.5, 1],
                   sheetGrabberVisible: true,
                   sheetCornerRadius: 28,
-                  contentStyle: { backgroundColor: colors.bgRaised },
                 }}
               />
               {/* Style and font lists, stacked over the captions sheet (itself a form sheet in this stack). */}
@@ -89,7 +115,6 @@ export default function RootLayout() {
                   sheetAllowedDetents: [1],
                   sheetGrabberVisible: true,
                   sheetCornerRadius: 28,
-                  contentStyle: { backgroundColor: colors.bgRaised },
                 }}
               />
               <Stack.Screen
@@ -99,7 +124,6 @@ export default function RootLayout() {
                   sheetAllowedDetents: [1],
                   sheetGrabberVisible: true,
                   sheetCornerRadius: 28,
-                  contentStyle: { backgroundColor: colors.bgRaised },
                 }}
               />
               {/* Voiceover recorder: a short sheet, so the preview playing above it stays in view. */}
@@ -110,7 +134,6 @@ export default function RootLayout() {
                   sheetAllowedDetents: [0.45],
                   sheetGrabberVisible: true,
                   sheetCornerRadius: 28,
-                  contentStyle: { backgroundColor: colors.bgRaised },
                 }}
               />
               {/* TikTok-style text tool: full screen over a still of the video. */}

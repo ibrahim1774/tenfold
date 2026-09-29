@@ -12,7 +12,7 @@ import { postAddedClip } from '@/editor/clipBus';
 import { Engine } from '@/engine';
 import { AppText, GlassCapsule, GradientButton, IconButton, OutlineButton, Thumb } from '@/design/components';
 import { sampleFrame } from '@/design/sampleFrames';
-import { colors, radii, spacing } from '@/design/tokens';
+import { dark, radii, spacing } from '@/design/tokens';
 import { canImportFiles, importFile } from '@/onboarding/fileImport';
 import { formatDuration, useLibrary } from '@/state/library';
 import { batchPreset } from '@/state/presets';
@@ -48,7 +48,7 @@ export default function RecordScreen() {
           <AppText variant="title" style={styles.center} accessibilityRole="header">
             Record in Tenfold
           </AppText>
-          <AppText variant="label" color={colors.textSecondary} style={styles.center}>
+          <AppText variant="label" color={dark.textSecondary} style={styles.center}>
             {blocked
               ? `Turn on ${!cam.granted && !mic.granted ? 'Camera and Microphone' : !cam.granted ? 'Camera' : 'Microphone'} for Tenfold in Settings.`
               : 'Recordings stay on this iPhone.'}
@@ -158,7 +158,7 @@ function Recorder({ close, projectId }: { close: ReactNode; projectId?: string }
               {formatDuration(elapsed)}
             </AppText>
             {warn && (
-              <AppText variant="label" color={colors.accentText} tabular>
+              <AppText variant="label" color={dark.accentText} tabular>
                 {formatDuration(left)} left
               </AppText>
             )}
@@ -172,7 +172,7 @@ function Recorder({ close, projectId }: { close: ReactNode; projectId?: string }
             {error}
           </AppText>
         ) : !recording ? (
-          <AppText variant="caption" color={canImportFiles() ? colors.textSecondary : colors.textPrimary} style={styles.center}>
+          <AppText variant="caption" color={canImportFiles() ? dark.textSecondary : dark.textPrimary} style={styles.center}>
             {canImportFiles()
               ? 'Up to 15 minutes'
               : 'This build can’t edit recordings yet. Import from Photos instead.'}
@@ -247,7 +247,7 @@ function Review({ take, close, projectId, onRetake }: { take: Take; close: React
         {/* No player without a project: shows what was recorded until the engine can import the file. */}
         <Thumb seed={5} style={styles.reviewPoster}>
           <View style={styles.reviewCenter}>
-            <SymbolView name="checkmark.circle" size={30} tintColor={colors.textPrimary} weight="regular" />
+            <SymbolView name="checkmark.circle" size={30} tintColor={dark.textPrimary} weight="regular" />
             <AppText variant="bodyStrong" tabular>
               {formatDuration(take.seconds)} recorded
             </AppText>
@@ -262,7 +262,7 @@ function Review({ take, close, projectId, onRetake }: { take: Take; close: React
         ) : null}
         <GradientButton title={busy ? 'Adding clip…' : 'Use this clip'} shape="pill" disabled={!supported || busy} onPress={use} />
         {!supported && (
-          <AppText variant="caption" color={colors.textMuted} style={styles.center}>
+          <AppText variant="caption" color={dark.textMuted} style={styles.center}>
             This build can’t edit recordings yet. Import from Photos instead.
           </AppText>
         )}
@@ -273,17 +273,17 @@ function Review({ take, close, projectId, onRetake }: { take: Take; close: React
 }
 
 const styles = StyleSheet.create({
-  black: { flex: 1, backgroundColor: colors.bg },
+  black: { flex: 1, backgroundColor: dark.bg },
   center: { textAlign: 'center' },
   close: { position: 'absolute', left: spacing.lg, zIndex: 2 },
   permission: { justifyContent: 'center', paddingHorizontal: spacing.gutter },
   permissionText: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
   permissionButton: { alignSelf: 'stretch' },
   permissionFrame: { width: 132, aspectRatio: 9 / 16, borderRadius: radii.card, marginBottom: spacing.md },
-  frame: { alignSelf: 'center', overflow: 'hidden', borderRadius: radii.card, borderCurve: 'continuous', backgroundColor: colors.card },
+  frame: { alignSelf: 'center', overflow: 'hidden', borderRadius: radii.card, borderCurve: 'continuous', backgroundColor: dark.card },
   timer: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   timerPill: { gap: spacing.sm },
-  recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
+  recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: dark.danger },
   controls: { position: 'absolute', left: 0, right: 0, bottom: 0, gap: spacing.md, paddingHorizontal: spacing.gutter },
   controlRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   side: { width: 64, alignItems: 'center' },
@@ -292,14 +292,14 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     borderWidth: 4,
-    borderColor: colors.textPrimary,
+    borderColor: dark.textPrimary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recCircle: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.danger },
-  stopSquare: { width: 30, height: 30, borderRadius: 6, backgroundColor: colors.danger },
+  recCircle: { width: 62, height: 62, borderRadius: 31, backgroundColor: dark.danger },
+  stopSquare: { width: 30, height: 30, borderRadius: 6, backgroundColor: dark.danger },
   dim: { opacity: 0.4 },
-  errorText: { color: colors.danger },
+  errorText: { color: dark.danger },
   reviewBody: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.gutter },
   reviewPoster: { width: '70%', aspectRatio: 9 / 16, borderRadius: radii.card, borderCurve: 'continuous', overflow: 'hidden' },
   reviewCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: 'rgba(0,0,0,0.35)' },

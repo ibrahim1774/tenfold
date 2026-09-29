@@ -2,7 +2,8 @@ import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 
-import { colors, motion, spacing } from '../tokens';
+import { useTheme } from '../theme';
+import { motion, spacing } from '../tokens';
 import { AppText } from './AppText';
 import { Card } from './Card';
 import { IconButton } from './IconButton';
@@ -16,6 +17,7 @@ export type CollapsibleSectionProps = {
 
 export function CollapsibleSection({ title, summary, initiallyOpen = false, children }: CollapsibleSectionProps) {
   const [open, setOpen] = useState(initiallyOpen);
+  const colors = useTheme();
 
   return (
     <Animated.View layout={LinearTransition.duration(motion.base)}>

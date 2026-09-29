@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/design/components';
-import { colors, fonts, spacing } from '@/design/tokens';
+import { light, fonts, spacing } from '@/design/tokens';
 
 import { formatMinutes, type Payoff as PayoffNumbers } from './savings';
 
@@ -17,19 +17,19 @@ export function Payoff({ payoff }: { payoff: PayoffNumbers }) {
   return (
     <View style={styles.wrap}>
       <View style={styles.top}>
-        <AppText variant="label" color={colors.textMuted}>
+        <AppText variant="label" color={light.textMuted}>
           ESTIMATED FROM YOUR ANSWERS
         </AppText>
-        <AppText variant="body" color={colors.textSecondary}>
+        <AppText variant="body" color={light.textSecondary}>
           Editing costs you
         </AppText>
-        <AppText variant="title" color={colors.textSecondary} tabular style={styles.struck}>
+        <AppText variant="title" color={light.textSecondary} tabular style={styles.struck}>
           about {formatMinutes(payoff.editingMinutes)} a month
         </AppText>
       </View>
 
       <View style={styles.hero} accessible accessibilityRole="header" accessibilityLabel={`You will save about ${saved} every single month.`}>
-        <AppText variant="body" color={colors.textSecondary}>
+        <AppText variant="body" color={light.textSecondary}>
           You will save about
         </AppText>
         <View style={styles.numberRow}>
@@ -40,18 +40,18 @@ export function Payoff({ payoff }: { payoff: PayoffNumbers }) {
             {unit}
           </AppText>
         </View>
-        <AppText variant="body" color={colors.textSecondary}>
+        <AppText variant="body" color={light.textSecondary}>
           every single month.
         </AppText>
       </View>
 
       <View style={styles.maths}>
         {payoff.lines.map((l) => (
-          <AppText key={l} variant="caption" color={colors.textMuted} tabular>
+          <AppText key={l} variant="caption" color={light.textMuted} tabular>
             {l}
           </AppText>
         ))}
-        <AppText variant="caption" color={colors.textMuted}>
+        <AppText variant="caption" color={light.textMuted}>
           Based only on what you told us.
         </AppText>
       </View>
@@ -62,11 +62,11 @@ export function Payoff({ payoff }: { payoff: PayoffNumbers }) {
 const styles = StyleSheet.create({
   wrap: { flex: 1, minHeight: 520, paddingHorizontal: spacing.gutter, paddingTop: spacing.lg, gap: spacing.xl },
   top: { gap: spacing.xs },
-  struck: { textDecorationLine: 'line-through', textDecorationColor: colors.textSecondary },
+  struck: { textDecorationLine: 'line-through', textDecorationColor: light.glyph },
   hero: { gap: spacing.xs },
   numberRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
-  // The one oversized figure on the screen, like the reference onboarding.
-  number: { fontFamily: fonts.bold, fontSize: 104, lineHeight: 112, color: colors.accent, letterSpacing: -3 },
+  // The one oversized figure on the screen, in the brand colour (large text, so 3:1 is enough).
+  number: { fontFamily: fonts.bold, fontSize: 104, lineHeight: 112, color: light.accent, letterSpacing: -4 },
   unit: { marginBottom: 18 },
   maths: { marginTop: 'auto', gap: 2 },
 });

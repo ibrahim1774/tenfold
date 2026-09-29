@@ -3,28 +3,58 @@
 What makes an app feel crafted instead of generated is behaviour, restraint, and a visual language that
 gets out of the footage's way. Tokens live in `src/design/tokens.ts`; these rules decide how screens use them.
 
-## 0. Look ("graphite")
+## 0. Look ("light shell, dark editor", red-orange signature)
 
-- **Surfaces:** flat black (`bg`), two elevation steps (`bgRaised`, `card`, `cardHigh`). No ambient glows,
-  no decorative gradients, no drop shadows. The video thumbnails are the only colour on screen.
-- **Liquid Glass (iOS 26):** chrome that floats over content is glass (`GlassSurface`, `GlassCapsule`,
-  `IconButton` default tone): top-corner circle buttons (back, close, more, +), floating control groups
-  over the preview, badges over thumbnails. Never on ordinary list content. Glass doesn't render under a
-  parent that starts at opacity 0, so no fade-in around it.
-- **Type:** the iPhone's own font (SF Pro) for all interface text. Bundled faces (Poppins, TikTok Sans…)
-  are for captions only.
-- **Accent:** one colour (`accent`, amber) for progress, selection, the playhead and links. Never for
-  large fills.
-- **Primary button:** a solid white capsule with black text. Secondary: a glass capsule (`OutlineButton`).
-- **Corners:** 12–14 pt (`radii`), continuous. Icons: SF Symbols, monochrome.
-- **Tab bar:** the system tab bar (expo-router `NativeTabs`), which iOS 26 draws as Liquid Glass.
+Modelled on top-grossing apps' onboarding and paywalls: bright, calm, real footage up front, one owned colour.
+
+- **Two palettes, same keys** (`light`, `dark` in tokens). Light: onboarding, paywall, Create, Cuts, You,
+  import, batch setup and results, and the sheets reached from them. Dark (like Photos' editor): editor,
+  export, record, full-screen video, and the caption sheets when opened from the editor. The root stack
+  picks a route's palette (`schemeForRoute` in `src/design/theme.tsx`) and puts it in context; shared
+  components read it with `useTheme()` / `useScheme()`. Screens that are always one theme import `light`
+  or `dark` directly. Never hard-code a hex in a screen.
+- **Light surfaces:** warm off-white page (`bg` #F5F4F2), white raised surfaces (`card`), a warm neutral fill
+  for controls (`cardHigh` #ECEAE7). Grouped rows are white on the page, like iOS Settings. Near-black type
+  (#111111), two text greys that both meet AA, and a glyph-only grey (`glyph`) for chevrons, empty radios
+  and strike-throughs, never for text.
+- **Dark surfaces:** near-black (#0B0B0C), graphite surfaces (#161617), off-white type.
+- **Signature colour:** red-orange. `brand.gradient` (#FF3D2E → #FF7A33) is the primary button only.
+  `brand.primary` (#FF4A2E) marks the one most important thing on a screen: the chosen answer or plan
+  (a ring and a filled check), progress, the playhead, the Payoff number, switch tint. Small brand-coloured
+  text uses `accentText` (darker on light, for AA). Never large brand fills, never two brand things
+  competing on one screen.
+- **Footage over everything:** real frames are the hero (the takes wall, sample frames, the looping demo).
+  On light screens video tiles lift off the page with the soft shadow and 20 pt corners; the wall fades
+  into the page colour (fade to `bgClear`, the page colour at zero alpha, never to transparent black).
+  Anything drawn over footage (badges, rings, dims) is white on dark: `media` tokens, and `Thumb` and glass
+  put their children in the dark palette.
+- **Shadow:** one recipe (`shadows`, 0 8 24 warm black at 8%), `soft` for surfaces that lift (video tiles,
+  plan-card-sized objects, pills) and `control` for small floating controls. Light screens only. A view
+  can't both clip and cast a shadow on iOS: shadow on an outer wrapper, clipping inside.
+- **Liquid Glass (iOS 26):** dark screens only, for chrome floating over the video (corner buttons,
+  floating control groups) and for badges over thumbnails on any screen. Never on list content. Glass
+  doesn't render under a parent that starts at opacity 0.
+- **Buttons:** primary is the brand-gradient capsule with a white label (`GradientButton`). Secondary
+  (`OutlineButton`) is a white capsule with the control shadow on light, a glass capsule on dark. Corner
+  buttons (`IconButton`) are white circles with the control shadow on light, glass on dark.
+- **Selection:** onboarding answers and plan cards are white rows; the chosen one gets a 2 pt brand ring
+  and a filled brand check. Chips select to near-black with white text (neutral), so the brand stays for
+  the one primary thing. Onboarding progress is a brand fill on a `track` (#E6E4E1) bar.
+- **Type:** Instrument Sans for display, titles, buttons and big figures, tracked tight on large sizes;
+  SF Pro for running and secondary text. Bundled caption faces (Poppins, TikTok Sans…) for captions only.
+- **Corners:** three radii: 20 (`radii.card`: cards, grouped rows, big media), 12 (`tile`/`thumb`/`button`:
+  small objects), and capsules. Continuous corners. Icons: SF Symbols, monochrome.
+- **System chrome** is light (`userInterfaceStyle: "light"` + `Appearance.setColorScheme('light')`): tab
+  bar, alerts, sheets, pickers. Dark screens pass `userInterfaceStyle: 'dark'` to their action sheets and
+  alerts and `keyboardAppearance="dark"` to their inputs. The status bar follows each route's palette.
+- **Tab bar:** the system tab bar (expo-router `NativeTabs`), light, tinted with the brand text tone.
 - **Titles:** tab roots get a large left title; pushed and modal screens a small centred title between
-  glass corner buttons (`ScreenHeader`).
+  the corner buttons (`ScreenHeader`).
 
 ## 1. Hierarchy
 
-- **One primary action per screen.** Only that action uses `GradientButton`. Everything else is an
-  `OutlineButton`, a plain text button, or a row. A screen with two gradients has no primary action.
+- **One primary action per screen.** Only that action uses `GradientButton` (the brand gradient). Everything
+  else is an `OutlineButton`, a plain text button, or a row. A screen with two gradients has no primary action.
 - **The button says exactly what happens:** "Generate 5 videos", "Save to Photos", "Export 3 videos". Not
   "Continue" when something specific happens, never "Let's go!", no emoji.
 - **Destructive actions** are red text in a native action sheet or context menu, never a gradient or a
@@ -32,7 +62,7 @@ gets out of the footage's way. Tokens live in `src/design/tokens.ts`; these rule
 
 ## 2. Type
 
-Six sizes (see `type` in tokens): 30 screen title (`display`), 20 section or sheet title (`title`),
+Six sizes (see `type` in tokens): 32 screen title (`display`, tracked −0.9), 20 section or sheet title (`title`),
 15 body (`body` / `bodyStrong`), 14 controls (`chip`), 13 secondary (`label`), 12 small print
 (`caption`). Legacy names `hero`, `section`, `cta` alias onto these; don't use them in new code.
 
@@ -83,7 +113,8 @@ Motion explains a change; it never decorates.
 ## 7. Details
 
 - Minimum touch target 44 pt. Icons one weight (`regular`), sized to the text next to them.
-- Cards: one radius (`radii.card`), no border, no drop shadows. Hairlines (`separator`) only between rows
-  inside a group, inset to where the text starts.
+- Cards: one radius (`radii.card`), no border. White on the warm page needs no shadow; only objects that
+  lift (video tiles, pills, floating controls) get the one shadow recipe. Hairlines (`separator`) only
+  between rows inside a group, inset to where the text starts.
 - Haptics: selection tick for toggles and snaps, light impact for primary actions, success for exports.
   Nothing else.

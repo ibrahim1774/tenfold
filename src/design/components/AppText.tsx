@@ -1,6 +1,7 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
-import { colors, type as typeScale } from '../tokens';
+import { useTheme } from '../theme';
+import { type as typeScale } from '../tokens';
 
 type Variant = keyof typeof typeScale;
 
@@ -11,12 +12,13 @@ export type AppTextProps = TextProps & {
   tabular?: boolean;
 };
 
-export function AppText({ variant = 'body', color = colors.textPrimary, tabular, style, maxFontSizeMultiplier = 1.6, ...rest }: AppTextProps) {
+export function AppText({ variant = 'body', color, tabular, style, maxFontSizeMultiplier = 1.6, ...rest }: AppTextProps) {
+  const theme = useTheme();
   return (
     <Text
       {...rest}
       maxFontSizeMultiplier={maxFontSizeMultiplier}
-      style={[typeScale[variant], { color }, tabular && styles.tabular, style]}
+      style={[typeScale[variant], { color: color ?? theme.textPrimary }, tabular && styles.tabular, style]}
     />
   );
 }

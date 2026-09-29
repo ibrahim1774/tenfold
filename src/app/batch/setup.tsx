@@ -20,7 +20,7 @@ import {
   ToggleRow,
   seedOf,
 } from '@/design/components';
-import { colors, radii, sizes, spacing } from '@/design/tokens';
+import { light, media, radii, sizes, spacing } from '@/design/tokens';
 import type { AudioMode, FillerLevel, SilenceLevel, ZoomMode } from '@/engine/types';
 import { importIntoBatch, useImporting } from '@/batch/importClips';
 import { startBatch } from '@/batch/queue';
@@ -182,7 +182,7 @@ export default function BatchSetupScreen() {
                 style={styles.textButton}
                 accessibilityRole="button"
                 accessibilityLabel="Discard batch">
-                <AppText variant="chip" color={colors.textSecondary}>
+                <AppText variant="chip" color={light.textSecondary}>
                   Discard
                 </AppText>
               </Pressable>
@@ -196,7 +196,7 @@ export default function BatchSetupScreen() {
             Clips
           </AppText>
           {clips.length > 0 && (
-            <AppText variant="label" color={colors.textSecondary} tabular>
+            <AppText variant="label" color={light.textSecondary} tabular>
               {full ? `${limit} of ${limit} · ${TIER_NAMES[tier]} limit` : `${clips.length} of ${limit}`}
             </AppText>
           )}
@@ -218,7 +218,7 @@ export default function BatchSetupScreen() {
                 <Thumb seed={seedOf(c.id)} uri={c.posterUri} style={styles.thumb}>
                   {differs && (
                     <GlassSurface variant="clear" pointerEvents="none" style={styles.differs}>
-                      <SymbolView name="slider.horizontal.3" size={10} tintColor={colors.textPrimary} weight="semibold" />
+                      <SymbolView name="slider.horizontal.3" size={10} tintColor={media.text} weight="semibold" />
                     </GlassSurface>
                   )}
                   <GlassCapsule variant="clear" pointerEvents="none" style={styles.duration}>
@@ -239,12 +239,12 @@ export default function BatchSetupScreen() {
               accessibilityLabel={importing ? 'Adding clips' : 'Add clips'}
               accessibilityHint={full ? `The ${TIER_NAMES[tier]} plan holds ${limit} clips per batch. Shows bigger plans.` : undefined}
               accessibilityState={{ busy: importing }}>
-              <SymbolView name={importing ? 'hourglass' : 'plus'} size={20} tintColor={colors.textPrimary} weight="regular" />
+              <SymbolView name={importing ? 'hourglass' : 'plus'} size={20} tintColor={light.textPrimary} weight="regular" />
             </Pressable>
           )}
           {clips.length === 0 && (
             <View style={styles.emptyNote}>
-              <AppText variant="label" color={colors.textSecondary} tabular>
+              <AppText variant="label" color={light.textSecondary} tabular>
                 {importing ? 'Adding your clips…' : `Add up to ${limit} clips from Photos`}
               </AppText>
             </View>
@@ -268,7 +268,7 @@ export default function BatchSetupScreen() {
             style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}
             accessibilityRole="button"
             accessibilityLabel="All caption options">
-            <AppText variant="chip" color={colors.textSecondary}>
+            <AppText variant="chip" color={light.textSecondary}>
               More…
             </AppText>
           </Pressable>
@@ -299,7 +299,7 @@ export default function BatchSetupScreen() {
           })}
         </ScrollView>
         {clips.length > 0 && !captionsOn && (
-          <AppText variant="caption" color={colors.textMuted} style={[styles.gutter, styles.note]}>
+          <AppText variant="caption" color={light.textMuted} style={[styles.gutter, styles.note]}>
             Captions are off.
           </AppText>
         )}
@@ -310,7 +310,7 @@ export default function BatchSetupScreen() {
             Frame
           </AppText>
           {clips.length > 0 && !reframeOn ? (
-            <AppText variant="label" color={colors.textMuted}>
+            <AppText variant="label" color={light.textMuted}>
               Reframe is off
             </AppText>
           ) : null}
@@ -441,7 +441,7 @@ export default function BatchSetupScreen() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 8 }]}>
         {limitedExports && (
-          <AppText variant="caption" color={colors.textSecondary} style={styles.centerText} tabular>
+          <AppText variant="caption" color={light.textSecondary} style={styles.centerText} tabular>
             {exportsLeft} of {monthlyExports} exports left this month
           </AppText>
         )}
@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
     height: 136,
     borderRadius: radii.tile,
     borderCurve: 'continuous',
-    backgroundColor: colors.cardHigh,
+    backgroundColor: light.cardHigh,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -512,9 +512,9 @@ const styles = StyleSheet.create({
   note: { marginTop: spacing.xs },
   frameRow: { paddingVertical: 4 },
   hRow: { flexDirection: 'row', gap: 10 },
-  dot: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: colors.border },
-  dotSelected: { borderColor: '#FFFFFF', borderWidth: 3 },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.separator, marginVertical: spacing.xs },
+  dot: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: light.borderStrong },
+  dotSelected: { borderColor: light.textPrimary, borderWidth: 3 },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: light.separator, marginVertical: spacing.xs },
   footer: {
     position: 'absolute',
     left: 0,
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.gutter,
     paddingTop: 12,
     gap: 8,
-    backgroundColor: 'rgba(0,0,0,0.92)',
+    backgroundColor: light.chrome,
   },
   centerText: { textAlign: 'center' },
   missing: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: spacing.gutter },

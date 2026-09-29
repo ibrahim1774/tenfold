@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tenfold",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.ibrahim.tenfold",
@@ -33,7 +33,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0F1222",
+          "backgroundColor": "#FF4A2E",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }

@@ -5,7 +5,7 @@ import Animated, { LinearTransition } from 'react-native-reanimated';
 
 import { AppText, Background, Chip, GradientButton, IconButton, Thumb } from '@/design/components';
 import { sampleFrame } from '@/design/sampleFrames';
-import { colors, motion, radii, spacing } from '@/design/tokens';
+import { light, motion, radii, shadows, spacing } from '@/design/tokens';
 import type { BatchStatus } from '@/engine/types';
 import { BatchCard } from '@/library/BatchCard';
 import { batchStatus, useLibrary } from '@/state/library';
@@ -47,7 +47,7 @@ export default function LibraryScreen() {
               Cuts
             </AppText>
             {total > 0 && (
-              <AppText variant="label" color={colors.textSecondary} tabular>
+              <AppText variant="label" color={light.textSecondary} tabular>
                 {total} {total === 1 ? 'batch' : 'batches'}
               </AppText>
             )}
@@ -58,11 +58,13 @@ export default function LibraryScreen() {
 
         {total === 0 ? (
           <View style={styles.empty}>
-            <Thumb seed={0} source={sampleFrame(6)} style={styles.emptyFrame} />
+            <View style={styles.emptyLift}>
+              <Thumb seed={0} source={sampleFrame(6)} style={styles.emptyFrame} />
+            </View>
             <AppText variant="title" style={styles.center}>
               No batches yet
             </AppText>
-            <AppText variant="label" color={colors.textSecondary} style={styles.center}>
+            <AppText variant="label" color={light.textSecondary} style={styles.center}>
               Every batch you make lands here.
             </AppText>
             <GradientButton title="New batch" icon="plus" onPress={() => router.push('/import')} style={styles.emptyBtn} />
@@ -81,7 +83,7 @@ export default function LibraryScreen() {
 
             {batches.length === 0 ? (
               <View style={styles.empty}>
-                <AppText variant="body" color={colors.textSecondary} style={styles.center}>
+                <AppText variant="body" color={light.textSecondary} style={styles.center}>
                   {FILTERS.find((f) => f.v === filter)?.none}
                 </AppText>
                 <Chip label="Show all" onPress={() => setFilter('all')} />
@@ -116,7 +118,8 @@ const styles = StyleSheet.create({
   grid: { gap: spacing.xl },
   gridRow: { flexDirection: 'row', gap: spacing.md },
   empty: { alignItems: 'center', gap: spacing.sm, marginTop: spacing.xxl * 2, paddingHorizontal: spacing.lg },
-  emptyFrame: { width: 120, height: 160, borderRadius: radii.card, marginBottom: spacing.md, opacity: 0.85 },
+  emptyFrame: { width: 120, height: 160, borderRadius: radii.card },
+  emptyLift: { borderRadius: radii.card, backgroundColor: light.card, marginBottom: spacing.md, ...shadows.soft },
   center: { textAlign: 'center' },
   emptyBtn: { alignSelf: 'stretch', marginTop: spacing.lg },
 });

@@ -5,7 +5,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { colors, radii } from '@/design/tokens';
+import { dark, radii } from '@/design/tokens';
 
 import { clampPlacement, type Placement } from './frame';
 
@@ -135,5 +135,5 @@ export function FrameCanvas({ width, height, videoW, videoH, placement, renderTi
 
 const styles = StyleSheet.create({
   // Calm framing, like Photos: continuous rounded corners, no border or glow; the footage is the colour.
-  canvas: { overflow: 'hidden', backgroundColor: colors.bg, borderRadius: radii.tile, borderCurve: 'continuous' },
+  canvas: { overflow: 'hidden', backgroundColor: dark.bg, borderRadius: radii.tile, borderCurve: 'continuous' },
 });

@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { colors } from '../tokens';
+import { useTheme } from '../theme';
 import { AppText } from './AppText';
 import { Toggle } from './Toggle';
 
 export function OptionLabel({ children }: { children: ReactNode }) {
+  const colors = useTheme();
   return (
     <AppText variant="label" color={colors.textSecondary}>
       {children}
@@ -22,6 +23,7 @@ export type ToggleRowProps = {
 };
 
 export function ToggleRow({ title, subtitle, value, onChange, disabled }: ToggleRowProps) {
+  const colors = useTheme();
   return (
     <View style={styles.row}>
       <View style={styles.text}>

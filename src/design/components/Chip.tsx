@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type Insets } from 'react-native';
 
-import { colors, radii, sizes } from '../tokens';
+import { themedStyles, useScheme, useTheme } from '../theme';
+
+import { radii, sizes } from '../tokens';
 import { AppText } from './AppText';
 import { PressableScale } from './PressableScale';
 
@@ -18,6 +20,8 @@ export type ChipProps = {
 };
 
 export function Chip({ label, selected, onPress, disabled, locked, lockLabel = 'Paid', hitSlop }: ChipProps) {
+  const colors = useTheme();
+  const styles = themed[useScheme()];
   return (
     <PressableScale
       onPress={onPress}
@@ -34,7 +38,7 @@ export function Chip({ label, selected, onPress, disabled, locked, lockLabel = '
       </AppText>
       {locked ? (
         <View style={styles.pro}>
-          <AppText variant="caption" color={colors.accentText}>
+          <AppText variant="caption" color={selected ? colors.chipSelectedText : colors.accentText}>
             {lockLabel}
           </AppText>
         </View>
@@ -44,10 +48,10 @@ export function Chip({ label, selected, onPress, disabled, locked, lockLabel = '
 }
 
 export function ChipGroup({ children }: { children: ReactNode }) {
-  return <View style={styles.group}>{children}</View>;
+  return <View style={groupStyles.group}>{children}</View>;
 }
 
-const styles = StyleSheet.create({
+const themed = themedStyles((colors) => ({
   chip: {
     height: sizes.chipHeight,
     borderRadius: radii.chip,
@@ -59,6 +63,9 @@ const styles = StyleSheet.create({
   },
   selected: { backgroundColor: colors.chipSelectedFill },
   disabled: { opacity: 0.4 },
-  pro: { paddingHorizontal: 6, borderRadius: 6, backgroundColor: colors.violetSoft },
+  pro: { paddingHorizontal: 6, borderRadius: 6, backgroundColor: colors.accentSoft },
+}));
+
+const groupStyles = StyleSheet.create({
   group: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });
