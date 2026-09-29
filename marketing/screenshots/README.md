@@ -16,7 +16,7 @@ node marketing/screenshots/render.mjs 03 05   # only some pages (does not clear 
 - **Screen size.** Every screen is authored at the 6.9" logical size, 440 × 956 pt, with a 62 pt top inset and a 34 pt bottom inset. It is scaled into the device with CSS `zoom: 2.3`.
 - **Device.** `.phone` is the frame: dark titanium gradient, inner bezel and edge highlight, side buttons, and a back plate at `translateZ(-26px)` that shows as thickness. It also has a soft drop shadow and a 5% white screen reflection (`.glare`).
 - **Tilt.** `.pw` sets `perspective: 3400px`. Each device takes a centre (`cx`, `cy`) and a transform from `tilt(rotateY, rotateX, rotateZ, scale)` in `page()`.
-- **Headline.** It is written as two spans with a `<br>`, so it is always exactly two lines. Type is SF Pro Display 96 px semibold; the subline is 40 px regular. The text block starts 96 px from the left edge.
+- **Headline.** It is written as two spans with a `<br>`, so it is always exactly two lines. Type is Inter 92 px semibold (letter-spacing −3 px); the subline is Inter 38 px regular. The app's own font is Inter, bundled in `assets/fonts/`. The text block starts 96 px from the left edge.
 - **Footage.** Images are `<img class="foot">` with `object-fit: cover` and a per-image `object-position`. The app's badges and captions are drawn on top. Timeline filmstrips use the same frames: `timeline({ strip })`, or `strip` on each clip.
 - **6.9"** is rendered at 1320 × 2868. **6.7"** is rendered at 1290 × 2796: the page is re-laid out with `?size=6.7` (stage `zoom: 0.977273`), not resized from the 6.9" PNG.
 - **PNG format.** The PNGs are 8-bit RGB with no alpha, which App Store Connect requires. They are re-encoded with `pngjs`.
@@ -26,7 +26,7 @@ node marketing/screenshots/render.mjs 03 05   # only some pages (does not clear 
   - every phone's projected box, after rotation, is at least 24 px inside the canvas on all four sides (`getBoundingClientRect` on a 3D-transformed element returns the projected box)
   - the text block, grown by 24 px, does not intersect any phone
   - no font fails to load
-- **Fonts.** Interface text uses the system font (SF Pro on macOS), so render on a Mac. Caption faces (Poppins) load from `assets/fonts/` by relative path.
+- **Fonts.** Interface text is Inter, loaded from `assets/fonts/` by relative path; only the status-bar time uses the system font (SF Pro), so render on a Mac. Caption faces (Poppins) load from `assets/fonts/` by relative path.
 - **Requirements.** Needs the `playwright` devDependency and its Chromium: `npx playwright install chromium`.
 
 ## What each image says
@@ -43,4 +43,8 @@ node marketing/screenshots/render.mjs 03 05   # only some pages (does not clear 
 
 ## App Preview video
 
-`../preview/app-preview-6.9.mp4`: 16.6 s, just above Apple's 15 s minimum (the limit is 15–30 s). 886 × 1920, 30 fps, H.264 High 4.0 ~10 Mbps, silent stereo AAC 256 kbps (Apple's 6.9"/6.7" App Preview spec). In-app footage only, cut from one simulator recording: hook, "What Tenfold does for you", Create, picking 10 clips, choosing edits, the batch processing.
+`../preview/app-preview-6.9.mp4`: 18.4 s (Apple allows 15–30 s). 886 × 1920, 30 fps, H.264 High 4.0 ~10 Mbps, silent stereo AAC 256 kbps (Apple's 6.9"/6.7" App Preview spec). In-app footage only, cut from one simulator recording: hook, "What Tenfold does for you", Create, picking 10 clips, the empty Edits grid, choosing edits, the batch processing to "10 of 10 ready". Poster frame at 5 s.
+
+## Upload
+
+`node scripts/asc-screenshots.mjs` replaces the five screenshots (from `out/6.7`) and the App Preview in the iPhone 6.9"/6.7" slot of the editable version, en-US, and waits for Apple's processing.

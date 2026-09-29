@@ -10,17 +10,21 @@
 @font-face{font-family:'Poppins';src:url('../../../assets/fonts/Poppins_700Bold.ttf');font-weight:700}
 @font-face{font-family:'Comic Neue';src:url('../../../assets/fonts/ComicNeue_700Bold.ttf');font-weight:700}
 @font-face{font-family:'Inter Black';src:url('../../../assets/fonts/Inter_900Black.ttf');font-weight:900}
+@font-face{font-family:'Inter';src:url('../../../assets/fonts/Inter_400Regular.ttf');font-weight:400}
+@font-face{font-family:'Inter';src:url('../../../assets/fonts/Inter_500Medium.ttf');font-weight:500}
+@font-face{font-family:'Inter';src:url('../../../assets/fonts/Inter_600SemiBold.ttf');font-weight:600}
+@font-face{font-family:'Inter';src:url('../../../assets/fonts/Inter_700Bold.ttf');font-weight:700}
 @font-face{font-family:'Bebas Neue';src:url('../../../assets/fonts/BebasNeue_400Regular.ttf');font-weight:400}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:#0A0B0D}
-body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',Inter,system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased;overflow:hidden}
+body{font-family:Inter,sans-serif;color:#fff;-webkit-font-smoothing:antialiased;overflow:hidden}
 .stage{position:relative;width:1320px;height:2868px;overflow:hidden;background:linear-gradient(180deg,#0F1114 0%,#0A0B0D 100%)}
 body.s67 .stage{zoom:0.977273;height:2861px}
 .head{position:absolute;left:96px;right:96px;top:168px;text-align:left;z-index:5}
-h1{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,sans-serif;font-size:96px;line-height:106px;font-weight:600;letter-spacing:-2px;color:#fff}
+h1{font-family:Inter,sans-serif;font-size:92px;line-height:104px;font-weight:600;letter-spacing:-3px;color:#fff}
 h1 span{white-space:nowrap}
 h1 em{font-style:normal;color:#8E8E93}
-.sub{margin-top:28px;font-size:40px;line-height:50px;color:#A0A3A8;font-weight:400;letter-spacing:-0.3px;white-space:nowrap}
+.sub{margin-top:28px;font-size:38px;line-height:48px;color:#A0A3A8;font-weight:400;letter-spacing:-0.6px;white-space:nowrap}
 /* Phone: a flat device, tilted in 3D. The wrapper holds the perspective; the device carries the transform. */
 .pw{position:absolute;left:0;top:0;width:1320px;height:2868px;perspective:3400px;pointer-events:none}
 .phone{position:absolute;width:1056px;height:2242.7999999999997px;border-radius:118px;padding:22px;transform-style:preserve-3d;
@@ -50,7 +54,7 @@ h1 em{font-style:normal;color:#8E8E93}
 .c2{color:#9C9CA3}.cm{color:#6B6B72}.ca{color:#FFFFFF}
 .ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* status bar, island, home indicator */
-.sb-time{position:absolute;top:19px;left:28px;width:108px;text-align:center;font-size:17px;line-height:22px;font-weight:600;letter-spacing:-.2px}
+.sb-time{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;position:absolute;top:19px;left:28px;width:108px;text-align:center;font-size:17px;line-height:22px;font-weight:600;letter-spacing:-.2px}
 .sb-right{position:absolute;top:22px;right:30px;display:flex;align-items:center;gap:7px}
 .island{position:absolute;top:11px;left:50%;margin-left:-63px;width:126px;height:37px;border-radius:19px;background:#000;box-shadow:0 0 0 .6px rgba(255,255,255,.05);z-index:50}
 .home{position:absolute;bottom:8px;left:50%;margin-left:-73px;width:146px;height:5px;border-radius:3px;background:#fff;z-index:50}
@@ -63,8 +67,9 @@ h1 em{font-style:normal;color:#8E8E93}
 .chip{height:36px;border-radius:18px;padding:0 14px;display:flex;align-items:center;gap:6px;background:#1E1E21;border:1px solid rgba(255,255,255,0.08);font-size:14px;line-height:18px;font-weight:500;white-space:nowrap}
 .chip.on{background:#fff;border-color:#fff;color:#000}
 .tools{display:flex;gap:2px}
-.tool{flex:1;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:12px;padding:0 2px;color:#9C9CA3;font-size:11px;line-height:13px;white-space:nowrap}
-.tool.on{background:#1E1E21;color:#fff}
+.tool{flex:1;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0 2px;color:#9C9CA3;font-size:12px;line-height:16px;white-space:nowrap}
+.tool .tile{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:#1C1C1E}
+.tool.on{color:#fff}.tool.on .tile{background:#3A3A3C}
 .tool.danger{color:#FF453A}
 .tool.white{color:#fff}
 .tool.off{opacity:.5;color:#6B6B72}
@@ -90,10 +95,11 @@ h1 em{font-style:normal;color:#8E8E93}
 .edgeframe{position:absolute;border:2px solid}
 .edge{position:absolute;top:-2px;bottom:-2px;width:12px;display:flex;align-items:center;justify-content:center}
 .edge i{width:2px;height:45%;border-radius:1px;background:rgba(0,0,0,.55)}
-.capchip{position:absolute;top:4px;height:26px;padding:0 8px;border-radius:8px;display:flex;align-items:center;gap:4px;background:#1E1E21;border:1px solid rgba(255,255,255,0.08);overflow:hidden}
+.capchip{position:absolute;top:4px;height:26px;padding:0 8px 0 3px;border-radius:8px;display:flex;align-items:center;gap:6px;background:#F4D993;color:#3A2E10;overflow:hidden}
 .capchip span{font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ticon{width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:none}
 .snd{position:absolute;border-radius:8px;overflow:hidden}
-.sndlabel{position:absolute;top:3px;left:6px;right:6px;display:flex;align-items:center;gap:4px;font-size:12px;line-height:16px;white-space:nowrap;text-shadow:0 0 3px #141416,0 0 3px #141416}
+.sndlabel{position:absolute;top:3px;left:3px;right:6px;display:flex;align-items:center;gap:6px;font-size:12px;line-height:16px;white-space:nowrap;color:#2C2146}
 .bar{position:absolute;width:2px;border-radius:1px}
 .clipdiv{position:absolute;top:6px;width:2px;height:44px;background:#000}
 .cliptitle{position:absolute;top:9px;padding:0 6px;height:18px;display:flex;align-items:center;border-radius:6px;background:rgba(0,0,0,.55);font-size:12px;line-height:16px;white-space:nowrap}

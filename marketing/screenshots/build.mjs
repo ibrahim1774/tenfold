@@ -35,6 +35,9 @@ const C = {
   success: '#30D158',
   ruler: '#6B6B72',
   waveform: '#8E8E95',
+  // Timeline tracks (src/design/tokens.ts `track`)
+  tText: '#F4D993', tTextIcon: '#FFF2DB', tTextInk: '#3A2E10',
+  tAudio: '#D6C5FB', tAudioIcon: '#EFE8FF', tAudioInk: '#2C2146', tAudioWave: '#6A559E',
 };
 
 const SW = 440; // screen width, pt
@@ -180,17 +183,21 @@ const CSS = `
 @font-face{font-family:'Poppins';src:url('../../../assets/fonts/Poppins_700Bold.ttf');font-weight:700}
 @font-face{font-family:'Comic Neue';src:url('../../../assets/fonts/ComicNeue_700Bold.ttf');font-weight:700}
 @font-face{font-family:'Inter Black';src:url('../../../assets/fonts/Inter_900Black.ttf');font-weight:900}
+@font-face{font-family:'Inter';src:url('../../../assets/fonts/Inter_400Regular.ttf');font-weight:400}
+@font-face{font-family:'Inter';src:url('../../../assets/fonts/Inter_500Medium.ttf');font-weight:500}
+@font-face{font-family:'Inter';src:url('../../../assets/fonts/Inter_600SemiBold.ttf');font-weight:600}
+@font-face{font-family:'Inter';src:url('../../../assets/fonts/Inter_700Bold.ttf');font-weight:700}
 @font-face{font-family:'Bebas Neue';src:url('../../../assets/fonts/BebasNeue_400Regular.ttf');font-weight:400}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:#0A0B0D}
-body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',Inter,system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased;overflow:hidden}
+body{font-family:Inter,sans-serif;color:#fff;-webkit-font-smoothing:antialiased;overflow:hidden}
 .stage{position:relative;width:1320px;height:2868px;overflow:hidden;background:linear-gradient(180deg,#0F1114 0%,#0A0B0D 100%)}
 body.s67 .stage{zoom:0.977273;height:2861px}
 .head{position:absolute;left:96px;right:96px;top:168px;text-align:left;z-index:5}
-h1{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,sans-serif;font-size:96px;line-height:106px;font-weight:600;letter-spacing:-2px;color:#fff}
+h1{font-family:Inter,sans-serif;font-size:92px;line-height:104px;font-weight:600;letter-spacing:-3px;color:#fff}
 h1 span{white-space:nowrap}
 h1 em{font-style:normal;color:#8E8E93}
-.sub{margin-top:28px;font-size:40px;line-height:50px;color:#A0A3A8;font-weight:400;letter-spacing:-0.3px;white-space:nowrap}
+.sub{margin-top:28px;font-size:38px;line-height:48px;color:#A0A3A8;font-weight:400;letter-spacing:-0.6px;white-space:nowrap}
 /* Phone: a flat device, tilted in 3D. The wrapper holds the perspective; the device carries the transform. */
 .pw{position:absolute;left:0;top:0;width:1320px;height:2868px;perspective:3400px;pointer-events:none}
 .phone{position:absolute;width:${SW * Z + 44}px;height:${SH * Z + 44}px;border-radius:118px;padding:22px;transform-style:preserve-3d;
@@ -220,7 +227,7 @@ h1 em{font-style:normal;color:#8E8E93}
 .c2{color:${C.text2}}.cm{color:${C.muted}}.ca{color:${C.accent}}
 .ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* status bar, island, home indicator */
-.sb-time{position:absolute;top:19px;left:28px;width:108px;text-align:center;font-size:17px;line-height:22px;font-weight:600;letter-spacing:-.2px}
+.sb-time{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;position:absolute;top:19px;left:28px;width:108px;text-align:center;font-size:17px;line-height:22px;font-weight:600;letter-spacing:-.2px}
 .sb-right{position:absolute;top:22px;right:30px;display:flex;align-items:center;gap:7px}
 .island{position:absolute;top:11px;left:50%;margin-left:-63px;width:126px;height:37px;border-radius:19px;background:#000;box-shadow:0 0 0 .6px rgba(255,255,255,.05);z-index:50}
 .home{position:absolute;bottom:8px;left:50%;margin-left:-73px;width:146px;height:5px;border-radius:3px;background:#fff;z-index:50}
@@ -233,8 +240,9 @@ h1 em{font-style:normal;color:#8E8E93}
 .chip{height:36px;border-radius:18px;padding:0 14px;display:flex;align-items:center;gap:6px;background:${C.cardHigh};border:1px solid ${C.border};font-size:14px;line-height:18px;font-weight:500;white-space:nowrap}
 .chip.on{background:#fff;border-color:#fff;color:#000}
 .tools{display:flex;gap:2px}
-.tool{flex:1;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:12px;padding:0 2px;color:${C.text2};font-size:11px;line-height:13px;white-space:nowrap}
-.tool.on{background:${C.cardHigh};color:#fff}
+.tool{flex:1;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0 2px;color:${C.text2};font-size:12px;line-height:16px;white-space:nowrap}
+.tool .tile{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:#1C1C1E}
+.tool.on{color:#fff}.tool.on .tile{background:#3A3A3C}
 .tool.danger{color:${C.danger}}
 .tool.white{color:#fff}
 .tool.off{opacity:.5;color:${C.muted}}
@@ -260,10 +268,11 @@ h1 em{font-style:normal;color:#8E8E93}
 .edgeframe{position:absolute;border:2px solid}
 .edge{position:absolute;top:-2px;bottom:-2px;width:12px;display:flex;align-items:center;justify-content:center}
 .edge i{width:2px;height:45%;border-radius:1px;background:rgba(0,0,0,.55)}
-.capchip{position:absolute;top:4px;height:26px;padding:0 8px;border-radius:8px;display:flex;align-items:center;gap:4px;background:${C.cardHigh};border:1px solid ${C.border};overflow:hidden}
+.capchip{position:absolute;top:4px;height:26px;padding:0 8px 0 3px;border-radius:8px;display:flex;align-items:center;gap:6px;background:${C.tText};color:${C.tTextInk};overflow:hidden}
 .capchip span{font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ticon{width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:none}
 .snd{position:absolute;border-radius:8px;overflow:hidden}
-.sndlabel{position:absolute;top:3px;left:6px;right:6px;display:flex;align-items:center;gap:4px;font-size:12px;line-height:16px;white-space:nowrap;text-shadow:0 0 3px #141416,0 0 3px #141416}
+.sndlabel{position:absolute;top:3px;left:3px;right:6px;display:flex;align-items:center;gap:6px;font-size:12px;line-height:16px;white-space:nowrap;color:${C.tAudioInk}}
 .bar{position:absolute;width:2px;border-radius:1px}
 .clipdiv{position:absolute;top:6px;width:2px;height:44px;background:#000}
 .cliptitle{position:absolute;top:9px;padding:0 6px;height:18px;display:flex;align-items:center;border-radius:6px;background:rgba(0,0,0,.55);font-size:12px;line-height:16px;white-space:nowrap}
@@ -375,7 +384,7 @@ const TOOLS = [
 function toolBar(active) {
   return `<div class="tools">${TOOLS.map(
     ([id, icon, label]) =>
-      `<div class="tool${active === id ? ' on' : ''}">${ic(icon, 22, active === id ? C.text : C.text2)}<span>${label}</span></div>`,
+      `<div class="tool${active === id ? ' on' : ''}"><div class="tile">${ic(icon, 20, active === id ? C.text : C.text2)}</div><span>${label}</span></div>`,
   ).join('')}</div>`;
 }
 /** ActionBar: [icon, label, kind] kind: 'danger' | 'on' | 'off' | '' */
@@ -384,7 +393,7 @@ function actionBar(actions) {
     .map(([icon, label, kind = '']) => {
       const color = kind === 'danger' ? C.danger : kind === 'off' ? C.muted : C.text;
       const cls = kind === 'on' ? 'on' : kind === 'danger' ? 'danger' : kind === 'off' ? 'off' : 'white';
-      return `<div class="tool ${cls}">${ic(icon, 22, color)}<span>${label}</span></div>`;
+      return `<div class="tool ${cls}"><div class="tile">${ic(icon, 20, color)}</div><span>${label}</span></div>`;
     })
     .join('')}</div>`;
 }
@@ -455,7 +464,7 @@ function timeline(o) {
   h += `<div class="abs" style="top:84px;left:0;right:0;height:34px">`;
   cards.forEach((c, i) => {
     const sel = i === selCard;
-    h += `<div class="capchip" style="left:${x(c.s)}px;width:${Math.max(28, (c.e - c.s) * PPS - 4)}px;${sel ? `background:${C.accentSoft}` : ''}">${ic('textformat', 12)}<span>${c.text}</span></div>`;
+    h += `<div class="capchip" style="left:${x(c.s)}px;width:${Math.max(28, (c.e - c.s) * PPS - 4)}px;${sel ? `background:${C.tTextIcon}` : ''}"><div class="ticon" style="background:${C.tTextIcon}">${ic('textformat', 12, C.tTextInk)}</div><span>${c.text}</span></div>`;
   });
   if (selCard >= 0) {
     const c = cards[selCard];
@@ -471,10 +480,10 @@ function timeline(o) {
     for (let px = 0; px < w; px += 4) {
       const v = muted ? 0 : speech(s + px / PPS, seed);
       const bh = Math.max(2, v * 32);
-      bars += `<div class="bar" style="left:${px}px;top:${(40 - bh) / 2}px;height:${bh}px;background:${C.waveform}"></div>`;
+      bars += `<div class="bar" style="left:${px}px;top:${(40 - bh) / 2}px;height:${bh}px;background:${C.tAudioWave}"></div>`;
     }
-    h += `<div class="snd" style="top:4px;height:40px;left:${x(s) + 1}px;width:${w}px;background:${C.card}">${bars}${
-      w > 70 ? `<div class="sndlabel" style="color:${C.text2}">${ic('speaker', 11, C.text2, 1.6)}<span>Original</span></div>` : ''
+    h += `<div class="snd" style="top:4px;height:40px;left:${x(s) + 1}px;width:${w}px;background:${C.tAudio}">${bars}${
+      w > 70 ? `<div class="sndlabel"><div class="ticon" style="background:${C.tAudioIcon}">${ic('speaker', 11, C.tAudioInk, 1.6)}</div><span>Original</span></div>` : ''
     }</div>`;
   }
   h += `</div>`;
@@ -487,10 +496,10 @@ function timeline(o) {
       let bars = '';
       for (let px = 0; px < w; px += 4) {
         const v = snd.kind === 'voice' ? speech(px / PPS + 3, 7) : 0.45 + 0.35 * Math.sin(px / 9) * Math.sin(px / 23) + sr() * 0.2;
-        bars += `<div class="bar" style="left:${px}px;bottom:2px;height:${2 + Math.max(0, Math.min(1, v)) * 20 * Math.min(1, 0.35 + snd.vol * 0.65)}px;background:rgba(255,255,255,0.18)"></div>`;
+        bars += `<div class="bar" style="left:${px}px;bottom:2px;height:${2 + Math.max(0, Math.min(1, v)) * 20 * Math.min(1, 0.35 + snd.vol * 0.65)}px;background:${C.tAudioWave};opacity:.45"></div>`;
       }
-      h += `<div class="snd" style="top:${4 + snd.row * 34}px;height:26px;left:${x(snd.s)}px;width:${w}px;background:${snd.sel ? C.accentSoft : C.cardHigh};border:1px solid ${C.border}">${bars}
-        <div class="sndlabel">${ic(snd.kind === 'voice' ? 'mic' : 'note', 11, C.text, 1.6)}<span>${snd.title}</span></div></div>`;
+      h += `<div class="snd" style="top:${4 + snd.row * 34}px;height:26px;left:${x(snd.s)}px;width:${w}px;background:${snd.sel ? C.tAudioIcon : C.tAudio}">${bars}
+        <div class="sndlabel"><div class="ticon" style="background:${C.tAudioIcon}">${ic(snd.kind === 'voice' ? 'mic' : 'note', 11, C.tAudioInk, 1.6)}</div><span>${snd.title}</span></div></div>`;
       if (snd.sel) h += edgeFrame(x(snd.s), w, 4 + snd.row * 34, 26, 8, C.accent);
     }
     h += `</div>`;

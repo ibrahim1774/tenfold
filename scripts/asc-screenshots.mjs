@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Uploads the five App Store screenshots in marketing/screenshots/out/6.7 to the iPhone 6.9"/6.7"
-// slot (API display type APP_IPHONE_67) of the editable App Store version, en-US.
+// slot (API display type APP_IPHONE_67) of the editable App Store version, en-US, then the App Preview
+// video marketing/preview/app-preview-6.9.mp4 to the same slot (preview type IPHONE_67).
 // Run: node scripts/asc-screenshots.mjs
-// Needs ~/.private_keys/AuthKey_5YX524BBAM.p8. Replaces whatever screenshots are already in that slot.
+// Needs ~/.private_keys/AuthKey_5YX524BBAM.p8. Replaces whatever screenshots and previews are already in that slot.
 
 import { createSign, createPrivateKey, createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -17,6 +18,8 @@ const LOCALE = 'en-US';
 const DISPLAY_TYPE = 'APP_IPHONE_67';
 const API = 'https://api.appstoreconnect.apple.com';
 const DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'marketing', 'screenshots', 'out', '6.7');
+const PREVIEW = join(dirname(fileURLToPath(import.meta.url)), '..', 'marketing', 'preview', 'app-preview-6.9.mp4');
+const PREVIEW_TYPE = 'IPHONE_67';
 
 const privateKey = createPrivateKey(readFileSync(`${homedir()}/.private_keys/AuthKey_${KEY_ID}.p8`, 'utf8'));
 function token() {
@@ -103,5 +106,41 @@ for (let i = 0; i < 20; i++) {
   }
   if (i === 19) console.log(`still processing: ${summary}`);
   await sleep(3000);
+}
+// 7. App Preview video: same slot, replaces any existing preview
+{
+  const psets = (await api('GET', `/v1/appStoreVersionLocalizations/${loc.id}/appPreviewSets`)).data;
+  let pset = psets.find((s) => s.attributes.previewType === PREVIEW_TYPE);
+  if (!pset) {
+    pset = (await api('POST', '/v1/appPreviewSets', {
+      data: { type: 'appPreviewSets', attributes: { previewType: PREVIEW_TYPE }, relationships: { appStoreVersionLocalization: rel('appStoreVersionLocalizations', loc.id) } },
+    })).data;
+    console.log(`created preview set ${pset.id}`);
+  }
+  for (const p of (await api('GET', `/v1/appPreviewSets/${pset.id}/appPreviews`)).data) {
+    await api('DELETE', `/v1/appPreviews/${p.id}`);
+    console.log(`removed old preview ${p.attributes.fileName}`);
+  }
+  const buf = readFileSync(PREVIEW);
+  const prev = (await api('POST', '/v1/appPreviews', {
+    data: { type: 'appPreviews', attributes: { fileName: 'tenfold-preview.mp4', fileSize: buf.length, mimeType: 'video/mp4', previewFrameTimeCode: '00:00:05:00' }, relationships: { appPreviewSet: rel('appPreviewSets', pset.id) } },
+  })).data;
+  for (const op of prev.attributes.uploadOperations) {
+    const headers = Object.fromEntries((op.requestHeaders || []).map((h) => [h.name, h.value]));
+    const r = await fetch(op.url, { method: op.method, headers, body: buf.subarray(op.offset, op.offset + op.length) });
+    if (!r.ok) throw new Error(`upload preview part at ${op.offset}: HTTP ${r.status}`);
+  }
+  await api('PATCH', `/v1/appPreviews/${prev.id}`, {
+    data: { type: 'appPreviews', id: prev.id, attributes: { uploaded: true, sourceFileChecksum: createHash('md5').update(buf).digest('hex') } },
+  });
+  console.log(`uploaded preview → ${prev.id}`);
+  for (let i = 0; i < 40; i++) {
+    const st = (await api('GET', `/v1/appPreviews/${prev.id}`)).data.attributes.assetDeliveryState;
+    if (st?.state === 'COMPLETE' || st?.state === 'FAILED' || i === 39) {
+      console.log(`preview processing: ${st?.state}${st?.errors?.length ? ' — ' + st.errors.map((e) => e.description || e.code).join('; ') : ''}`);
+      break;
+    }
+    await sleep(5000);
+  }
 }
 console.log('Done.');
