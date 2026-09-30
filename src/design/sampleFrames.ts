@@ -1,6 +1,6 @@
 /**
  * Ten still frames of people talking to camera, bundled with the app so illustrative screens (onboarding,
- * import, caption style previews) never show an empty box. Stills from Mixkit stock clips under the Mixkit
+ * import, caption style previews) never show an empty box. Creator-style (UGC) stills from Mixkit stock clips under the Mixkit
  * free licence; see marketing/screenshots/FOOTAGE.md.
  */
 export const SAMPLE_FRAMES: number[] = [

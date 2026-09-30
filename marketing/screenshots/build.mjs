@@ -158,11 +158,11 @@ const FOOT = {
   a2: 'mixkit-34487-4_2s',
   a3: 'mixkit-34487-6_0s',
   a4: 'mixkit-34487-8_2s',
-  b2: 'mixkit-10457-4_8s', // man at a desk, window light
-  b4: 'mixkit-10457-9_2s',
-  c1: 'mixkit-4834-1_5s', // woman in a white coat, office
-  c2: 'mixkit-4834-6_0s',
-  c3: 'mixkit-4834-12_0s',
+  b2: 'mixkit-42319-4_9s', // redhead talking to her phone, cereal-box wall (UGC style)
+  b4: 'mixkit-42319-7_7s',
+  c1: 'mixkit-42323-12_6s', // close selfie, curly hair, cereal-box wall
+  c2: 'mixkit-42323-2_5s',
+  c3: 'mixkit-41290-2_0s', // close-up of a man talking into the camera, blue light
   d1: 'mixkit-39813-0_5s', // woman with an earbud, balcony at dusk
   d2: 'mixkit-39813-3_2s',
   d3: 'mixkit-39813-7_0s',

@@ -31,7 +31,7 @@ node marketing/screenshots/render.mjs 03 05   # only some pages (does not clear 
 
 ## What each image says
 
-01 and 02 are real simulator captures in `captures/` (iPhone 17 Pro simulator, status bar overridden to 9:41, 10 clips made from the licensed frames in `footage/`). 03–05 are HTML mockups: the simulator can't transcribe speech, so it can't show real cuts or captions.
+01 and 02 are real simulator captures in `captures/` (iPhone 17 Pro simulator, status bar overridden to 9:41, 10 moving clips cut from the licensed Mixkit creator clips listed in `FOOTAGE.md`). 03–05 are HTML mockups: the simulator can't transcribe speech, so it can't show real cuts or captions.
 
 | # | Headline (grey line second) | Subline | Screen |
 |---|---|---|---|
@@ -43,7 +43,7 @@ node marketing/screenshots/render.mjs 03 05   # only some pages (does not clear 
 
 ## App Preview video
 
-`../preview/app-preview-6.9.mp4`: 18.4 s (Apple allows 15–30 s). 886 × 1920, 30 fps, H.264 High 4.0 ~10 Mbps, silent stereo AAC 256 kbps (Apple's 6.9"/6.7" App Preview spec). In-app footage only, cut from one simulator recording: hook, "What Tenfold does for you", Create, picking 10 clips, the empty Edits grid, choosing edits, the batch processing to "10 of 10 ready". Poster frame at 5 s.
+`../preview/app-preview-6.9.mp4`: 19.1 s (Apple allows 15–30 s). 886 × 1920, 30 fps, H.264 High 4.0 ~10 Mbps, silent stereo AAC 256 kbps (Apple's 6.9"/6.7" App Preview spec). In-app footage only, cut from one simulator recording: hook, "What Tenfold does for you", Create, picking 10 clips, the empty Edits grid, choosing edits, the batch processing to "10 of 10 ready". Poster frame at 5 s.
 
 ## Upload
 
