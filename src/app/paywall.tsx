@@ -156,7 +156,7 @@ export default function PaywallScreen() {
       setNotice(`Restored ${TIER_NAMES[now]}.`);
     } else if (result.ok) {
       setNotice('No active subscription was found for this Apple ID.');
-    } else {
+    } else if (!(store.restoreAlertShown && store.available)) {
       setNotice(result.message ? `Couldn’t restore: ${result.message}` : 'Couldn’t restore purchases. Try again.');
     }
   };

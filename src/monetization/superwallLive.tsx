@@ -29,7 +29,7 @@ function onConfigurationError(error: Error) {
   if (__DEV__) console.warn('[Superwall] configuration failed:', error.message);
 }
 
-// Superwall's own alert after a restore that finds nothing; our screens don't add a second one.
+// Superwall's own alert after a failed restore; our screens don't add a second one.
 const OPTIONS = {
   paywalls: {
     restoreFailed: {
