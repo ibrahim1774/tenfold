@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Updates only the short descriptions of Tenfold's six subscriptions (every localization). No prices.
-// 2026-09-29 lineup: Starter 30 exports, Pro 300 exports, Studio unlimited.
+// 2026-10-05 lineup: Starter 30 exports, Pro 300 exports, Studio unlimited (no 4K or batch sizes, matching the paywall).
 // Run: node scripts/asc-descriptions.mjs   (needs ~/.private_keys/AuthKey_5YX524BBAM.p8). Safe to re-run.
 
 import { createSign, createPrivateKey } from 'node:crypto';
@@ -14,12 +14,12 @@ const API = 'https://api.appstoreconnect.apple.com';
 
 // productId → short description (45 chars max)
 const DESCRIPTIONS = {
-  'com.ibrahim.tenfold.starter.monthly': 'Batches of 20, 30 exports, all styles',
-  'com.ibrahim.tenfold.starter.yearly': 'Batches of 20, 30 exports, all styles',
-  'com.ibrahim.tenfold.pro.monthly': 'Batches of 50, 300 exports, 4K export',
-  'com.ibrahim.tenfold.pro.yearly': 'Batches of 50, 300 exports, 4K export',
-  'com.ibrahim.tenfold.studio.monthly': 'Batches of 100, unlimited exports, 4K',
-  'com.ibrahim.tenfold.studio.yearly': 'Batches of 100, unlimited exports, 4K',
+  'com.ibrahim.tenfold.starter.monthly': 'Bulk edit videos, 30 exports a month',
+  'com.ibrahim.tenfold.starter.yearly': 'Bulk edit videos, 30 exports a month',
+  'com.ibrahim.tenfold.pro.monthly': 'Bulk edit videos, 300 exports a month',
+  'com.ibrahim.tenfold.pro.yearly': 'Bulk edit videos, 300 exports a month',
+  'com.ibrahim.tenfold.studio.monthly': 'Bulk edit videos, unlimited exports',
+  'com.ibrahim.tenfold.studio.yearly': 'Bulk edit videos, unlimited exports',
 };
 for (const [id, d] of Object.entries(DESCRIPTIONS)) if (d.length > 45) throw new Error(`${id}: description over 45 characters`);
 
