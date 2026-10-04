@@ -1,9 +1,8 @@
-import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { AppText } from '@/design/components';
+import { AppText, PressableScale } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
 import { colors, radii, spacing } from '@/design/tokens';
 
@@ -45,16 +44,16 @@ export function ChoiceList<T extends string>({
       {choices.map((c) => {
         const on = selected.includes(c.v);
         return (
-          <Pressable
+          <PressableScale
             key={c.v}
-            onPress={() => {
-              Haptics.selectionAsync();
-              onToggle(c.v);
-            }}
+            haptic="selection"
+            scaleTo={0.98}
+            pop={on}
+            onPress={() => onToggle(c.v)}
             accessibilityRole={multi ? 'checkbox' : 'radio'}
             accessibilityState={{ checked: on }}
             accessibilityLabel={c.detail ? `${c.label}. ${c.detail}` : c.label}
-            style={({ pressed }) => [styles.row, on && styles.on, pressed && !on && styles.pressed]}>
+            style={[styles.row, on && styles.on]}>
             <AppText variant="bodyStrong" color={on ? colors.textPrimary : colors.textSecondary} style={styles.flex}>
               {c.label}
             </AppText>
@@ -64,7 +63,7 @@ export function ChoiceList<T extends string>({
               tintColor={on ? colors.textPrimary : colors.textMuted}
               weight="regular"
             />
-          </Pressable>
+          </PressableScale>
         );
       })}
     </View>
@@ -87,7 +86,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: radii.card,
     borderCurve: 'continuous',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'transparent',
   },
-  on: { backgroundColor: colors.card },
-  pressed: { backgroundColor: 'rgba(255,255,255,0.05)' },
+  on: { backgroundColor: colors.card, borderColor: colors.edge },
 });

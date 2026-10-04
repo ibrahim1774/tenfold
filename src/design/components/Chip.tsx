@@ -24,6 +24,7 @@ export function Chip({ label, selected, onPress, disabled, locked, lockLabel = '
       disabled={disabled}
       hitSlop={hitSlop}
       scaleTo={0.94}
+      pop={selected}
       haptic="selection"
       accessibilityRole="button"
       accessibilityState={{ selected, disabled }}
@@ -56,8 +57,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: colors.chipFill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.edge,
   },
-  selected: { backgroundColor: colors.chipSelectedFill },
+  selected: { backgroundColor: colors.chipSelectedFill, borderColor: colors.chipSelectedFill },
   disabled: { opacity: 0.4 },
   pro: { paddingHorizontal: 6, borderRadius: 6, backgroundColor: colors.violetSoft },
   group: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

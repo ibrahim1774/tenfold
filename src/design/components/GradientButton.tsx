@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   wrap: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.accent,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
   outline: { justifyContent: 'center', alignItems: 'center' },

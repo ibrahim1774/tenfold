@@ -24,8 +24,11 @@ export const colors = {
   glowPlum: 'rgba(0,0,0,0)',
   glowViolet: 'rgba(0,0,0,0)',
 
-  // Text
-  textPrimary: '#FFFFFF',
+  /** Hairline light edge on chips, cards and tiles: the glossy rim of a glass surface. */
+  edge: 'rgba(255,255,255,0.10)',
+
+  // Text: a soft white, not pure white, so type sits back and the white button and selection stand out.
+  textPrimary: '#ECECEF',
   textSecondary: '#9C9CA3',
   textMuted: '#6B6B72',
   textInverse: '#000000',
@@ -45,8 +48,9 @@ export const colors = {
   heart: '#FF453A',
 
   // Controls
-  chipFill: '#2C2C2E',
-  chipText: '#FFFFFF',
+  // Clear glass: a translucent fill with a light edge (`edge`), not a solid grey.
+  chipFill: 'rgba(255,255,255,0.11)',
+  chipText: '#ECECEF',
   chipSelectedFill: '#FFFFFF',
   chipSelectedText: '#000000',
   ruler: '#6B6B72',
@@ -139,12 +143,17 @@ export const sizes = {
 } as const;
 
 /**
- * Motion explains a change; it never decorates (docs/DESIGN.md). Critically damped springs (no bounce),
- * short ease-out timings, and no entrance animations on screens or lists.
+ * Motion explains a change; it never decorates (docs/DESIGN.md). Things the finger touches spring back with
+ * a small bounce (`bounce`), like iOS controls; values and layout use the critically damped `spring`.
+ * Short ease-out timings, and no entrance animations on screens or lists.
  */
 export const motion = {
   spring: { damping: 30, stiffness: 320, overshootClamping: true },
-  pressScale: 0.97,
+  /** Release of a press and the pop of a new selection: one small overshoot, settled in about 350 ms. */
+  bounce: { damping: 13, stiffness: 320, mass: 0.8 },
+  pressScale: 0.96,
+  /** How far a control swells when it becomes selected, before `bounce` settles it. */
+  popScale: 1.06,
   fast: 160,
   base: 240,
 } as const;

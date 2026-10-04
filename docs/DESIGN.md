@@ -5,8 +5,9 @@ gets out of the footage's way. Tokens live in `src/design/tokens.ts`; these rule
 
 ## 0. Look ("graphite")
 
-- **Surfaces:** flat black (`bg`), two elevation steps (`bgRaised`, `card`, `cardHigh`). No ambient glows,
-  no decorative gradients, no drop shadows. The video thumbnails are the only colour on screen.
+- **Surfaces:** flat black (`bg`), two elevation steps (`bgRaised`, `card`, `cardHigh`). Cards, chips and
+  tiles carry a hairline light edge (`edge`) and chips a translucent fill, so they read as clear glass.
+  No ambient glows, no decorative gradients, no drop shadows. The video thumbnails are the only colour on screen.
 - **Liquid Glass (iOS 26):** chrome that floats over content is glass (`GlassSurface`, `GlassCapsule`,
   `IconButton` default tone): top-corner circle buttons (back, close, more, +), floating control groups
   over the preview, badges over thumbnails. Never on ordinary list content. Glass doesn't render under a
@@ -15,6 +16,8 @@ gets out of the footage's way. Tokens live in `src/design/tokens.ts`; these rule
   are for captions only.
 - **Accent:** one colour (`accent`, amber) for progress, selection, the playhead and links. Never for
   large fills.
+- **Text:** soft white (`textPrimary` #ECECEF), not pure white. Pure white (`accent`) is kept for the
+  primary button, selection and progress, so they stand out.
 - **Primary button:** a solid white capsule with black text. Secondary: a glass capsule (`OutlineButton`).
 - **Corners:** 12–14 pt (`radii`), continuous. Icons: SF Symbols, monochrome.
 - **Tab bar:** the system tab bar (expo-router `NativeTabs`), which iOS 26 draws as Liquid Glass.
@@ -59,7 +62,9 @@ Motion explains a change; it never decorates.
 - Animate only a *state change the user caused*: a sheet opening, a row being removed, a toggle, a
   selection moving, a frame changing shape. Use `LinearTransition.duration(motion.base)` for layout and
   `FadeIn.duration(motion.fast)` for content that appears because of a tap.
-- Springs are critically damped (`motion.spring`): no bounce, no overshoot.
+- Controls the finger touches sink while held and spring back with one small bounce (`motion.bounce`,
+  built into `PressableScale`); a control that becomes selected swells once (`pop`). Values and layout
+  (progress, sizes) stay critically damped (`motion.spring`): no overshoot.
 - Onboarding may animate its illustrations once, quickly (< 600 ms), never loop.
   One exception: the "What Tenfold does for you" demo (`src/onboarding/Included.tsx`) loops, and rests on
   its finished state under Reduce Motion.

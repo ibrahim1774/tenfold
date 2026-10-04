@@ -10,7 +10,7 @@ import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EV, track } from '@/analytics/posthog';
-import { AppText, Background, GradientButton, IconButton } from '@/design/components';
+import { AppText, Background, GradientButton, IconButton, PressableScale } from '@/design/components';
 import { sampleFrame } from '@/design/sampleFrames';
 import { colors, motion, radii, spacing } from '@/design/tokens';
 import { useStoreActions, type StorePrice } from '@/monetization/superwall';
@@ -314,13 +314,16 @@ function PlanCard({
   // The fact that tells the plans apart; the full list is in the VoiceOver label.
   const facts = plan.features[1];
   return (
-    <Pressable
+    <PressableScale
+      haptic={false}
+      scaleTo={0.98}
+      pop={selected}
       onPress={onPress}
       onLongPress={onLongPress}
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
       accessibilityLabel={`${plan.name}, ${price}${current ? ', your plan' : ''}. ${plan.features.join(', ')}`}
-      style={({ pressed }) => [styles.plan, selected && styles.planOn, pressed && styles.pressed]}>
+      style={[styles.plan, selected && styles.planOn]}>
       <View style={styles.planHead}>
         <SymbolView
           name={selected ? 'checkmark.circle.fill' : 'circle'}
@@ -352,7 +355,7 @@ function PlanCard({
           ) : null}
         </View>
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -376,7 +379,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     borderRadius: radii.button - 3,
   },
-  segmentOn: { backgroundColor: colors.textPrimary },
+  segmentOn: { backgroundColor: colors.accent },
   savePill: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: radii.round, backgroundColor: colors.bg },
 
   plans: { gap: spacing.sm },
@@ -388,7 +391,7 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     // Constant width so selecting a plan doesn't shift the layout; only the selected plan shows a ring.
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.edge,
     backgroundColor: colors.card,
   },
   planOn: { borderColor: colors.textPrimary },

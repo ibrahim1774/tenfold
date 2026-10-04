@@ -24,7 +24,8 @@ const C = {
   border: 'rgba(255,255,255,0.08)',
   borderStrong: 'rgba(255,255,255,0.16)',
   overlay: 'rgba(0,0,0,0.72)',
-  text: '#FFFFFF',
+  text: '#ECECEF', // soft white (tokens `textPrimary`); pure white is the accent
+  edge: 'rgba(255,255,255,0.10)',
   text2: '#9C9CA3',
   muted: '#6B6B72',
   // Black and white only (2026-09-29): the app's accent token is white.
@@ -207,7 +208,7 @@ h1 em{font-style:normal;color:#8E8E93}
 .phone .btnL,.phone .btnR{position:absolute;width:8px;border-radius:4px;background:linear-gradient(90deg,#2A2B30,#44454B,#2A2B30)}
 .phone .glare{position:absolute;left:22px;top:22px;right:22px;bottom:22px;border-radius:${42 * Z}px;pointer-events:none;z-index:60;
   background:linear-gradient(118deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,.035) 30%,rgba(255,255,255,0) 31%,rgba(255,255,255,0) 100%)}
-.scr{position:relative;width:${SW}px;height:${SH}px;zoom:${Z};overflow:hidden;border-radius:42px;background:#000;font-size:15px;line-height:20px}
+.scr{position:relative;width:${SW}px;height:${SH}px;zoom:${Z};overflow:hidden;border-radius:42px;background:#000;color:${C.text};font-size:15px;line-height:20px}
 .foot{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:block}
 .abs{position:absolute}
 .fill{position:absolute;top:0;left:0;right:0;bottom:0}
@@ -241,8 +242,8 @@ h1 em{font-style:normal;color:#8E8E93}
 .chip.on{background:#fff;border-color:#fff;color:#000}
 .tools{display:flex;gap:2px}
 .tool{flex:1;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0 2px;color:${C.text2};font-size:12px;line-height:16px;white-space:nowrap}
-.tool .tile{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:#1C1C1E}
-.tool.on{color:#fff}.tool.on .tile{background:#3A3A3C}
+.tool .tile{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:#1C1C1E;border:.5px solid ${C.edge}}
+.tool.on{color:${C.text}}.tool.on .tile{background:#3A3A3C}
 .tool.danger{color:${C.danger}}
 .tool.white{color:#fff}
 .tool.off{opacity:.5;color:${C.muted}}

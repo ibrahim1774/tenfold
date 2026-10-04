@@ -56,7 +56,8 @@ export function BatchEdits({ batch, clips, selections }: { batch: Batch; clips: 
                 <View key={e.key} style={styles.cell}>
                   <PressableScale
                     haptic="selection"
-                    scaleTo={0.96}
+                    scaleTo={0.94}
+                    pop={all}
                     disabled={empty}
                     // A mixed edit turns on for every clip (the usual tri-state rule).
                     onPress={() => setEdit(batch.id, e.key, !all)}
@@ -110,9 +111,9 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: spacing.sm,
     backgroundColor: colors.chipFill,
-    // Transparent by default so the mixed state's outline doesn't shift the layout.
+    // Always 1 pt (a light edge by default) so the mixed state's outline doesn't shift the layout.
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: colors.edge,
   },
   // On for every clip: white fill. On for some: a white outline and a minus.
   on: { backgroundColor: colors.chipSelectedFill, borderColor: colors.chipSelectedFill },

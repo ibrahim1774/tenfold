@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   topBar: { height: 44, marginBottom: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md },
   topBarEnd: { width: 44, height: 44 },
   progressTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.14)', overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 2, backgroundColor: colors.textPrimary },
+  progressFill: { height: '100%', borderRadius: 2, backgroundColor: colors.accent },
   footer: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.sm },
   textButton: { minHeight: 44, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
   pressed: { opacity: 0.6 },

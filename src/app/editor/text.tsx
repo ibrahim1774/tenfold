@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   tools: { minHeight: sizes.iconButton, paddingHorizontal: 0, gap: 0 },
   tool: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   // Selected tool: a white disc with a black glyph, as in the system's own editors.
-  toolOn: { backgroundColor: colors.textPrimary },
+  toolOn: { backgroundColor: colors.accent },
   dimIcon: { opacity: 0.6 },
   colorRing: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
   colorRingOn: { borderColor: colors.textPrimary },
@@ -316,6 +316,6 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.accent,
   },
 });

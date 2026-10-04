@@ -96,7 +96,8 @@ export function ToolBar({ tools, active, onPress }: { tools: { id: ToolId; icon:
           <PressableScale
             key={t.id}
             haptic={false}
-            scaleTo={0.94}
+            scaleTo={0.9}
+            pop={on}
             onPress={() => onPress(t.id)}
             accessibilityRole={OPENS_SCREEN.includes(t.id) ? 'button' : 'tab'}
             accessibilityLabel={t.label}
@@ -165,7 +166,7 @@ const styles = StyleSheet.create({
   tools: { flexDirection: 'row', gap: spacing.xs },
   tool: { flex: 1, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 2 },
   // Each icon sits on its own dark rounded tile, label underneath (the user's reference, 2026-09-29).
-  tile: { width: 42, height: 42, borderRadius: 13, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
+  tile: { width: 42, height: 42, borderRadius: 13, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.edge },
   tileOn: { backgroundColor: '#3A3A3C' },
   toolLabel: { textAlign: 'center' },
 });

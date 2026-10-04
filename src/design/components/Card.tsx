@@ -11,7 +11,7 @@ export type CardProps = {
   dashed?: boolean;
 };
 
-/** Flat raised surface (an iOS inset group): graphite fill, continuous corners, no border or shadow. */
+/** Raised surface (an iOS inset group): graphite fill, continuous corners, a hairline light edge, no shadow. */
 export function Card({ children, style, padded = true, tone = 'default', dashed }: CardProps) {
   return (
     <View
@@ -33,6 +33,9 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     borderCurve: 'continuous',
     overflow: 'hidden',
+    // The glossy rim of a glass surface.
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.edge,
   },
   high: { backgroundColor: colors.cardHigh },
   dashed: { borderWidth: 1, borderStyle: 'dashed', borderColor: colors.borderStrong, backgroundColor: 'transparent' },

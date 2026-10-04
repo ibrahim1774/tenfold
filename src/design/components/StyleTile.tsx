@@ -65,6 +65,7 @@ export function StyleTile({
       haptic="selection"
       onPress={onPress}
       scaleTo={0.95}
+      pop={selected}
       accessibilityRole="button"
       accessibilityLabel={locked ? `${name}, needs a paid plan` : name}
       accessibilityState={{ selected }}

@@ -2020,7 +2020,7 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: colors.chipFill,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.edge,
   },
   aspectOn: { borderColor: colors.textPrimary, backgroundColor: colors.cardHigh },
   aspectIcon: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
@@ -2035,7 +2035,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.chipFill,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: colors.edge,
   },
   wordInput: {
     ...typeScale.chip,
