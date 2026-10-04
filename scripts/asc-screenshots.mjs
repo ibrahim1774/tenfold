@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Uploads the five App Store screenshots in marketing/screenshots/out/6.7 to the iPhone 6.9"/6.7"
+// Uploads the App Store screenshots (01 to 07) in marketing/screenshots/out/6.7 to the iPhone 6.9"/6.7"
 // slot (API display type APP_IPHONE_67) of the editable App Store version, en-US, then the App Preview
 // video marketing/preview/app-preview-6.9.mp4 to the same slot (preview type IPHONE_67).
 // Run: node scripts/asc-screenshots.mjs

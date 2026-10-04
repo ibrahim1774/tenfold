@@ -575,6 +575,7 @@ function popCaption(words, active, { top, size = 21 }) {
 }
 
 // Extra SF Symbol stand-ins used by the export screen.
+ICONS.xmark = '<path d="M6 6l12 12M18 6L6 18"/>';
 ICONS.arrowUR = '<path d="M7 17L17 7M9 7h8v8"/>';
 ICONS.share = '<path d="M12 3.5v11M8 7.3l4-3.8 4 3.8"/><path d="M8.5 10H7a2 2 0 00-2 2v7a2 2 0 002 2h10a2 2 0 002-2v-7a2 2 0 00-2-2h-1.5"/>';
 
@@ -582,27 +583,9 @@ ICONS.share = '<path d="M12 3.5v11M8 7.3l4-3.8 4 3.8"/><path d="M8.5 10H7a2 2 0 
 const tilt = (ry, rx, rz, s) => `rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${rz}deg) scale(${s})`;
 
 // =============================================================================================
-// 01 and 02 are real simulator captures (captures/*.png, status bar set to 9:41).
+// Seven pages. 02, 03 and 04 are real simulator captures (captures/*.png, status bar set to 9:41).
 
-// 01: Batch setup with 10 clips, four edits picked (src/app/batch/setup.tsx)
-page({
-  n: '01',
-  slug: 'edits',
-  lines: ['Pick the edits', 'for all 10 at once'],
-  sub: 'Captions, filler words, pauses and more',
-  phones: [{ capture: 'edits', cx: 680, cy: 1610, t: tilt(-15, 7, 2.5, 0.94) }],
-});
-
-// 02: Onboarding, "What Tenfold does for you" (src/onboarding/Included.tsx), real looping video
-page({
-  n: '02',
-  slug: 'onboarding',
-  lines: ['Cuts the silences', 'and the ums'],
-  sub: 'No more trimming by hand',
-  phones: [{ capture: 'included', cx: 710, cy: 1605, t: tilt(-18, 6, 3, 0.94) }],
-});
-
-// 03: Batch results (mockup: the simulator can't transcribe, so real results show no cuts)
+// 01: Batch results (mockup: the simulator can't transcribe, so real results show no cuts)
 {
   const cards = [
     ['Take 1', '0:52 → 0:37', 'a1', '50% 20%'],
@@ -630,52 +613,102 @@ page({
       <div class="btn" style="height:52px;border-radius:26px">${ic('download', 18, '#000', 2)}<span>Export 10 videos</span></div>
     </div>`;
   page({
-    n: '03',
+    n: '01',
     slug: 'batch',
-    lines: ['Edit 10 videos', 'at the same time'],
-    sub: 'Every take cut and captioned together',
+    lines: ['Batch edit', 'your videos'],
+    sub: '10 takes in, 10 finished videos out',
     phones: [{ screen, cx: 680, cy: 1610, t: tilt(-15, 7, 2.5, 0.94) }],
   });
 }
 
-// 04: Captions on the preview
+// 02: Batch setup with 10 clips, four edits picked (src/app/batch/setup.tsx)
+page({
+  n: '02',
+  slug: 'edits',
+  lines: ['Edit everything', 'at once'],
+  sub: 'Pick your edits once, for every clip',
+  phones: [{ capture: 'edits', cx: 680, cy: 1610, t: tilt(14, 7, -2.5, 0.94) }],
+});
+
+// 03: Onboarding payoff (src/onboarding/PayoffScreen.tsx), answers: 6 or more a week, over an hour each
+page({
+  n: '03',
+  slug: 'hours',
+  lines: ['Save hours', 'of editing'],
+  sub: 'See how much time you get back',
+  phones: [{ capture: 'payoff', cx: 690, cy: 1610, t: tilt(-15, 7, 2.5, 0.94) }],
+});
+
+// 04: Onboarding, "What Tenfold does for you" (src/onboarding/Included.tsx), real looping video
+page({
+  n: '04',
+  slug: 'cleaned',
+  lines: ['Every video,', 'cleaned up'],
+  sub: 'Pauses, filler words and retakes removed',
+  phones: [{ capture: 'included', cx: 660, cy: 1605, t: tilt(16, 6, -3, 0.94) }],
+});
+
+// 05: Export finished (src/app/export/[projectId].tsx, saved to Photos)
+{
+  const posterW = 250;
+  const posterH = Math.round((posterW * 16) / 9);
+  const screen = `
+    <div class="abs row" style="top:${TOP + 4}px;left:20px;right:20px;min-height:52px">
+      <div class="ib o">${ic('xmark', 18)}</div>
+      <div class="t20" style="flex:1;text-align:center;margin-right:44px">Saved to Photos</div>
+    </div>
+    <div class="abs t13 c2" style="top:${TOP + 60}px;left:20px;right:20px;text-align:center">Take 2</div>
+    <div class="abs" style="top:${TOP + 110}px;left:${(SW - posterW) / 2}px;width:${posterW}px;height:${posterH}px;border-radius:16px;overflow:hidden;border:.5px solid ${C.border}">
+      ${foot('b2', '50% 20%')}
+      ${popCaption(['film', 'ten', 'takes'], 1, { top: Math.round(posterH * 0.62), size: 20 })}
+      <div class="abs row" style="left:50%;top:50%;margin:-28px 0 0 -28px;width:56px;height:56px;border-radius:28px;justify-content:center;background:rgba(255,255,255,.22);backdrop-filter:blur(14px);border:.5px solid rgba(255,255,255,.35)">${ic('check', 24, '#fff', 2.4)}</div>
+    </div>
+    <div class="abs t13 c2" style="top:${TOP + 110 + posterH + 14}px;left:20px;right:20px;text-align:center">In your camera roll</div>
+    <div class="abs col" style="left:20px;right:20px;bottom:${BOTTOM + 16}px;gap:12px">
+      <div class="btn" style="height:52px;border-radius:26px">${ic('arrowUR', 18, '#000', 2)}<span>Open TikTok</span></div>
+      <div class="row" style="gap:12px">
+        <div class="row" style="flex:1;height:50px;border-radius:25px;border:1px solid ${C.borderStrong};justify-content:center;gap:8px;font-size:15px;font-weight:600">${ic('share', 17)}<span>Share</span></div>
+        <div class="row" style="flex:1;height:50px;border-radius:25px;border:1px solid ${C.borderStrong};justify-content:center;font-size:15px;font-weight:600">Done</div>
+      </div>
+    </div>`;
+  page({
+    n: '05',
+    slug: 'post',
+    lines: ['Shoot.', 'Tap. Post.'],
+    sub: 'Saved to Photos, ready for TikTok',
+    phones: [{ screen, cx: 680, cy: 1610, t: tilt(-14, 7, 2.5, 0.94) }],
+  });
+}
+
+// 06: Captions on the preview
 {
   const strip = ['a2', 'a3', 'a1', 'a4'];
   const scroll = toolRow(toolBar('captions')) + timeline({ total: 34, time: 13.1, points: CUT_POINTS, cards: CARDS, seed: 3, strip });
   const cap = popCaption(['the', 'part', 'that', 'matters'], 3, { top: 262, size: 23 });
   const screen = editor({ title: 'Take 2', scroll, preview: cap, playButton: false, time: '0:13', frameContent: foot('a2', '50% 30%') });
   page({
-    n: '04',
-    slug: 'captions',
-    lines: ['Captions on', 'every word'],
-    sub: 'Pick a style and it’s done',
+    n: '06',
+    slug: 'takes',
+    lines: ['Clean up', 'every take'],
+    sub: 'Captions on, mistakes out',
     phones: [{ screen, cx: 660, cy: 1615, t: tilt(14, 6, -2.5, 0.94) }],
   });
 }
 
-// 05: Join clips on the timeline
+// 07: Cuts on the timeline: every pause already cut, one part selected
 {
-  const clips = [
-    { s: 0, e: 2.6, title: 'Clip 1', strip: ['d2', 'd3'] },
-    { s: 2.6, e: 5.7, title: 'Clip 2', strip: ['e3', 'e2'] },
-    { s: 5.7, e: 8.1, title: 'Clip 3', strip: ['d4', 'd1'] },
-  ];
-  const cards = [
-    { s: 0.1, e: 2.5, text: 'quick update' },
-    { s: 2.7, e: 5.6, text: 'here’s the plan' },
-    { s: 5.8, e: 8.0, text: 'see you there' },
-  ];
+  const strip = ['c1', 'c2', 'c1', 'c2'];
   const scroll =
-    toolRow(actionBar([['scissors', 'Split'], ['trash', 'Delete', 'danger'], ['check', 'Done']])) +
-    timeline({ total: 8.1, time: 4.6, points: [2.6, 5.7], clips, selClip: 1, addTile: true, cards, originals: clips.map((c) => [c.s, c.e]), seed: 5 }) +
-    editBar({ split: false, hint: 'Clip selected. Drag its ends to trim, hold to move it. Tap it again to select a part.' });
-  const cap = popCaption(['here’s', 'the', 'plan'], 1, { top: 300, size: 23 });
-  const screen = editor({ title: 'Balcony update', scroll, preview: cap, playButton: false, time: '0:04', total: '0:08', badge: '0:09 → 0:08', frameContent: foot('e3', '45% 35%') });
+    toolRow(toolBar('cuts')) +
+    timeline({ total: 37, time: 6.6, points: CUT_POINTS, selRegion: [5.4, 8.9], cards: CARDS, seed: 6, strip }) +
+    editBar({ del: true });
+  const cap = popCaption(['and', 'that', 'takes', 'hours'], 2, { top: 262, size: 23 });
+  const screen = editor({ title: 'Take 3', scroll, preview: cap, playButton: false, time: '0:06', total: '0:37', badge: '0:52 → 0:37', frameContent: foot('c1', '50% 25%') });
   page({
-    n: '05',
-    slug: 'timeline',
-    lines: ['A real editor', 'when you want it'],
-    sub: 'Trim, split and move clips around',
+    n: '07',
+    slug: 'pauses',
+    lines: ['Cut every pause', 'at once'],
+    sub: 'Dead air gone from all your clips',
     phones: [{ screen, cx: 700, cy: 1610, t: tilt(-14, 8, 2, 0.94) }],
   });
 }

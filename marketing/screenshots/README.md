@@ -1,6 +1,6 @@
 # App Store screenshots
 
-Five portrait screenshots on a dark charcoal background (`#0F1114` → `#0A0B0D`). Each has a two-line headline at the top left: the first line is white and the second is grey `#8E8E93` (black and white only since 2026-09-29; no amber). Under it is a one-line grey subline (`#A0A3A8`). Below the text, an iPhone is tilted in 3D and shows a real Tenfold screen. The screens are drawn in HTML/CSS with the app's own tokens (`src/design/tokens.ts`). Their video areas show frames from licensed stock footage: see `FOOTAGE.md`.
+Seven portrait screenshots on a dark charcoal background (`#0F1114` → `#0A0B0D`). Each has a two-line headline at the top left: the first line is white and the second is grey `#8E8E93` (black and white only since 2026-09-29; no amber). Under it is a one-line grey subline (`#A0A3A8`). Below the text, an iPhone is tilted in 3D and shows a real Tenfold screen. The screens are drawn in HTML/CSS with the app's own tokens (`src/design/tokens.ts`). Their video areas show frames from licensed stock footage: see `FOOTAGE.md`.
 
 The earlier ten-image set (flat centred phone, no footage) is in git history at commit `0d6b2ab`.
 
@@ -12,7 +12,7 @@ node marketing/screenshots/render.mjs   # clears out/*/*.png, writes out/6.9/NN.
 node marketing/screenshots/render.mjs 03 05   # only some pages (does not clear the others)
 ```
 
-- Edit `build.mjs`, not the HTML files. It holds the shared CSS, the SF Symbol stand-ins (inline SVG), the footage map (`FOOT`) and all five screens.
+- Edit `build.mjs`, not the HTML files. It holds the shared CSS, the SF Symbol stand-ins (inline SVG), the footage map (`FOOT`) and all seven screens.
 - **Screen size.** Every screen is authored at the 6.9" logical size, 440 × 956 pt, with a 62 pt top inset and a 34 pt bottom inset. It is scaled into the device with CSS `zoom: 2.3`.
 - **Device.** `.phone` is the frame: dark titanium gradient, inner bezel and edge highlight, side buttons, and a back plate at `translateZ(-26px)` that shows as thickness. It also has a soft drop shadow and a 5% white screen reflection (`.glare`).
 - **Tilt.** `.pw` sets `perspective: 3400px`. Each device takes a centre (`cx`, `cy`) and a transform from `tilt(rotateY, rotateX, rotateZ, scale)` in `page()`.
@@ -31,15 +31,17 @@ node marketing/screenshots/render.mjs 03 05   # only some pages (does not clear 
 
 ## What each image says
 
-01 and 02 are real simulator captures in `captures/` (iPhone 17 Pro simulator, status bar overridden to 9:41, 10 moving clips cut from the licensed Mixkit creator clips listed in `FOOTAGE.md`). 03–05 are HTML mockups: the simulator can't transcribe speech, so it can't show real cuts or captions.
+02, 03 and 04 are real simulator captures in `captures/` (iPhone 17 Pro simulator, status bar overridden to 9:41, 10 moving clips cut from the licensed Mixkit creator clips listed in `FOOTAGE.md`). 01 and 05–07 are HTML mockups: the simulator can't transcribe speech, so it can't show real cuts or captions.
 
 | # | Headline (grey line second) | Subline | Screen |
 |---|---|---|---|
-| 01 | Pick the edits / for all 10 at once | Captions, filler words, pauses and more | Capture: New batch with 10 clips, Captions, Filler words, Pauses and Reframe picked, "Generate 10 videos" |
-| 02 | Cuts the silences / and the ums | No more trimming by hand | Capture: onboarding "What Tenfold does for you", looping video with "um" struck out of the caption |
-| 03 | Edit 10 videos / at the same time | Every take cut and captioned together | Mockup: batch results, "10 of 10 ready", four tiles with "0:52 → 0:37" badges, "Export 10 videos" |
-| 04 | Captions on / every word | Pick a style and it's done | Mockup: editor with a Pop caption, Captions tool selected, footage filmstrip |
-| 05 | A real editor / when you want it | Trim, split and move clips around | Mockup: three clips on the timeline, Clip 2 selected |
+| 01 | Batch edit / your videos | 10 takes in, 10 finished videos out | Mockup: batch results, "10 of 10 ready", four tiles with "0:52 → 0:37" badges, "Export 10 videos" |
+| 02 | Edit everything / at once | Pick your edits once, for every clip | Capture: New batch with 10 clips, Captions, Filler words, Pauses and Reframe picked, "Generate 10 videos" |
+| 03 | Save hours / of editing | See how much time you get back | Capture: onboarding payoff, "You will save about 25 hours every single month" (answers: 6 or more a week, over an hour each) |
+| 04 | Every video, / cleaned up | Pauses, filler words and retakes removed | Capture: onboarding "What Tenfold does for you", looping video with "um" struck out of the caption |
+| 05 | Shoot. / Tap. Post. | Saved to Photos, ready for TikTok | Mockup: export finished, "Saved to Photos", Open TikTok, Share, Done |
+| 06 | Clean up / every take | Captions on, mistakes out | Mockup: editor, Captions tool, word-by-word caption on the preview |
+| 07 | Cut every pause / at once | Dead air gone from all your clips | Mockup: editor, Cuts tool, one part selected, "0:52 → 0:37" |
 
 ## App Preview video
 
