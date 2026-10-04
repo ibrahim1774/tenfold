@@ -14,17 +14,13 @@ type SettingsState = {
   speechProgress: number;
   speechLocale: string;
   language: string;
-  exportQuality: 'hd' | 'uhd';
   defaultPreset: PresetId;
-  keepHDR: boolean;
   contentTypes: ContentType[];
   platforms: Platform[];
   setOnboarded: (v: boolean) => void;
   setSpeech: (s: SpeechState, progress?: number, locale?: string) => void;
   setLanguage: (v: string) => void;
-  setExportQuality: (v: 'hd' | 'uhd') => void;
   setDefaultPreset: (id: PresetId) => void;
-  setKeepHDR: (v: boolean) => void;
   setContentTypes: (v: ContentType[]) => void;
   setPlatforms: (v: Platform[]) => void;
 };
@@ -37,18 +33,14 @@ export const useSettings = create<SettingsState>()(
       speechProgress: 0,
       speechLocale: '',
       language: 'auto',
-      exportQuality: 'hd',
       defaultPreset: 'cleanTalk',
-      keepHDR: false,
       contentTypes: [],
       platforms: [],
       setOnboarded: (onboarded) => set({ onboarded }),
       setSpeech: (speech, speechProgress = 0, speechLocale) =>
         set((s) => ({ speech, speechProgress, speechLocale: speechLocale ?? s.speechLocale })),
       setLanguage: (language) => set({ language }),
-      setExportQuality: (exportQuality) => set({ exportQuality }),
       setDefaultPreset: (defaultPreset) => set({ defaultPreset }),
-      setKeepHDR: (keepHDR) => set({ keepHDR }),
       setContentTypes: (contentTypes) => set({ contentTypes }),
       setPlatforms: (platforms) => set({ platforms }),
     }),

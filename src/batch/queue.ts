@@ -218,22 +218,23 @@ async function exportOne(p: Project) {
     return;
   }
   const { uhd, watermark } = limitsFor(tierOf(useEntitlements.getState()));
-  const { exportQuality, keepHDR } = useSettings.getState();
+  // Paid plans export at the clip's own resolution, up to 4K; there's no setting for it.
+  const quality = uhd && Math.min(p.media?.width ?? 0, p.media?.height ?? 0) >= 2160 ? 'uhd' : 'hd';
   lib().updateProject(p.id, { status: 'exporting', stage: 'rendering', progress: 0, error: undefined });
   const t0 = Date.now();
   try {
     const result = await Engine.export(p.id, doc, {
-      quality: uhd && exportQuality === 'uhd' ? 'uhd' : 'hd',
+      quality,
       watermark,
       saveToPhotos: true,
-      keepHDR,
+      keepHDR: false,
     });
     if (lib().projects[p.id]?.status !== 'exporting') return;
     useEntitlements.getState().recordExport();
     track(EV.exportCompleted, {
       ms: Date.now() - t0,
       duration_sec: Math.round(p.media?.durationSec ?? 0),
-      quality: uhd && exportQuality === 'uhd' ? 'uhd' : 'hd',
+      quality,
       watermark,
       saved_to_photos: !!result.savedToPhotos,
     });

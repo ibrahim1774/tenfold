@@ -25,7 +25,6 @@ import { usePaywallGate } from '@/monetization/superwall';
 import { limitsFor, lowestTierWhere } from '@/onboarding/plans';
 import { exportsLeft, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
 import { useLibrary } from '@/state/library';
-import { useSettings } from '@/state/settings';
 
 const RING = 96;
 
@@ -48,9 +47,8 @@ export default function ExportScreen() {
   const focused = useIsFocused();
   const ent = useEntitlements();
   const tier = tierOf(ent);
-  const { uhd: uhdAllowed, watermark } = limitsFor(tier);
+  const { watermark } = limitsFor(tier);
   const gate = usePaywallGate();
-  const { exportQuality, setExportQuality } = useSettings();
   // When this screen started an export (0 = not yet), to tell a fresh export from an older one.
   const [startedAt, setStartedAt] = useState(0);
   const busy = project?.status === 'exportQueued' || project?.status === 'exporting';
@@ -61,7 +59,6 @@ export default function ExportScreen() {
   const started = (startedAt > 0 && !stoppedAtLimit) || busy;
   const finished = started && project?.status === 'done' && (project.exportedAt ?? 0) >= startedAt;
   const failed = started && !busy && !finished && !!project?.error;
-  const can4K = (project?.media ? Math.min(project.media.width, project.media.height) : 0) >= 2160;
 
   // One success tick when the export lands, never again for this screen.
   const celebrated = useRef(false);
@@ -100,8 +97,6 @@ export default function ExportScreen() {
   const left = Math.max(0, exportsLeft(ent) - inFlight);
   const choosing = !started || failed;
   const saved = finished && !!project.savedToPhotos;
-  const uhdSelected = uhdAllowed && can4K && exportQuality === 'uhd';
-  const uhdTier = lowestTierWhere((l) => l.uhd) ?? 'pro';
   const cleanTier = lowestTierWhere((l) => !l.watermark) ?? 'starter';
 
   const start = () => {
@@ -129,22 +124,6 @@ export default function ExportScreen() {
     await Linking.openURL(can ? 'tiktok://' : 'photos-redirect://').catch(() => {
       Alert.alert('Couldn’t open TikTok', 'Your video is in Photos. Open TikTok and pick it from your camera roll.');
     });
-  };
-
-  const pickQuality = (q: 'hd' | 'uhd') => {
-    if (q === 'uhd' && !uhdAllowed) {
-      // No placement of its own: the plans paywall, then 4K is selected once the plan includes it.
-      gate({
-        placement: 'settings_upgrade',
-        params: { feature: '4k' },
-        allowed: () => limitsFor(tierOf(useEntitlements.getState())).uhd,
-        run: () => setExportQuality('uhd'),
-      });
-      return;
-    }
-    if (q === exportQuality) return;
-    Haptics.selectionAsync();
-    setExportQuality(q);
   };
 
   const title = choosing ? 'Export' : finished ? (saved ? 'Saved to Photos' : 'Not saved to Photos') : 'Exporting';
@@ -178,27 +157,6 @@ export default function ExportScreen() {
                 </View>
               </View>
             ) : null}
-
-            <AppText variant="label" color={colors.textSecondary} style={styles.groupTitle}>
-              Quality
-            </AppText>
-            <View style={styles.group}>
-              <QualityRow
-                title="1080p"
-                subtitle="Full HD"
-                selected={!uhdSelected}
-                onPress={() => pickQuality('hd')}
-              />
-              <QualityRow
-                title="4K"
-                subtitle={uhdAllowed && !can4K ? 'Needs a 4K source clip' : 'Bigger file'}
-                selected={uhdSelected}
-                badge={uhdAllowed ? undefined : TIER_NAMES[uhdTier]}
-                disabled={uhdAllowed && !can4K}
-                onPress={() => pickQuality('uhd')}
-                last
-              />
-            </View>
 
             {watermark ? (
               <Pressable
@@ -294,50 +252,6 @@ export default function ExportScreen() {
   );
 }
 
-type QualityRowProps = {
-  title: string;
-  subtitle: string;
-  selected: boolean;
-  onPress: () => void;
-  /** The plan that unlocks this row, shown as a badge. */
-  badge?: string;
-  disabled?: boolean;
-  last?: boolean;
-};
-
-function QualityRow({ title, subtitle, selected, onPress, badge, disabled, last }: QualityRowProps) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="radio"
-      accessibilityLabel={badge ? `${title}, ${badge}` : title}
-      accessibilityHint={subtitle}
-      accessibilityState={{ checked: selected, disabled }}>
-      {({ pressed }) => (
-        <View style={[styles.row, pressed && styles.rowPressed, disabled && styles.rowDisabled]}>
-          <View style={styles.flex}>
-            <AppText variant="bodyStrong">{title}</AppText>
-            <AppText variant="label" color={colors.textMuted}>
-              {subtitle}
-            </AppText>
-          </View>
-          {badge ? (
-            <View style={styles.planTag}>
-              <SymbolView name="lock.fill" size={11} tintColor={colors.textSecondary} weight="regular" />
-              <AppText variant="label" color={colors.textSecondary}>
-                {badge}
-              </AppText>
-            </View>
-          ) : null}
-          {selected ? <SymbolView name="checkmark" size={16} tintColor={colors.textPrimary} weight="regular" /> : null}
-          {!last ? <View style={styles.divider} /> : null}
-        </View>
-      )}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: spacing.gutter, paddingTop: spacing.lg, gap: spacing.md },
   flex: { flex: 1 },
@@ -356,25 +270,6 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: colors.dangerSoft,
   },
-  groupTitle: { paddingHorizontal: spacing.lg },
-  group: {
-    borderRadius: radii.card,
-    borderCurve: 'continuous',
-    backgroundColor: colors.card,
-    overflow: 'hidden',
-  },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 12, minHeight: 60 },
-  rowPressed: { backgroundColor: colors.cardHigh },
-  rowDisabled: { opacity: 0.45 },
-  divider: {
-    position: 'absolute',
-    left: spacing.lg,
-    right: 0,
-    bottom: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.separator,
-  },
-  planTag: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   notice: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg },
 
   status: { alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl },

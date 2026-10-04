@@ -103,9 +103,9 @@ export function runMonetizationTests(check: Check) {
   const starter = featuresFor('starter');
   check(starter.includes('30 exports a month') && starter.includes('Batches of 20') && starter.includes('No watermark') && !starter.includes('4K export'), `starter (${starter.join(', ')})`);
   const pro = featuresFor('pro');
-  check(pro.includes('300 exports a month') && pro.includes('Batches of 50') && pro.includes('4K export'), `pro (${pro.join(', ')})`);
+  check(pro.includes('300 exports a month') && pro.includes('Batches of 50') && !pro.includes('4K export'), `pro (${pro.join(', ')})`);
   const studio = featuresFor('studio');
-  check(studio.includes('Unlimited exports') && studio.includes('Batches of 100') && studio.includes('4K export'), `studio (${studio.join(', ')})`);
+  check(studio.includes('Unlimited exports') && studio.includes('Batches of 100') && !studio.includes('4K export'), `studio (${studio.join(', ')})`);
 
   console.log('• monetization: exports left this month for each tier');
   const month = monthKey();

@@ -52,7 +52,7 @@ const ICON_GAP = 14;
 const ACTION = colors.accentText;
 
 export default function YouScreen() {
-  const { speech, speechProgress, speechLocale, defaultPreset, keepHDR, setDefaultPreset, setKeepHDR, setOnboarded } = useSettings();
+  const { speech, speechProgress, speechLocale, defaultPreset, setDefaultPreset, setOnboarded } = useSettings();
   const ent = useEntitlements();
   const tier = tierOf(ent);
   const gate = usePaywallGate();
@@ -202,10 +202,6 @@ export default function YouScreen() {
               last={i === presets.length - 1}
             />
           ))}
-        </Group>
-
-        <Group title="Video" footer="Keep HDR turns off captions, text and zooms.">
-          <Row icon="sun.max" title="Keep HDR" toggle={{ value: keepHDR, onChange: setKeepHDR }} last />
         </Group>
 
         <Group title="Storage">

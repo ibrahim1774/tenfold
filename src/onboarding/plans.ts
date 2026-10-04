@@ -104,7 +104,6 @@ export function featuresFor(tier: Tier): string[] {
     l.allCaptionStyles ? 'All caption styles' : 'Free caption styles',
     l.watermark ? 'Small watermark' : 'No watermark',
   ];
-  if (l.uhd) lines.push('4K export');
   return lines;
 }
 
