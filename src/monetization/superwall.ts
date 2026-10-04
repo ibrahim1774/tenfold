@@ -5,7 +5,9 @@
 // app runs on the last known tier and every paywall is the native screen at src/app/paywall.tsx.
 import { requireOptionalNativeModule } from 'expo';
 import { router } from 'expo-router';
-import type { ReactNode } from 'react';
+import { useCallback, type ReactNode } from 'react';
+
+import { EV, track } from '@/analytics/posthog';
 
 import type { GateRequest, StoreActions } from './types';
 
@@ -34,7 +36,21 @@ function useFallbackGate(): (req: GateRequest) => void {
  * `request.run` when access is granted. Without Superwall, or when presenting fails, opens the native paywall.
  * Call it only when the action is blocked (or, for non-gated placements, at the moment they happen).
  */
-export const usePaywallGate: () => (req: GateRequest) => void = live?.useLiveGate ?? useFallbackGate;
+/** Placements that mean a free limit was hit (not a voluntary look at the plans). */
+const LIMITS: string[] = ['batch_limit', 'export_limit', 'caption_style_locked'];
+
+const useGate: () => (req: GateRequest) => void = live?.useLiveGate ?? useFallbackGate;
+export function usePaywallGate(): (req: GateRequest) => void {
+  const gate = useGate();
+  return useCallback(
+    (req: GateRequest) => {
+      track(EV.paywallRequested, { placement: req.placement });
+      if (LIMITS.includes(req.placement)) track(EV.limitHit, { limit: req.placement });
+      gate(req);
+    },
+    [gate],
+  );
+}
 
 const UPDATE_NEEDED = 'Purchases need the latest version of Tenfold. Update the app and try again.';
 

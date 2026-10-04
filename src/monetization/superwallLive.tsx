@@ -11,6 +11,7 @@ import {
 } from 'expo-superwall';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
+import { EV, setTraits, track } from '@/analytics/posthog';
 import { logAttributionEvent, setAttributionUser, startAttribution, trackingAnswered } from '@/attribution/appsflyer';
 import { PRODUCT_IDS, TIERS } from '@/onboarding/plans';
 import { tierOf, useEntitlements } from '@/state/entitlements';
@@ -18,7 +19,7 @@ import { useOnboarding } from '@/state/onboarding';
 import { useSettings } from '@/state/settings';
 
 import { SUPERWALL_IOS_KEY } from './keys';
-import { onboardingAttributes, planFromStatus, raisedPlan, type CustomerInfoLike } from './tiers';
+import { onboardingAttributes, planFromStatus, productPlan, raisedPlan, type CustomerInfoLike } from './tiers';
 import type { GateRequest, PurchaseOutcome, StoreActions, StorePrice } from './types';
 
 const API_KEYS = { ios: SUPERWALL_IOS_KEY };
@@ -89,6 +90,12 @@ function usdPrice(productId: string): number | undefined {
   return undefined;
 }
 
+/** Product, plan and price for a trial or purchase event. */
+export function purchaseProps(productId: string, source: 'superwall' | 'native') {
+  const plan = productPlan(productId);
+  return { product: productId, plan: plan?.tier ?? null, billing: plan?.billing ?? null, price_usd: usdPrice(productId) ?? null, source };
+}
+
 /**
  * AppsFlyer attribution alongside Superwall: starts it for people past the tracking prompt (new people are
  * asked on onboarding's first tap), links the AppsFlyer id to Superwall and the Superwall user to
@@ -105,6 +112,7 @@ function AttributionBridge() {
     (async () => {
       if (!onboarded && !(await trackingAnswered())) return; // onboarding asks first
       const afId = await startAttribution();
+      if (afId) setTraits({ appsflyer_id: afId });
       if (!alive || !afId || linked.current) return;
       linked.current = true;
       setIntegrationAttributes({ appsflyerId: afId }).catch(() => {
@@ -117,7 +125,9 @@ function AttributionBridge() {
   }, [onboarded, setIntegrationAttributes]);
 
   useEffect(() => {
-    if (userId) setAttributionUser(userId);
+    if (!userId) return;
+    setAttributionUser(userId);
+    setTraits({ superwall_user_id: userId });
   }, [userId]);
 
   useSuperwallEvents({
@@ -126,11 +136,22 @@ function AttributionBridge() {
       if (e.event === 'freeTrialStart') {
         const id = e.product?.productIdentifier ?? e.product?.id ?? '';
         logAttributionEvent('af_start_trial', { af_content_id: id, af_currency: 'USD', af_price: usdPrice(id) ?? 0 });
+        track(EV.trialStarted, purchaseProps(id, 'superwall'));
       } else if (e.event === 'subscriptionStart') {
         const id = e.product?.productIdentifier ?? e.product?.id ?? '';
         logAttributionEvent('af_subscribe', { af_content_id: id, af_currency: 'USD', af_revenue: usdPrice(id) ?? 0 });
+        track(EV.subscribed, { ...purchaseProps(id, 'superwall'), $revenue: usdPrice(id) ?? 0 });
       }
     },
+    onPaywallPresent: (info) =>
+      track(EV.paywallShown, { source: 'superwall', paywall: info.name, placement: info.presentedByEventWithName ?? null }),
+    onPaywallDismiss: (info, result) =>
+      track(EV.paywallDismissed, {
+        source: 'superwall',
+        paywall: info.name,
+        placement: info.presentedByEventWithName ?? null,
+        result: result.type,
+      }),
   });
   return null;
 }

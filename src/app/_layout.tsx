@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { Appearance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { AnalyticsBridge } from '@/analytics/AnalyticsBridge';
 import { startQueue } from '@/batch/queue';
 import { colors } from '@/design/tokens';
 import { MonetizationProvider } from '@/monetization/superwall';
@@ -39,6 +40,7 @@ export default function RootLayout() {
       <MonetizationProvider>
         <ThemeProvider value={theme}>
           <StatusBar style="light" />
+          <AnalyticsBridge />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
             <Stack.Protected guard={!onboarded}>
               <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />

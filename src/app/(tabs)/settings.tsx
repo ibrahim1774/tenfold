@@ -218,7 +218,7 @@ export default function YouScreen() {
 
         <Group
           title="Privacy"
-          footer="Videos never leave this iPhone. Purchase events go to Superwall, install and ad measurement to AppsFlyer.">
+          footer="Videos never leave this iPhone. Purchase events go to Superwall, install and ad measurement to AppsFlyer, anonymous usage events to PostHog.">
           <Row icon="hand.raised" title="Privacy policy" accessory="external" onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)} />
           <Row icon="doc.text" title="Terms of use" accessory="external" onPress={() => WebBrowser.openBrowserAsync(TERMS_URL)} last />
         </Group>

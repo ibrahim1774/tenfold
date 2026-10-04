@@ -22,6 +22,7 @@ import {
 } from '@/design/components';
 import { colors, radii, sizes, spacing } from '@/design/tokens';
 import type { AudioMode, FillerLevel, SilenceLevel, ZoomMode } from '@/engine/types';
+import { EV, track } from '@/analytics/posthog';
 import { importIntoBatch, useImporting } from '@/batch/importClips';
 import { startBatch } from '@/batch/queue';
 import { setCaptionStyle as setStyle, setPresetId as setPreset, updatePreset } from '@/state/batchSetup';
@@ -124,6 +125,18 @@ export default function BatchSetupScreen() {
 
   const start = () => {
     if (importing) return;
+    // Which edits people actually pick: for each, how many of the batch's clips have it on.
+    const picked = Object.fromEntries(EDITS.map((d) => [`edit_${d.key}`, edits.filter((e) => e[d.key]).length]));
+    track(EV.generateTapped, {
+      clips: clips.length,
+      edits_on: EDITS.filter((d) => edits.some((e) => e[d.key])).length,
+      ...picked,
+      preset: preset.presetId,
+      caption_style: preset.captions.styleId,
+      aspect: batchAspect(preset),
+      auto_export: preset.autoExport,
+      tier,
+    });
     startBatch(batchId);
     router.replace({ pathname: '/batch/[batchId]', params: { batchId } });
   };

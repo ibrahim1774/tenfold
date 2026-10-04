@@ -20,6 +20,7 @@ import { Demo } from '@/onboarding/Demo';
 import { hasSampleClip } from '@/onboarding/fileImport';
 import { Hook } from '@/onboarding/Hook';
 import { Language } from '@/onboarding/Language';
+import { EV, setTraits, track } from '@/analytics/posthog';
 import { logAttributionEvent, startAttribution } from '@/attribution/appsflyer';
 import { Included } from '@/onboarding/Included';
 import { Payoff } from '@/onboarding/PayoffScreen';
@@ -63,6 +64,12 @@ export default function OnboardingScreen() {
   // a missing payoff (answers from an older version that allowed skipping) moves the bar on by two.
   const shownAt = Math.max(0, ALL_STEPS.indexOf(step));
 
+  useEffect(() => {
+    track(EV.onboardingStep, { step, index: shownAt });
+    // Only when the step changes; shownAt follows from it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   const go = (to: StepId | undefined, d: 1 | -1) => {
     if (!to) return;
     setDir(d);
@@ -79,6 +86,15 @@ export default function OnboardingScreen() {
 
   const finish = (tour: boolean) => {
     ob.setTourEnabled(tour);
+    track(EV.onboardingCompleted, { tour, language: useSettings.getState().language });
+    setTraits({
+      role: ob.role,
+      content_types: contentTypes.join(','),
+      videos_per_week: ob.videosPerWeek,
+      minutes_per_video: ob.minutesPerVideo,
+      language: useSettings.getState().language,
+      onboarded: true,
+    });
     logAttributionEvent('af_complete_registration', { af_registration_method: 'onboarding' });
     // Replaying onboarding as a subscriber: no paywall.
     if (!free) {
@@ -95,6 +111,9 @@ export default function OnboardingScreen() {
   };
 
   const continueQuestion = () => {
+    const value =
+      step === 'role' ? ob.role : step === 'makes' ? contentTypes.join(',') : step === 'perWeek' ? ob.videosPerWeek : ob.minutesPerVideo;
+    track(EV.onboardingAnswered, { question: step, value: value == null ? null : String(value) });
     if (step === 'makes' && contentTypes.length) setDefaultPreset(presetForContent(contentTypes));
     next();
   };
@@ -195,7 +214,7 @@ export default function OnboardingScreen() {
                 }}
               />
               <AppText variant="caption" color={colors.textMuted} style={styles.center}>
-                No account. Nothing leaves your iPhone.
+                No account. Your videos never leave your iPhone.
               </AppText>
             </>
           )}

@@ -4,11 +4,12 @@ import { SymbolView } from 'expo-symbols';
 import * as WebBrowser from 'expo-web-browser';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EV, track } from '@/analytics/posthog';
 import { AppText, Background, GradientButton, IconButton } from '@/design/components';
 import { sampleFrame } from '@/design/sampleFrames';
 import { colors, motion, radii, spacing } from '@/design/tokens';
@@ -73,6 +74,15 @@ export default function PaywallScreen() {
       )
     : annualSavingPill();
 
+  // Paywall analytics for this native screen (Superwall's own paywall is tracked in superwallLive).
+  const outcomeRef = useRef<'closed' | 'purchased'>('closed');
+  useEffect(() => {
+    track(EV.paywallShown, { source: 'native', placement: from ?? null });
+    return () => track(EV.paywallDismissed, { source: 'native', placement: from ?? null, result: outcomeRef.current });
+    // Once per visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const close = () => {
     if (fromOnboarding) {
       setOnboarded(true);
@@ -118,6 +128,7 @@ export default function PaywallScreen() {
     const outcome = await store.purchase(PRODUCT_IDS[tier][billing]);
     setBusy(false);
     if (outcome === 'purchased') {
+      outcomeRef.current = 'purchased';
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       close();
     } else if (outcome === 'pending') {

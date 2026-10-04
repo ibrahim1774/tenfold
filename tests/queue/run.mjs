@@ -16,6 +16,8 @@ await esbuild.build({
   format: 'cjs',
   outfile: out,
   logLevel: 'warning',
+  // Analytics loads these lazily and only with a PostHog key, which tests never have.
+  external: ['posthog-react-native', 'expo-constants', 'expo-device'],
   plugins: [
     {
       name: 'mocks',

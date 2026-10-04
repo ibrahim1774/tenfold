@@ -10,6 +10,8 @@
 import { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import { TurboModuleRegistry } from 'react-native';
 
+import { EV, setTraits, track } from '@/analytics/posthog';
+
 export const APPSFLYER_APP_ID = '6816729918';
 const DEV_KEY = process.env.EXPO_PUBLIC_APPSFLYER_DEV_KEY ?? '';
 
@@ -59,7 +61,11 @@ export function startAttribution(): Promise<string | null> {
     const af = sdk();
     if (!af) return null;
     try {
-      if (!(await trackingAnswered())) await requestTrackingPermissionsAsync();
+      if (!(await trackingAnswered())) {
+        const { status } = await requestTrackingPermissionsAsync();
+        track(EV.trackingAnswered, { status });
+        setTraits({ tracking: status });
+      }
     } catch {
       // No prompt available: AppsFlyer still attributes through Apple's privacy-preserving reports.
     }

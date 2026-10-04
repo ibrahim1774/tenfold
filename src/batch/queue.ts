@@ -1,6 +1,7 @@
 import { AppState } from 'react-native';
 import { create } from 'zustand';
 
+import { errorReason, EV, track } from '../analytics/posthog';
 import { Engine, EngineEvents, type Project } from '../engine';
 import { limitsFor } from '../onboarding/plans';
 import { exportsLeft, tierOf, useEntitlements } from '../state/entitlements';
@@ -143,6 +144,7 @@ async function analyzeOne(p: Project) {
   const batch = lib().batches[p.batchId];
   if (!batch) return;
   lib().updateProject(p.id, { status: 'analyzing', stage: 'extractingAudio', progress: 0, error: undefined });
+  const t0 = Date.now();
   try {
     const edits = editsOf(p, batch);
     const analysis = await Engine.analyze(p.id, { ...effectiveLevels(batch.preset, edits), language: useSettings.getState().language });
@@ -156,9 +158,16 @@ async function analyzeOne(p: Project) {
       progress: 1,
       warnings: analysis.warnings,
     });
+    track(EV.clipProcessed, {
+      ms: Date.now() - t0,
+      duration_sec: Math.round(p.media?.durationSec ?? 0),
+      warnings: analysis.warnings?.length ?? 0,
+      auto_export: autoExport,
+    });
     if (autoExport) void runExportLane();
   } catch (e) {
     if (lib().projects[p.id]?.status !== 'analyzing') return;
+    track(EV.clipFailed, { stage: lib().projects[p.id]?.stage ?? null, reason: errorReason(errorText(e)) });
     lib().updateProject(p.id, { status: 'failed', stage: undefined, error: errorText(e) });
   }
 }
@@ -211,6 +220,7 @@ async function exportOne(p: Project) {
   const { uhd, watermark } = limitsFor(tierOf(useEntitlements.getState()));
   const { exportQuality, keepHDR } = useSettings.getState();
   lib().updateProject(p.id, { status: 'exporting', stage: 'rendering', progress: 0, error: undefined });
+  const t0 = Date.now();
   try {
     const result = await Engine.export(p.id, doc, {
       quality: uhd && exportQuality === 'uhd' ? 'uhd' : 'hd',
@@ -220,6 +230,13 @@ async function exportOne(p: Project) {
     });
     if (lib().projects[p.id]?.status !== 'exporting') return;
     useEntitlements.getState().recordExport();
+    track(EV.exportCompleted, {
+      ms: Date.now() - t0,
+      duration_sec: Math.round(p.media?.durationSec ?? 0),
+      quality: uhd && exportQuality === 'uhd' ? 'uhd' : 'hd',
+      watermark,
+      saved_to_photos: !!result.savedToPhotos,
+    });
     lib().updateProject(p.id, {
       status: 'done',
       stage: undefined,
@@ -240,6 +257,7 @@ async function exportOne(p: Project) {
       lib().updateProject(p.id, { status: 'exportQueued', stage: undefined, progress: 0 });
       return;
     }
+    track(EV.exportFailed, { reason: errorReason(errorText(e)) });
     lib().updateProject(p.id, { status: 'ready', stage: undefined, progress: 1, error: errorText(e) });
   }
 }

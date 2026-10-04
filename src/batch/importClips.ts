@@ -1,6 +1,7 @@
 import { Alert } from 'react-native';
 import { create } from 'zustand';
 
+import { EV, track } from '../analytics/posthog';
 import { Engine, type ImportedAsset, type ProjectClip } from '../engine';
 import { cleanClipTitle, LEGACY_CLIP_ID, projectClipsFrom } from '../editor/clips';
 import { maxBatchSize, tierOf, useEntitlements } from '../state/entitlements';
@@ -39,6 +40,12 @@ function capped(assets: ImportedAsset[], max: number) {
   return assets.slice(0, max);
 }
 
+/** Analytics: how many clips came in, how long they run, and how they were added. */
+function trackImport(assets: ImportedAsset[], mode: 'new' | 'add' | 'joined', limit: number) {
+  const seconds = assets.reduce((sum, a) => sum + (a.media?.durationSec ?? 0), 0);
+  track(EV.clipsImported, { count: assets.length, mode, limit, total_sec: Math.round(seconds) });
+}
+
 /** Opens the Photos picker and creates a new batch. Returns the batch id, or null if nothing was picked. */
 export function importNewBatch(): Promise<string | null> {
   return exclusive<string | null>(null, async () => {
@@ -46,6 +53,7 @@ export function importNewBatch(): Promise<string | null> {
     try {
       const assets = capped(report(await Engine.pickVideos(limit)), limit);
       if (assets.length === 0) return null;
+      trackImport(assets, 'new', limit);
       return useLibrary.getState().createBatch(assets, batchPreset(useSettings.getState().defaultPreset, useSettings.getState().platforms));
     } catch (e) {
       Alert.alert('Couldn’t import', errorText(e));
@@ -64,6 +72,7 @@ export function importIntoBatch(batchId: string): Promise<void> {
     try {
       const assets = capped(report(await Engine.pickVideos(room)), room);
       if (!assets.length) return;
+      trackImport(assets, 'add', room + batch.projectIds.length);
       const lib = useLibrary.getState();
       lib.addToBatch(batchId, assets);
       if (lib.batches[batchId]?.startedAt) {
@@ -86,6 +95,7 @@ export function importJoinedBatch(): Promise<string | null> {
     try {
       const assets = capped(report(await Engine.pickVideos(limit)), limit);
       if (assets.length === 0) return null;
+      trackImport(assets, 'joined', limit);
       const preset = batchPreset(useSettings.getState().defaultPreset, useSettings.getState().platforms);
       if (assets.length === 1 || !Engine.canAddClips()) return useLibrary.getState().createBatch(assets, preset);
       const [first, ...others] = assets;
