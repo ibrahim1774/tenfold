@@ -27,6 +27,8 @@ export type StoreActions = {
   unavailableReason: string | null;
   purchase: (productId: string) => Promise<PurchaseOutcome>;
   restore: () => Promise<RestoreOutcome>;
+  /** True when the store shows its own alert after a restore that finds no subscription (Superwall does), so screens don't add a second one. */
+  restoreAlertShown?: boolean;
   /** The App Store's prices in the person's currency, by product id, once loaded. Missing ids: not loaded. */
   prices?: Partial<Record<string, StorePrice>>;
 };

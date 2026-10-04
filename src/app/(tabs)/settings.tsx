@@ -126,6 +126,8 @@ export default function YouScreen() {
     if (result.ok && now !== 'free') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(`Restored ${TIER_NAMES[now]}`, 'Your plan is active on this iPhone.');
+    } else if (store.restoreAlertShown && store.available) {
+      // Superwall has already said no subscription was found (or why the restore failed).
     } else if (result.ok) {
       Alert.alert('Nothing to restore', 'No active subscription was found for this Apple ID.');
     } else {

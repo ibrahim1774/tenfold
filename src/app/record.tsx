@@ -215,7 +215,7 @@ function Review({ take, close, projectId, onRetake }: { take: Take; close: React
   const use = async () => {
     setBusy(true);
     setError(null);
-    const title = `Recording ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    const title = `Recording ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/[\u202F\u00A0]/g, ' ')}`;
     if (projectId) {
       // A clip for a video in the editor: it joins the end of that video, which analyses it.
       try {

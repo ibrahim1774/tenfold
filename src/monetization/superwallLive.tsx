@@ -29,9 +29,20 @@ function onConfigurationError(error: Error) {
   if (__DEV__) console.warn('[Superwall] configuration failed:', error.message);
 }
 
+// Superwall's own alert after a restore that finds nothing; our screens don't add a second one.
+const OPTIONS = {
+  paywalls: {
+    restoreFailed: {
+      title: 'No subscription found',
+      message: 'There’s no active Tenfold subscription on this Apple ID.',
+      closeButtonTitle: 'OK',
+    },
+  },
+};
+
 export function LiveProvider({ children }: { children: ReactNode }) {
   return (
-    <SuperwallProvider apiKeys={API_KEYS} onConfigurationError={onConfigurationError}>
+    <SuperwallProvider apiKeys={API_KEYS} options={OPTIONS} onConfigurationError={onConfigurationError}>
       <SubscriptionSync />
       <AttributeSync />
       <AttributionBridge />
@@ -295,6 +306,7 @@ export function useLiveStore(): StoreActions {
     // The module is in this build but Superwall hasn't configured (usually no connection on first launch).
     available: ready,
     unavailableReason: ready ? null : OFFLINE,
+    restoreAlertShown: true,
     purchase: async (productId) => {
       if (!ready) return 'unavailable';
       try {

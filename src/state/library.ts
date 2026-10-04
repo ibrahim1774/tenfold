@@ -128,7 +128,7 @@ function cleanTitle(title: string, i: number) {
 
 function defaultTitle(ms: number) {
   const d = new Date(ms);
-  return `Batch · ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+  return `Batch · ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }).replace(/[\u202F\u00A0]/g, ' ')}`;
 }
 
 export function projectsOf(batch: Batch, projects: Record<string, Project>): Project[] {
