@@ -12,13 +12,13 @@ import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const SRC = path.join(here, 'src');
-const OUT = path.join(here, 'out');
+const SRC = process.env.SHOT_SRC || path.join(here, 'src');
+const OUT = process.env.SHOT_OUT || path.join(here, 'out');
 
 const SIZES = [
   { name: '6.9', width: 1320, height: 2868, query: '' },
   { name: '6.7', width: 1290, height: 2796, query: '?size=6.7' },
-];
+].filter((s) => !process.env.SHOT_SIZES || process.env.SHOT_SIZES.split(',').includes(s.name));
 
 const only = process.argv.slice(2);
 const pages = fs
@@ -45,6 +45,7 @@ try {
       const n = file.slice(0, 2);
       await page.goto(pathToFileURL(path.join(SRC, file)).href + size.query);
       await page.evaluate(() => document.fonts.ready);
+      await page.waitForFunction(() => document.body.dataset.ready === '1');
       await page.evaluate(() => Promise.all([...document.images].map((i) => (i.complete ? null : new Promise((r) => (i.onload = i.onerror = r))))));
       const report = await page.evaluate(() => {
         const zoom = document.body.classList.contains('s67') ? 0.977273 : 1;
@@ -65,6 +66,7 @@ try {
           subOverflow: sub.scrollWidth > sub.clientWidth + 1 || sr.right > window.innerWidth - 24,
           text: { left: Math.min(hr.left, sr.left), top: hr.top, right: Math.max(hr.right, sr.right), bottom: sr.bottom },
           phones,
+          fit: document.body.dataset.fit,
           missingFonts: [...document.fonts].filter((f) => f.status === 'error').map((f) => f.family),
         };
       });
@@ -93,7 +95,7 @@ try {
       fs.writeFileSync(dest, stripAlpha(png));
       const gap = Math.round(Math.min(...report.phones.map((p) => p.top)) - t.bottom);
       console.log(
-        `${size.name} ${n}  headline ${report.h1Lines} line(s), phones ${margins.map((m) => `L${m.l} R${m.r} T${m.t} B${m.b}`).join(' | ')}, text-to-phone ${gap}px` +
+        `${size.name} ${n}  fit ${report.fit}  headline ${report.h1Lines} line(s), phones ${margins.map((m) => `L${m.l} R${m.r} T${m.t} B${m.b}`).join(' | ')}, text-to-phone ${gap}px` +
           (problems.length ? `  PROBLEM: ${problems.join('; ')}` : '  ok'),
       );
       failures += problems.length;

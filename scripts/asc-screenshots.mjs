@@ -3,6 +3,8 @@
 // slot (API display type APP_IPHONE_67) of the editable App Store version, en-US, then the App Preview
 // video marketing/preview/app-preview-6.9.mp4 to the same slot (preview type IPHONE_67).
 // Run: node scripts/asc-screenshots.mjs
+// Another language: SHOT_LOCALE=de-DE SHOT_DIR=<folder with 01..07.png> node scripts/asc-screenshots.mjs
+// (screenshots only; locales without their own preview show the en-US one).
 // Needs ~/.private_keys/AuthKey_5YX524BBAM.p8. Replaces whatever screenshots and previews are already in that slot.
 
 import { createSign, createPrivateKey, createHash } from 'node:crypto';
@@ -14,10 +16,10 @@ import { fileURLToPath } from 'node:url';
 const KEY_ID = '5YX524BBAM';
 const ISSUER = '8e2cad29-fcba-4f15-baf7-23b9cbcd6c24';
 const APP_ID = '6816729918';
-const LOCALE = 'en-US';
+const LOCALE = process.env.SHOT_LOCALE || 'en-US';
 const DISPLAY_TYPE = 'APP_IPHONE_67';
 const API = 'https://api.appstoreconnect.apple.com';
-const DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'marketing', 'screenshots', 'out', '6.7');
+const DIR = process.env.SHOT_DIR || join(dirname(fileURLToPath(import.meta.url)), '..', 'marketing', 'screenshots', 'out', '6.7');
 const PREVIEW = join(dirname(fileURLToPath(import.meta.url)), '..', 'marketing', 'preview', 'app-preview-6.9.mp4');
 const PREVIEW_TYPE = 'IPHONE_67';
 
@@ -107,8 +109,8 @@ for (let i = 0; i < 20; i++) {
   if (i === 19) console.log(`still processing: ${summary}`);
   await sleep(3000);
 }
-// 7. App Preview video: same slot, replaces any existing preview
-{
+// 7. App Preview video: same slot, replaces any existing preview (primary language only)
+if (LOCALE === 'en-US') {
   const psets = (await api('GET', `/v1/appStoreVersionLocalizations/${loc.id}/appPreviewSets`)).data;
   let pset = psets.find((s) => s.attributes.previewType === PREVIEW_TYPE);
   if (!pset) {
