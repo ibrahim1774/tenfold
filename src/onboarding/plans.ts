@@ -140,12 +140,19 @@ export function perMonth(plan: Pick<TierInfo, 'price'>, localized?: string): str
   return plan.price ? `${localized ?? money(plan.price.annual / 12)} a month` : null;
 }
 
-/** The renewal sentence under the button. `trial` false: already subscribed, so no second free trial. */
-export function renewalLine(plan: Pick<TierInfo, 'price'>, billing: Billing, trial = true, localized?: string): string {
+/** What the plan charges, shown under the button as prominently as the trial: "Free for 3 days, then $19.99 a month." */
+export function chargeLine(plan: Pick<TierInfo, 'price'>, billing: Billing, trial = true, localized?: string): string {
   if (!plan.price) return 'Free has no trial and no payment.';
   const price = priceLine(plan, billing, localized);
-  const start = trial ? `Free for ${TRIAL_DAYS} days, then ${price}.` : `${price}.`;
-  return `${start} Renews automatically until you cancel in Settings at least 24 hours before the end of the period.`;
+  return trial ? `Free for ${TRIAL_DAYS} days, then ${price}.` : `${price}.`;
+}
+
+export const RENEWAL_TERMS = 'Renews automatically until you cancel in Settings at least 24 hours before the end of the period.';
+
+/** The full renewal sentence. `trial` false: already subscribed, so no second free trial. */
+export function renewalLine(plan: Pick<TierInfo, 'price'>, billing: Billing, trial = true, localized?: string): string {
+  const charge = chargeLine(plan, billing, trial, localized);
+  return plan.price ? `${charge} ${RENEWAL_TERMS}` : charge;
 }
 
 export const TERMS_URL = 'https://ibrahim1774.github.io/tenfold/terms.html';

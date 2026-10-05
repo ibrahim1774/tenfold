@@ -23,7 +23,8 @@ import {
   priceLine,
   PRIVACY_URL,
   PRODUCT_IDS,
-  renewalLine,
+  chargeLine,
+  RENEWAL_TERMS,
   TERMS_URL,
   TRIAL_DAYS,
   type Billing,
@@ -259,9 +260,15 @@ export default function PaywallScreen() {
             </AppText>
           </Animated.View>
         ) : null}
-        <AppText variant="caption" color={colors.textMuted} tabular style={styles.center}>
-          {renewalLine(plan, billing, trial, storePrice(tier, billing)?.localizedPrice)}
+        {/* The price as plainly as the trial (guideline 3.1.2), then the renewal terms. */}
+        <AppText variant="bodyStrong" color={colors.textPrimary} tabular style={styles.center}>
+          {chargeLine(plan, billing, trial, storePrice(tier, billing)?.localizedPrice)}
         </AppText>
+        {plan.price ? (
+          <AppText variant="caption" color={colors.textSecondary} style={styles.center}>
+            {RENEWAL_TERMS}
+          </AppText>
+        ) : null}
 
         <Pressable onPress={close} accessibilityRole="button" style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
           <AppText variant="bodyStrong" color={colors.textSecondary}>
