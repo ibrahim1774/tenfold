@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-US">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=1320">
@@ -178,6 +178,13 @@ h1 em{font-style:normal;color:#8E8E93}
     </div>
   </div>
 </div>
-<script>if(new URLSearchParams(location.search).get('size')==='6.7')document.body.classList.add('s67');</script>
+<script>if(new URLSearchParams(location.search).get('size')==='6.7')document.body.classList.add('s67');
+// Long translations: shrink the headline until it fits two lines, the subline until it fits one.
+document.fonts.ready.then(()=>{const h=document.querySelector('h1'),s=document.querySelector('.sub');let f=92,g=38;
+const lines=()=>Math.round(h.getBoundingClientRect().height/(parseFloat(getComputedStyle(h).lineHeight)*(document.body.classList.contains('s67')?0.977273:1)));
+const wide=()=>[...h.querySelectorAll('span')].some(x=>x.getBoundingClientRect().width>h.getBoundingClientRect().width+1);
+while((lines()>2||wide())&&f>52){f-=2;h.style.fontSize=f+'px';h.style.lineHeight=Math.round(f*1.13)+'px';}
+while(s.scrollWidth>s.clientWidth+1&&g>24){g-=1;s.style.fontSize=g+'px';}
+document.body.dataset.fit=f+'/'+g;document.body.dataset.ready='1';});</script>
 </body>
 </html>

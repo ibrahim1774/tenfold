@@ -12,7 +12,7 @@ import { colors, radii, spacing } from '@/design/tokens';
 import { Engine, engineAvailable } from '@/engine';
 import { usePaywallGate, useStoreActions } from '@/monetization/superwall';
 import { hasSampleClip } from '@/onboarding/fileImport';
-import { PRIVACY_URL, TERMS_URL } from '@/onboarding/plans';
+import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/onboarding/plans';
 import {
   exportLimit,
   exportUsageLine,
@@ -118,6 +118,12 @@ export default function YouScreen() {
   const manageSubscription = () =>
     Linking.openURL('itms-apps://apps.apple.com/account/subscriptions').catch(() =>
       Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => {}),
+    );
+
+  // The Mail app with the support address filled in; without Mail, the address to copy.
+  const contactSupport = () =>
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Tenfold support')}`).catch(() =>
+      Alert.alert('Contact support', `Email ${SUPPORT_EMAIL}`),
     );
 
   const restore = async () => {
@@ -226,6 +232,7 @@ export default function YouScreen() {
           {hasSampleClip() && (
             <Row icon="play.rectangle" title="Replay the demo" accessory="chevron" onPress={() => router.push('/demo')} />
           )}
+          <Row icon="envelope" title="Contact support" accessory="external" onPress={contactSupport} />
           <Row icon="hand.point.up.left" title="Replay the tour" action onPress={replayTour} />
           <Row icon="arrow.counterclockwise" title="Replay onboarding" action onPress={replayOnboarding} last />
         </Group>

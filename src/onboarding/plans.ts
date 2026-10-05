@@ -150,3 +150,4 @@ export function renewalLine(plan: Pick<TierInfo, 'price'>, billing: Billing, tri
 
 export const TERMS_URL = 'https://ibrahim1774.github.io/tenfold/terms.html';
 export const PRIVACY_URL = 'https://ibrahim1774.github.io/tenfold/privacy.html';
+export const SUPPORT_EMAIL = 'support@davoxa.com';
