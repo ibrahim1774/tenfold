@@ -13,8 +13,11 @@ export type GateRequest = {
   allowed?: () => boolean;
   /** The action, run once when access is granted (non-gated: when the paywall closes or is skipped). */
   run?: () => void;
-  /** Where to go when Superwall can't present. Default: the native paywall screen. */
-  fallback?: Href;
+  /**
+   * Where to go when Superwall can't present. Default: the native paywall screen. `'none'`: stay put, for the
+   * subscription gate, which is itself the native paywall (pushing another one would stack a duplicate).
+   */
+  fallback?: Href | 'none';
 };
 
 export type PurchaseOutcome = 'purchased' | 'cancelled' | 'pending' | 'failed' | 'unavailable';

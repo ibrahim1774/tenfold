@@ -181,7 +181,13 @@ function DevEventLogger() {
 }
 
 function showFallback(req: GateRequest) {
+  if (req.fallback === 'none') return; // the caller is the native paywall already
   router.push(req.fallback ?? { pathname: '/paywall', params: { from: req.placement } });
+}
+
+/** True once Superwall is configured; see ./superwall.ts `usePaywallReady`. */
+export function useLiveReady(): boolean {
+  return useSuperwall((s) => ({ ok: s.isConfigured })).ok;
 }
 
 type Fetchers = {
@@ -228,6 +234,7 @@ export function useLiveGate(): (req: GateRequest) => void {
     },
     onDismiss: () => {
       // Non-gated: closing the paywall continues, even if the campaign was set to gated by mistake.
+      // (The subscription gate passes `allowed`, so closing it never lets anyone in: access is the tier alone.)
       const c = current.current;
       if (c && !c.req.allowed) finish(c);
     },

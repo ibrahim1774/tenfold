@@ -44,37 +44,33 @@ async function main() {
   check(running.maxAnalyze === 1, `one analysis at a time (max ${running.maxAnalyze})`);
   check(lib().projects[lib().batches[b].projectIds[0]].title === 'Clip 0000', 'IMG_ titles cleaned');
 
-  console.log('• free tier: export all stops at 3 and asks for Pro');
+  console.log('• hard paywall: no subscription, nothing exports; every queued video is parked');
   useEntitlements.setState({ tier: 'free', isPro: false, exportsUsed: 0 });
   queueExports(lib().batches[b].projectIds);
   check(await until(() => useQueueUI.getState().limitReached), 'limit flag raised');
-  check(useQueueUI.getState().parked.length === 2, `parked ids recorded (${useQueueUI.getState().parked.length})`);
-  check(statuses(b).filter((s) => s === 'done').length === 3, `3 exported (${statuses(b)})`);
-  check(statuses(b).filter((s) => s === 'ready').length === 2, 'rest parked as ready');
-  check(running.maxExport === 1, `one export at a time (max ${running.maxExport})`);
-  const exp = calls.filter((c) => c.fn === 'export');
-  check(exp.length === 3, `3 export calls (${exp.length})`);
+  check(useQueueUI.getState().parked.length === 5, `all 5 parked (${useQueueUI.getState().parked.length})`);
+  check(statuses(b).every((s) => s === 'ready'), `none exported (${statuses(b)})`);
+  check(!calls.some((c) => c.fn === 'export'), 'no export reached the engine');
 
-  console.log('• pro: remaining export, no watermark');
+  console.log('• subscribe: the parked videos export, one at a time');
   useEntitlements.setState({ isPro: true });
-  check(!useQueueUI.getState().limitReached && useQueueUI.getState().parked.length === 0, 'upgrade clears the limit flag');
+  check(!useQueueUI.getState().limitReached && useQueueUI.getState().parked.length === 0, 'subscribing clears the limit flag');
   queueExports(lib().batches[b].projectIds);
   check(await until(() => statuses(b).every((s) => s === 'done')), `all done (${statuses(b)})`);
+  check(running.maxExport === 1, `one export at a time (max ${running.maxExport})`);
 
   console.log('• one export left: a second single export queued behind the first is parked, by id');
   b = newBatch(2);
   startBatch(b);
   await until(() => statuses(b).every((s) => s === 'ready'));
-  useEntitlements.setState({ tier: 'free', isPro: false, exportsUsed: 0 });
-  useEntitlements.getState().recordExport();
-  useEntitlements.getState().recordExport(); // 1 of 3 left
+  useEntitlements.setState({ tier: 'starter', isPro: true, exportsUsed: 29 }); // 1 of 30 left
   const [pa, pb] = lib().batches[b].projectIds;
   queueExports([pa]);
   queueExports([pb]);
   check(await until(() => useQueueUI.getState().limitReached), 'limit flag raised');
   check(lib().projects[pa].status === 'done' && lib().projects[pb].status === 'ready', `A exported, B back to ready (${statuses(b)})`);
   check(useQueueUI.getState().parked.join() === pb, 'only B is parked');
-  useEntitlements.setState({ isPro: true });
+  useEntitlements.setState({ tier: 'pro', isPro: true });
   check(!useQueueUI.getState().limitReached, 'upgrade clears the flag');
 
   console.log('• auto-export batch overlaps analysis N+1 with export N');
@@ -350,19 +346,25 @@ async function planLimitQueueSection() {
   check(await until(() => statuses(b).every((s) => s === 'done')), `studio exports all, at ${useEntitlements.getState().exportsUsed} used (${statuses(b)})`);
   check(!useQueueUI.getState().limitReached, 'studio never raises the limit flag');
 
-  console.log('• expiry → free: watermark on, 3 a month');
+  console.log('• expiry → no access: queued exports are parked, none reach the engine');
+  b = await readyBatch(4);
   useEntitlements.getState().setPlan(
     planFromStatus({ status: 'INACTIVE' }, { subscriptions: [sub('com.ibrahim.tenfold.studio.monthly', false)] }, { tier: 'studio', billing: 'monthly' }),
   );
   useEntitlements.setState({ exportsUsed: 0, exportMonth: month });
-  b = await readyBatch(4);
   queueExports(lib().batches[b].projectIds);
-  check(await until(() => useQueueUI.getState().limitReached), 'free stops at 3');
-  check(statuses(b).filter((s) => s === 'done').length === 3, `3 exported on free (${statuses(b)})`);
-  const done = lib().batches[b].projectIds.filter((id) => lib().projects[id].status === 'done');
-  check(done.every((id) => exportOpts(id)?.watermark === true && exportOpts(id)?.quality === 'hd'), 'free exports carry the watermark, HD only');
+  check(await until(() => useQueueUI.getState().limitReached), 'expired plan raises the limit flag');
+  check(statuses(b).every((s) => s === 'ready'), `nothing exported after expiry (${statuses(b)})`);
+  check(lib().batches[b].projectIds.every((id) => !exportOpts(id)), 'no export call after expiry');
+
+  console.log('• expiry → no access: an auto-export batch analyses but does not export');
+  const ab = newBatch(2, true);
+  startBatch(ab);
+  check(await until(() => statuses(ab).every((s) => s === 'ready')), `auto-export left ready (${statuses(ab)})`);
+  check(lib().batches[ab].projectIds.every((id) => !exportOpts(id)), 'no auto-export call without a subscription');
   useQueueUI.getState().setLimitReached(false);
   lib().deleteBatch(b);
+  lib().deleteBatch(ab);
 }
 
 /* ---------- Onboarding, plans, tour (stage 2b) ---------- */

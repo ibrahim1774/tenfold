@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Background, GradientButton, IconButton } from '@/design/components';
 import { colors, motion, spacing } from '@/design/tokens';
-import { usePaywallGate } from '@/monetization/superwall';
 import { Demo } from '@/onboarding/Demo';
 import { hasSampleClip } from '@/onboarding/fileImport';
 import { Hook } from '@/onboarding/Hook';
@@ -24,11 +23,11 @@ import { EV, setTraits, track } from '@/analytics/posthog';
 import { logAttributionEvent, startAttribution } from '@/attribution/appsflyer';
 import { Included } from '@/onboarding/Included';
 import { Payoff } from '@/onboarding/PayoffScreen';
+import { markOnboardingFinished } from '@/paywall/gateSource';
 import { computePayoff } from '@/onboarding/savings';
 import { MAKES_Q, MINUTES_Q, PER_WEEK_Q, ROLE_Q } from '@/onboarding/questions';
 import { Ready } from '@/onboarding/Ready';
 import { ChoiceList, StepHead, onboardingStyles } from '@/onboarding/ui';
-import { tierOf, useEntitlements } from '@/state/entitlements';
 import { useOnboarding } from '@/state/onboarding';
 import { presetForContent, useSettings } from '@/state/settings';
 
@@ -51,8 +50,6 @@ export default function OnboardingScreen() {
 
   const { contentTypes, setContentTypes, setDefaultPreset, setOnboarded } = useSettings();
   const ob = useOnboarding();
-  const free = useEntitlements((s) => tierOf(s) === 'free');
-  const gate = usePaywallGate();
   const payoff = computePayoff(ob.videosPerWeek, ob.minutesPerVideo);
 
   // The payoff screen only exists when both of its answers were given.
@@ -96,18 +93,11 @@ export default function OnboardingScreen() {
       onboarded: true,
     });
     logAttributionEvent('af_complete_registration', { af_registration_method: 'onboarding' });
-    // Replaying onboarding as a subscriber: no paywall.
-    if (!free) {
-      setOnboarded(true);
-      return;
-    }
-    // Non-gated: Superwall's paywall (if the campaign shows one), then into the app either way.
-    // Tenfold's own paywall when Superwall can't present; it finishes onboarding when closed.
-    gate({
-      placement: 'onboarding_end',
-      run: () => setOnboarded(true),
-      fallback: { pathname: '/paywall', params: { from: 'onboarding' } },
-    });
+    // Onboarding is done; access is a separate question. The root layout sends subscribers (including someone
+    // replaying onboarding, or a reinstall Superwall recognises) into the app, and everyone else to the hard
+    // paywall at /subscribe, which presents Superwall's `onboarding_end` paywall. Relaunching lands there again.
+    markOnboardingFinished();
+    setOnboarded(true);
   };
 
   const continueQuestion = () => {

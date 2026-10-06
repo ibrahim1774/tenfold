@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { errorReason, EV, track } from '../analytics/posthog';
 import { Engine, EngineEvents, type Project } from '../engine';
 import { limitsFor } from '../onboarding/plans';
-import { exportsLeft, tierOf, useEntitlements } from '../state/entitlements';
+import { canExport, tierOf, useEntitlements } from '../state/entitlements';
 import { docFromAnalysis, projectsOf, useLibrary } from '../state/library';
 import { useSettings } from '../state/settings';
 import { editsOf, effectiveLevels } from './edits';
@@ -63,7 +63,7 @@ export function unpark(ids: readonly string[]) {
 
 // Exports became available again (an upgrade, a restore): the limit stop is over, so no paywall pops up later.
 useEntitlements.subscribe((s) => {
-  if (useQueueUI.getState().limitReached && exportsLeft(s) > 0) useQueueUI.getState().setLimitReached(false);
+  if (useQueueUI.getState().limitReached && canExport(s)) useQueueUI.getState().setLimitReached(false);
 });
 
 let analysisBusy = false;
@@ -150,8 +150,9 @@ async function analyzeOne(p: Project) {
     const analysis = await Engine.analyze(p.id, { ...effectiveLevels(batch.preset, edits), language: useSettings.getState().language });
     if (lib().projects[p.id]?.status !== 'analyzing') return; // cancelled meanwhile
     lib().setDoc(p.id, docFromAnalysis(analysis, batch, edits));
-    // Out of exports this month: leave it ready instead of queueing an export that would only bounce to the paywall.
-    const autoExport = batch.preset.autoExport && exportsLeft(useEntitlements.getState()) > 0;
+    // No subscription, or out of exports this month: leave it ready instead of queueing an export that would
+    // only bounce to the paywall.
+    const autoExport = batch.preset.autoExport && canExport(useEntitlements.getState());
     lib().updateProject(p.id, {
       status: autoExport ? 'exportQueued' : 'ready',
       stage: undefined,
@@ -193,8 +194,9 @@ async function runExportLane() {
         const b = fresh && lib().batches[fresh.batchId];
         if (!fresh || fresh.status !== 'exportQueued' || !b || b.paused) continue;
       }
-      if (exportsLeft(useEntitlements.getState()) <= 0) {
-        // This month's exports used up: park everything waiting and show the export_limit paywall.
+      if (!canExport(useEntitlements.getState())) {
+        // No subscription (hard paywall: e.g. a batch resumed at launch after the plan lapsed), or this month's
+        // exports used up: park everything waiting and show the paywall.
         const parked: string[] = [];
         for (let q = nextProject('exportQueued'); q; q = nextProject('exportQueued')) {
           lib().updateProject(q.id, { status: 'ready', stage: undefined, progress: 1 });

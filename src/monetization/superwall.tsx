@@ -28,7 +28,10 @@ function PassThrough({ children }: { children: ReactNode }) {
 export const MonetizationProvider: (props: { children: ReactNode }) => ReactNode = live?.LiveProvider ?? PassThrough;
 
 function useFallbackGate(): (req: GateRequest) => void {
-  return (req) => router.push(req.fallback ?? { pathname: '/paywall', params: { from: req.placement } });
+  return (req) => {
+    if (req.fallback === 'none') return;
+    router.push(req.fallback ?? { pathname: '/paywall', params: { from: req.placement } });
+  };
 }
 
 /**
@@ -44,7 +47,7 @@ export function usePaywallGate(): (req: GateRequest) => void {
   const gate = useGate();
   return useCallback(
     (req: GateRequest) => {
-      track(EV.paywallRequested, { placement: req.placement });
+      track(EV.paywallRequested, { ...req.params, placement: req.placement });
       if (LIMITS.includes(req.placement)) track(EV.limitHit, { limit: req.placement });
       gate(req);
     },
@@ -64,6 +67,9 @@ const UNAVAILABLE: StoreActions = {
 function useFallbackStore(): StoreActions {
   return UNAVAILABLE;
 }
+
+/** True once Superwall is configured and can present a paywall. Always false in builds without the module. */
+export const usePaywallReady: () => boolean = live?.useLiveReady ?? (() => false);
 
 /** Purchase and restore for the native fallback paywall. */
 export const useStoreActions: () => StoreActions = live?.useLiveStore ?? useFallbackStore;

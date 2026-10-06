@@ -26,7 +26,9 @@ import {
   type Tier,
 } from '@/onboarding/plans';
 import {
+  canExport,
   captionStyleUnlocked,
+  hasAccess,
   exportLimit,
   exportsLeft,
   exportUsageLine,
@@ -253,6 +255,20 @@ function runPlanMappingTests(check: Check) {
   check(maxBatchSize(tierOf(s)) === 10, 'free: batches of 10');
   check(planFromStatus(active(), info(), { tier: 'studio', billing: 'monthly' }).tier === 'free', 'ACTIVE with no Tenfold entitlement also clears a paid tier');
   check(planFromStatus({ status: 'UNKNOWN' }, null, { tier: 'pro', billing: 'annual' }).billing === 'annual', 'UNKNOWN keeps tier and billing');
+
+  console.log('• monetization: hard paywall — only an active subscription or trial gets in');
+  check(!hasAccess({ tier: 'free', isPro: false }), 'no subscription: no access');
+  for (const t of ['starter', 'pro', 'studio'] as const) check(hasAccess({ tier: t, isPro: true }), `${t}: access`);
+  check(!hasAccess(s), 'expired (INACTIVE after Pro): locked again');
+  check(!canExport(s), 'expired: no exports, even with Free’s monthly allowance unused');
+  check(hasAccess({ tier: planFromStatus({ status: 'UNKNOWN' }, null, { tier: 'pro', billing: 'annual' }).tier, isPro: true }), 'UNKNOWN (offline) keeps a known subscriber in');
+  check(!hasAccess({ tier: planFromStatus({ status: 'UNKNOWN' }, null, { tier: 'free', billing: null }).tier, isPro: false }), 'UNKNOWN never lets a non-subscriber in');
+  check(hasAccess({ tier: planFromStatus(active('pro'), info(sub('com.ibrahim.tenfold.pro.monthly')), { tier: 'free', billing: null }).tier, isPro: true }), 'reinstall: ACTIVE status from Superwall lets the subscriber in');
+  check(
+    hasAccess({ tier: raisedPlan({ tier: 'free', billing: null }, { entitlementIds: ['pro'] })?.tier ?? 'free', isPro: true }),
+    'restore on the gate: restored entitlement lets the subscriber in',
+  );
+  check(!canExport({ tier: 'starter', isPro: true, exportMonth: month, exportsUsed: 30 }) && canExport({ tier: 'starter', isPro: true, exportMonth: month, exportsUsed: 29 }), 'subscribers still have their plan’s monthly cap');
 
   console.log('• monetization: batch size per tier');
   const batch: Record<Tier, number> = { free: 10, starter: 20, pro: 50, studio: 100 };

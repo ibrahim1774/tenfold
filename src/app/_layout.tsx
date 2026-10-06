@@ -10,6 +10,7 @@ import { AnalyticsBridge } from '@/analytics/AnalyticsBridge';
 import { startQueue } from '@/batch/queue';
 import { colors } from '@/design/tokens';
 import { MonetizationProvider } from '@/monetization/superwall';
+import { hasAccess, useEntitlements } from '@/state/entitlements';
 import { useSettings } from '@/state/settings';
 import { refreshSpeechStatus } from '@/state/speech';
 import { TourHost } from '@/tour/TourHost';
@@ -26,6 +27,9 @@ const theme = {
 
 export default function RootLayout() {
   const onboarded = useSettings((s) => s.onboarded);
+  // Hard paywall. The tier is persisted and read synchronously at launch (last known plan), then kept current by
+  // Superwall's subscription status: a purchase, restore or late status lets people in, an expiry locks them out.
+  const subscribed = useEntitlements(hasAccess);
 
   useEffect(() => {
     SplashScreen.hideAsync();
@@ -46,7 +50,13 @@ export default function RootLayout() {
               <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
             </Stack.Protected>
 
-            <Stack.Protected guard={onboarded}>
+            {/* Onboarded, no subscription or trial: the gate is the only screen there is. Closing Superwall's
+                paywall, relaunching, the back gesture or a deep link all land here. */}
+            <Stack.Protected guard={onboarded && !subscribed}>
+              <Stack.Screen name="subscribe" options={{ animation: 'fade', gestureEnabled: false }} />
+            </Stack.Protected>
+
+            <Stack.Protected guard={onboarded && subscribed}>
               <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
               <Stack.Screen name="import" options={{ presentation: 'modal' }} />
               <Stack.Screen name="record" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
@@ -121,11 +131,11 @@ export default function RootLayout() {
                 options={{ presentation: 'fullScreenModal', animation: 'fade', contentStyle: { backgroundColor: '#000000' } }}
               />
               <Stack.Screen name="export/[projectId]" options={{ presentation: 'modal' }} />
+              {/* Plans for subscribers, and the fallback when Superwall is missing from the build or can't present. */}
+              <Stack.Screen name="paywall" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+              {/* "Replay the demo" from Create and You (onboarding shows the demo inline). */}
+              <Stack.Screen name="demo" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
             </Stack.Protected>
-
-            {/* Native paywall: the fallback when Superwall is missing from the build or can't present. */}
-            <Stack.Screen name="paywall" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
-            <Stack.Screen name="demo" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
           </Stack>
           {/* Coach marks for the batch setup and editor tours, above every pushed screen. */}
           <TourHost />

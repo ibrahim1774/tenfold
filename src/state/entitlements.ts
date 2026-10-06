@@ -69,6 +69,20 @@ export function tierOf(s: Pick<EntitlementsState, 'tier' | 'isPro'>): Tier {
   return s.isPro ? 'pro' : 'free';
 }
 
+/**
+ * Hard paywall: the app (beyond onboarding and the paywall) is only for an active subscription or trial.
+ * Free is the "no subscription" state, so it has no access. The root layout guards every main screen with
+ * this, and the export lane checks it too, so nothing is exported behind the paywall.
+ */
+export function hasAccess(s: Pick<EntitlementsState, 'tier' | 'isPro'>): boolean {
+  return tierOf(s) !== 'free';
+}
+
+/** An export may start now: an active subscription with exports left this month. */
+export function canExport(s: Pick<EntitlementsState, 'tier' | 'isPro' | 'exportMonth' | 'exportsUsed'>, now = new Date()): boolean {
+  return hasAccess(s) && exportsLeft(s, now) > 0;
+}
+
 const asTier = (t: Tier | boolean): Tier => (typeof t === 'boolean' ? (t ? 'pro' : 'free') : t);
 
 /** Clips per batch. Accepts a tier, or the legacy Pro boolean. */

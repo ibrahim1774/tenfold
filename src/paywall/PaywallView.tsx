@@ -1,0 +1,441 @@
+import * as Haptics from 'expo-haptics';
+import { router, useLocalSearchParams } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
+import * as WebBrowser from 'expo-web-browser';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { EV, track } from '@/analytics/posthog';
+import { AppText, Background, GradientButton, IconButton, PressableScale } from '@/design/components';
+import { sampleFrame } from '@/design/sampleFrames';
+import { colors, motion, radii, spacing } from '@/design/tokens';
+import { usePaywallGate, usePaywallReady, useStoreActions, type StorePrice } from '@/monetization/superwall';
+import {
+  annualSavingPercent,
+  annualSavingPill,
+  PLANS,
+  perMonth,
+  planFor,
+  priceLine,
+  PRIVACY_URL,
+  PRODUCT_IDS,
+  chargeLine,
+  RENEWAL_TERMS,
+  TERMS_URL,
+  TRIAL_DAYS,
+  type Billing,
+  type PaidTier,
+  type PlanInfo,
+} from '@/onboarding/plans';
+import { takeGateSource } from '@/paywall/gateSource';
+import { hasAccess, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
+
+const HERO = 260;
+const BENEFITS = ['Silences and filler words cut', 'Word-by-word captions', 'Framed for vertical', 'No watermark'];
+
+// Superwall's paywall is shown once per launch from the gate; closing it leaves the person on the gate.
+let gatePresentedThisLaunch = false;
+
+/**
+ * Tenfold's own paywall, in two modes:
+ * - `gate` (route `/subscribe`): the hard paywall every onboarded person without a subscription or trial lands on,
+ *   at every launch. It presents Superwall's paywall once Superwall is ready and stays underneath it. There is no
+ *   close button: the root layout lets people into the app only when the tier says they're subscribed, so a
+ *   purchase, a restore or Superwall's status arriving late (a reinstall) is what moves them on.
+ * - `upgrade` (route `/paywall`): subscribers changing plan, and the fallback when Superwall can't present.
+ */
+export function PaywallView({ mode }: { mode: 'gate' | 'upgrade' }) {
+  const insets = useSafeAreaInsets();
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const current = useEntitlements((s) => tierOf(s));
+  const currentBilling = useEntitlements((s) => s.billing);
+  const setTier = useEntitlements((s) => s.setTier);
+  const store = useStoreActions();
+  const gate = usePaywallGate();
+  const superwallReady = usePaywallReady();
+  const isGate = mode === 'gate';
+  const placement = isGate ? 'gate' : (from ?? null);
+  // A subscriber starts on the billing period they pay now, so switching monthly ↔ annual is one tap.
+  const [billing, setBilling] = useState<Billing>(currentBilling ?? 'annual');
+  const [tier, setSelected] = useState<PaidTier>(current === 'free' ? 'pro' : current);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  // Apple gives one free trial per subscription group: subscribers switching plans don't get another.
+  // Only plans with a trial offer it (Pro and Studio; Starter has none).
+  const eligible = current === 'free';
+  // Already on this plan (same billing, or billing not known yet): nothing to buy.
+  const onCurrentPlan = tier === current && (!currentBilling || billing === currentBilling);
+  const billingSwitch = tier === current && !onCurrentPlan;
+  const plan = planFor(tier);
+  const trial = eligible && plan.trial;
+  // The App Store's prices in the person's currency, when all six loaded; otherwise USD everywhere (never mixed).
+  const local = store.prices;
+  const localized = PLANS.every((p) => local?.[PRODUCT_IDS[p.tier as PaidTier].monthly] && local?.[PRODUCT_IDS[p.tier as PaidTier].annual]);
+  const storePrice = (t: PaidTier, b: Billing) => (localized ? local?.[PRODUCT_IDS[t][b]] : undefined);
+  const saving = localized
+    ? Math.min(
+        ...PLANS.map((p) =>
+          annualSavingPercent({
+            price: { monthly: storePrice(p.tier as PaidTier, 'monthly')!.price, annual: storePrice(p.tier as PaidTier, 'annual')!.price },
+          }),
+        ),
+      )
+    : annualSavingPill();
+
+  // Paywall analytics for this native screen (Superwall's own paywall is tracked in superwallLive).
+  const outcomeRef = useRef<'closed' | 'purchased'>('closed');
+  useEffect(() => {
+    track(EV.paywallShown, { source: 'native', placement });
+    return () => track(EV.paywallDismissed, { source: 'native', placement, result: outcomeRef.current });
+    // Once per visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The gate presents Superwall's paywall (the `onboarding_end` campaign) once Superwall is configured, once per
+  // launch. `allowed` makes it a gated request whatever the campaign says, and `fallback: 'none'` keeps this
+  // screen as the fallback instead of stacking a second paywall. Access itself is decided by the tier only.
+  useEffect(() => {
+    if (!isGate || !superwallReady || gatePresentedThisLaunch) return;
+    gatePresentedThisLaunch = true;
+    gate({
+      placement: 'onboarding_end',
+      // 'onboarding' right after onboarding, 'launch' on later launches, so funnels can tell them apart.
+      params: { source: takeGateSource() },
+      allowed: () => hasAccess(useEntitlements.getState()),
+      fallback: 'none',
+    });
+  }, [isGate, superwallReady, gate]);
+
+  const close = () => {
+    // The gate can't be closed; once subscribed, the root layout swaps it for the app on its own.
+    if (isGate) return;
+    router.back();
+  };
+
+  const pickBilling = (b: Billing) => {
+    if (b === billing) return;
+    Haptics.selectionAsync();
+    setBilling(b);
+  };
+  const pickTier = (t: PaidTier) => {
+    if (t === tier) return;
+    Haptics.selectionAsync();
+    setSelected(t);
+    setNotice(null);
+  };
+
+  // Development builds only: long-press a plan to switch to it locally (again to go back to Free).
+  const devSetTier = __DEV__
+    ? (t: PaidTier) => {
+        const next = current === t ? 'free' : t;
+        setTier(next);
+        setNotice(`Development build: plan set to ${TIER_NAMES[next]} on this iPhone.`);
+      }
+    : undefined;
+
+  const confirm = async () => {
+    if (busy) return;
+    if (onCurrentPlan) {
+      close();
+      return;
+    }
+    if (!store.available) {
+      setNotice(store.unavailableReason);
+      return;
+    }
+    setBusy(true);
+    setNotice(null);
+    const outcome = await store.purchase(PRODUCT_IDS[tier][billing]);
+    setBusy(false);
+    if (outcome === 'purchased') {
+      outcomeRef.current = 'purchased';
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      close();
+    } else if (outcome === 'pending') {
+      setNotice('The purchase is waiting for approval. Your plan changes when it’s approved.');
+    } else if (outcome === 'unavailable') {
+      setNotice(store.unavailableReason);
+    } else if (outcome === 'failed') {
+      setNotice('The purchase didn’t go through. Nothing was charged. Try again.');
+    }
+  };
+
+  const restore = async () => {
+    if (busy) return;
+    if (!store.available) {
+      setNotice(store.unavailableReason);
+      return;
+    }
+    setBusy(true);
+    setNotice(null);
+    const result = await store.restore();
+    setBusy(false);
+    const now = tierOf(useEntitlements.getState());
+    if (result.ok && now !== 'free') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setNotice(`Restored ${TIER_NAMES[now]}.`);
+    } else if (result.ok) {
+      setNotice('No active subscription was found for this Apple ID.');
+    } else if (!(store.restoreAlertShown && store.available)) {
+      setNotice(result.message ? `Couldn’t restore: ${result.message}` : 'Couldn’t restore purchases. Try again.');
+    }
+  };
+
+  const links = [
+    { label: 'Restore purchases', onPress: restore },
+    { label: 'Terms', onPress: () => WebBrowser.openBrowserAsync(TERMS_URL) },
+    { label: 'Privacy', onPress: () => WebBrowser.openBrowserAsync(PRIVACY_URL) },
+  ];
+
+  return (
+    <View style={[styles.flex, { paddingBottom: insets.bottom + spacing.xs }]}>
+      <Background />
+
+      <ScrollView style={styles.flex} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* A real take, darkened into the page, with the offer set on it. */}
+        <View style={[styles.hero, { height: HERO + insets.top }]}>
+          <Image source={sampleFrame(4)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" transition={0} />
+          <LinearGradient
+            colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.35)', colors.bg]}
+            locations={[0, 0.55, 1]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+          <View style={styles.heroText}>
+            <AppText variant="display" accessibilityRole="header">
+              {trial ? `Try ${plan.name} free for ${TRIAL_DAYS} days` : 'Choose your plan'}
+            </AppText>
+          </View>
+        </View>
+
+        <View style={styles.benefits}>
+          {BENEFITS.map((b) => (
+            <View key={b} style={styles.benefit}>
+              <SymbolView name="checkmark" size={13} tintColor={colors.textPrimary} weight="semibold" />
+              <AppText variant="body">{b}</AppText>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.segment} accessibilityRole="tablist">
+          {(['monthly', 'annual'] as Billing[]).map((b) => {
+            const on = billing === b;
+            return (
+              <Pressable
+                key={b}
+                onPress={() => pickBilling(b)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={b === 'annual' ? `Annual, save ${saving}%` : 'Monthly'}
+                style={[styles.segmentItem, on && styles.segmentOn]}>
+                <AppText variant="chip" color={on ? colors.textInverse : colors.textPrimary}>
+                  {b === 'annual' ? 'Annual' : 'Monthly'}
+                </AppText>
+                {b === 'annual' && saving > 0 ? (
+                  <View style={styles.savePill}>
+                    <AppText variant="caption" color={colors.accentText} tabular>
+                      Save {saving}%
+                    </AppText>
+                  </View>
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.plans} accessibilityRole="radiogroup">
+          {PLANS.map((p) => (
+            <PlanCard
+              key={p.tier}
+              plan={p}
+              billing={billing}
+              trial={eligible && p.trial}
+              localized={storePrice(p.tier as PaidTier, billing)}
+              selected={tier === p.tier}
+              current={current === p.tier}
+              onPress={() => pickTier(p.tier as PaidTier)}
+              onLongPress={devSetTier ? () => devSetTier(p.tier as PaidTier) : undefined}
+            />
+          ))}
+        </View>
+      </ScrollView>
+
+      {/* Over the image, so it stays put while the page scrolls. The gate has no way out but subscribing. */}
+      {isGate ? null : (
+        <View style={[styles.top, { top: insets.top + spacing.xs }]}>
+          <IconButton icon="xmark" label="Close" onPress={close} />
+        </View>
+      )}
+
+      <View style={styles.footer}>
+        <GradientButton
+          title={busy ? 'Waiting for the App Store' : onCurrentPlan ? `Keep ${plan.name}` : billingSwitch ? `Switch to ${plan.name} ${billing === 'annual' ? 'Annual' : 'Monthly'}` : trial ? `Try ${plan.name} free` : eligible ? `Get ${plan.name}` : `Switch to ${plan.name}`}
+          shape="pill"
+          disabled={busy}
+          onPress={confirm}
+        />
+        {notice ? (
+          <Animated.View entering={FadeIn.duration(motion.fast).reduceMotion(ReduceMotion.System)}>
+            <AppText variant="caption" color={colors.textPrimary} style={styles.center} accessibilityLiveRegion="polite">
+              {notice}
+            </AppText>
+          </Animated.View>
+        ) : null}
+        {/* The price as plainly as the trial (guideline 3.1.2), then the renewal terms. */}
+        <AppText variant="bodyStrong" color={colors.textPrimary} tabular style={styles.center}>
+          {chargeLine(plan, billing, trial, storePrice(tier, billing)?.localizedPrice)}
+        </AppText>
+        {plan.price ? (
+          <AppText variant="caption" color={colors.textSecondary} style={styles.center}>
+            {RENEWAL_TERMS}
+          </AppText>
+        ) : null}
+
+        {isGate ? null : (
+          <Pressable onPress={close} accessibilityRole="button" style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
+            <AppText variant="bodyStrong" color={colors.textSecondary}>
+              Not now
+            </AppText>
+          </Pressable>
+        )}
+
+        <View style={styles.links}>
+          {links.map(({ label, onPress }) => (
+            <Pressable key={label} onPress={onPress} accessibilityRole="link" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+              <AppText variant="caption" color={colors.textMuted}>
+                {label}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function PlanCard({
+  plan,
+  billing,
+  trial,
+  localized,
+  selected,
+  current,
+  onPress,
+  onLongPress,
+}: {
+  plan: PlanInfo;
+  billing: Billing;
+  trial: boolean;
+  /** The App Store's price for this plan and billing, when loaded. */
+  localized?: StorePrice;
+  selected: boolean;
+  current: boolean;
+  onPress: () => void;
+  onLongPress?: () => void;
+}) {
+  const price = priceLine(plan, billing, localized?.localizedPrice);
+  const detail = plan.price
+    ? billing === 'annual'
+      ? perMonth(plan, localized?.monthlyPrice)
+      : trial
+        ? `${TRIAL_DAYS} days free`
+        : null
+    : null;
+  // The fact that tells the plans apart; the full list is in the VoiceOver label.
+  const facts = plan.features[1];
+  return (
+    <PressableScale
+      haptic={false}
+      scaleTo={0.98}
+      pop={selected}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      accessibilityLabel={`${plan.name}, ${price}${current ? ', your plan' : ''}. ${plan.features.join(', ')}`}
+      style={[styles.plan, selected && styles.planOn]}>
+      <View style={styles.planHead}>
+        <SymbolView
+          name={selected ? 'checkmark.circle.fill' : 'circle'}
+          size={22}
+          tintColor={selected ? colors.textPrimary : colors.textMuted}
+          weight="regular"
+        />
+        <View style={styles.flex}>
+          <View style={styles.planName}>
+            <AppText variant="bodyStrong">{plan.name}</AppText>
+            {current ? (
+              <AppText variant="caption" color={colors.textMuted}>
+                Your plan
+              </AppText>
+            ) : null}
+          </View>
+          <AppText variant="label" color={colors.textSecondary} tabular numberOfLines={1}>
+            {facts}
+          </AppText>
+        </View>
+        <View style={styles.priceCol}>
+          <AppText variant="bodyStrong" tabular>
+            {price}
+          </AppText>
+          {detail ? (
+            <AppText variant="caption" color={colors.textMuted} tabular>
+              {detail}
+            </AppText>
+          ) : null}
+        </View>
+      </View>
+    </PressableScale>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  center: { textAlign: 'center' },
+  top: { position: 'absolute', right: spacing.md },
+  content: { paddingHorizontal: spacing.gutter, paddingBottom: spacing.xl, gap: spacing.xl },
+  hero: { marginHorizontal: -spacing.gutter, justifyContent: 'flex-end', backgroundColor: colors.card },
+  heroText: { paddingHorizontal: spacing.gutter },
+  benefits: { gap: spacing.sm, marginTop: -spacing.sm },
+  benefit: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+
+  segment: { flexDirection: 'row', padding: 3, borderRadius: radii.button, backgroundColor: colors.card },
+  segmentItem: {
+    flex: 1,
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderRadius: radii.button - 3,
+  },
+  segmentOn: { backgroundColor: colors.accent },
+  savePill: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: radii.round, backgroundColor: colors.bg },
+
+  plans: { gap: spacing.sm },
+  plan: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radii.card,
+    borderCurve: 'continuous',
+    // Constant width so selecting a plan doesn't shift the layout; only the selected plan shows a ring.
+    borderWidth: 1.5,
+    borderColor: colors.edge,
+    backgroundColor: colors.card,
+  },
+  planOn: { borderColor: colors.textPrimary },
+  planHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
+  planName: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  priceCol: { alignItems: 'flex-end' },
+
+  footer: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.xs },
+  textButton: { minHeight: 44, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
+  links: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xs },
+  link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md },
+  pressed: { opacity: 0.6 },
+});
