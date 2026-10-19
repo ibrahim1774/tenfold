@@ -128,3 +128,22 @@ export function onboardingAttributes(answers: OnboardingAnswers, language: strin
     language,
   };
 }
+
+/**
+ * Superwall's event tracking at configure. SuperwallKit (4.17) matches a new install to an ad click (it posts the
+ * IP and device details to Superwall's attribution backend) only from the install's first configure, and skips
+ * it when tracking is `none` then. A new install configures before onboarding asks Apple's tracking question, so
+ * it starts at `none` and the match never runs; once onboarded, a launch can't start one, so it uses `all`.
+ */
+export function trackingAtConfigure(onboarded: boolean): 'all' | 'none' {
+  return onboarded ? 'all' : 'none';
+}
+
+/**
+ * When to turn tracking back to `all` after a `none` configure: only once configured (SuperwallKit has decided on
+ * the match by then), and once the tracking prompt is answered, or onboarding is done (a build without AppsFlyer
+ * never asks).
+ */
+export function trackingCanTurnOn(s: { configured: boolean; trackingAnswered: boolean; onboarded: boolean }): boolean {
+  return s.configured && (s.trackingAnswered || s.onboarded);
+}

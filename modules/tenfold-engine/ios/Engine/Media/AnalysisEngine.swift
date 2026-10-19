@@ -71,6 +71,8 @@ public enum AnalysisEngine {
           }
         } catch is CancellationError {
           throw CancellationError()
+        } catch let error as TranscriberError {
+          warnings.append(error.localizedDescription)
         } catch {
           warnings.append("Transcription failed: \(error.localizedDescription)")
         }

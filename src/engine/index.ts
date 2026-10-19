@@ -10,6 +10,7 @@ import type {
   AddedAudio,
   AddedClip,
   ImportedAsset,
+  IntroOffer,
   SpeechStatus,
   Thumbnail,
 } from './types';
@@ -83,6 +84,26 @@ export const Engine = {
   thermalState: () => live()?.thermalState() ?? 'nominal',
   isLowPowerMode: () => live()?.isLowPowerMode() ?? false,
   freeDiskBytes: () => live()?.freeDiskBytes() ?? 0,
+  /** Free-trial eligibility by product id. Null when unknown: an older build, or StoreKit couldn't answer. */
+  introOfferEligibility: async (productIds: string[]): Promise<Record<string, IntroOffer> | null> => {
+    const m = live();
+    if (typeof m?.introOfferEligibility !== 'function') return null;
+    try {
+      const list = parse<IntroOffer[]>(await m.introOfferEligibility(productIds));
+      return Object.fromEntries(list.map((o) => [o.productId, o]));
+    } catch {
+      return null;
+    }
+  },
+  /** True when this build can copy to the clipboard. */
+  canCopyText: () => typeof live()?.copyText === 'function',
+  /** Copies text to the clipboard; false when this build can't. */
+  copyText: async (text: string): Promise<boolean> => {
+    const m = live();
+    if (typeof m?.copyText !== 'function') return false;
+    await m.copyText(text);
+    return true;
+  },
   /** True when this build has the system colour picker (older builds don't: use a swatch grid). */
   canPickColor: () => typeof live()?.pickColor === 'function',
   /** System colour picker. "#RRGGBB", or null when closed without a choice or unavailable in this build. */

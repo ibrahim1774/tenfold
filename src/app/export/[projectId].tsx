@@ -1,10 +1,9 @@
 import * as Haptics from 'expo-haptics';
-import * as Linking from 'expo-linking';
 import { router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Alert, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { queueExports, STAGE_LABELS, unpark, useQueueUI } from '@/batch/queue';
@@ -22,8 +21,7 @@ import {
 } from '@/design/components';
 import { colors, radii, spacing } from '@/design/tokens';
 import { usePaywallGate } from '@/monetization/superwall';
-import { limitsFor, lowestTierWhere } from '@/onboarding/plans';
-import { exportsLeft, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
+import { exportsLeft, tierOf, useEntitlements } from '@/state/entitlements';
 import { useLibrary } from '@/state/library';
 
 const RING = 96;
@@ -47,7 +45,6 @@ export default function ExportScreen() {
   const focused = useIsFocused();
   const ent = useEntitlements();
   const tier = tierOf(ent);
-  const { watermark } = limitsFor(tier);
   const gate = usePaywallGate();
   // When this screen started an export (0 = not yet), to tell a fresh export from an older one.
   const [startedAt, setStartedAt] = useState(0);
@@ -97,7 +94,6 @@ export default function ExportScreen() {
   const left = Math.max(0, exportsLeft(ent) - inFlight);
   const choosing = !started || failed;
   const saved = finished && !!project.savedToPhotos;
-  const cleanTier = lowestTierWhere((l) => !l.watermark) ?? 'starter';
 
   const start = () => {
     if (exportRoom() > 0) {
@@ -107,8 +103,6 @@ export default function ExportScreen() {
     // Out of exports this month (counting the ones already queued): gated.
     limitGate();
   };
-  const seePlans = (feature: string) => gate({ placement: 'settings_upgrade', params: { feature }, allowed: () => false });
-
   const share = async () => {
     if (!project.exportUri) return;
     try {
@@ -117,13 +111,6 @@ export default function ExportScreen() {
     } catch (e) {
       Alert.alert('Couldn’t share', e instanceof Error ? e.message : String(e));
     }
-  };
-
-  const openTikTok = async () => {
-    const can = await Linking.canOpenURL('tiktok://').catch(() => false);
-    await Linking.openURL(can ? 'tiktok://' : 'photos-redirect://').catch(() => {
-      Alert.alert('Couldn’t open TikTok', 'Your video is in Photos. Open TikTok and pick it from your camera roll.');
-    });
   };
 
   const title = choosing ? 'Export' : finished ? (saved ? 'Saved to Photos' : 'Not saved to Photos') : 'Exporting';
@@ -158,26 +145,7 @@ export default function ExportScreen() {
               </View>
             ) : null}
 
-            {watermark ? (
-              <Pressable
-                onPress={() => seePlans('watermark')}
-                accessibilityRole="button"
-                accessibilityHint="Shows plans"
-                style={styles.notice}>
-                <AppText variant="caption" color={colors.textMuted}>
-                  Free exports include a small Tenfold watermark
-                  {Number.isFinite(left) ? (
-                    <AppText variant="caption" color={colors.textMuted} tabular>
-                      {` · ${left} left this month`}
-                    </AppText>
-                  ) : null}
-                  .{' '}
-                  <AppText variant="caption" color={colors.textPrimary}>
-                    Remove it with {TIER_NAMES[cleanTier]}
-                  </AppText>
-                </AppText>
-              </Pressable>
-            ) : Number.isFinite(left) ? (
+            {Number.isFinite(left) ? (
               <AppText variant="caption" color={colors.textMuted} style={styles.notice} tabular>
                 {left} exports left this month
               </AppText>
@@ -232,13 +200,11 @@ export default function ExportScreen() {
         />
       )}
       {/* While exporting, the header's Close is the way out (the export keeps running). */}
+      {/* In Photos: Share (to post it or send it on) is the next step, Done the way out. */}
       {saved && (
         <View style={styles.actions}>
-          <GradientButton title="Open TikTok" icon="arrow.up.right" shape="pill" onPress={openTikTok} />
-          <View style={styles.actionRow}>
-            <OutlineButton title="Share" icon="square.and.arrow.up" height={50} style={styles.flex} onPress={share} />
-            <OutlineButton title="Done" height={50} style={styles.flex} onPress={() => router.back()} />
-          </View>
+          <GradientButton title="Share" icon="square.and.arrow.up" shape="pill" onPress={share} />
+          <OutlineButton title="Done" height={50} onPress={() => router.back()} />
         </View>
       )}
       {/* Not in Photos (access denied or save failed): Share is the way to get the video out. */}
@@ -290,5 +256,4 @@ const styles = StyleSheet.create({
   },
 
   actions: { gap: spacing.md },
-  actionRow: { flexDirection: 'row', gap: spacing.md },
 });

@@ -1,10 +1,10 @@
 import type { AspectRatio, EditDocument, MediaInfo } from '@/engine/types';
 
 export const ASPECTS: { id: AspectRatio; label: string; hint: string }[] = [
-  { id: '9:16', label: '9:16', hint: 'TikTok, Reels, Shorts' },
-  { id: '4:5', label: '4:5', hint: 'Instagram feed' },
+  { id: '9:16', label: '9:16', hint: 'Vertical' },
+  { id: '4:5', label: '4:5', hint: 'Feed' },
   { id: '1:1', label: '1:1', hint: 'Square' },
-  { id: '16:9', label: '16:9', hint: 'YouTube' },
+  { id: '16:9', label: '16:9', hint: 'Widescreen' },
   { id: 'original', label: 'Original', hint: 'Keep the clip’s shape' },
 ];
 

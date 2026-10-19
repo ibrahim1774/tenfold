@@ -7,20 +7,29 @@ import {
   useSuperwall,
   useSuperwallEvents,
   useUser,
+  type EventTrackingBehavior,
   type PaywallSkippedReason,
 } from 'expo-superwall';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { EV, setTraits, track } from '@/analytics/posthog';
-import { logAttributionEvent, setAttributionUser, startAttribution, trackingAnswered } from '@/attribution/appsflyer';
+import { logAttributionEvent, onTrackingAnswered, setAttributionUser, startAttribution, trackingAnswered } from '@/attribution/appsflyer';
 import { PRODUCT_IDS, TIERS } from '@/onboarding/plans';
 import { tierOf, useEntitlements } from '@/state/entitlements';
 import { useOnboarding } from '@/state/onboarding';
 import { useSettings } from '@/state/settings';
 
 import { SUPERWALL_IOS_KEY } from './keys';
-import { onboardingAttributes, planFromStatus, productPlan, raisedPlan, type CustomerInfoLike } from './tiers';
-import type { GateRequest, PurchaseOutcome, StoreActions, StorePrice } from './types';
+import {
+  onboardingAttributes,
+  planFromStatus,
+  productPlan,
+  raisedPlan,
+  trackingAtConfigure,
+  trackingCanTurnOn,
+  type CustomerInfoLike,
+} from './tiers';
+import type { GateRequest, PricesStatus, PurchaseOutcome, StoreActions, StorePrice } from './types';
 
 const API_KEYS = { ios: SUPERWALL_IOS_KEY };
 
@@ -41,8 +50,16 @@ const OPTIONS = {
 };
 
 export function LiveProvider({ children }: { children: ReactNode }) {
+  // Event tracking starts at `none` on a new install, so SuperwallKit's install match (before Apple's tracking
+  // prompt) never runs; see `trackingAtConfigure`. Read once: options only apply at configure, and the settings
+  // store hydrates synchronously.
+  const [options] = useState(() => ({
+    ...OPTIONS,
+    eventTrackingBehavior: trackingAtConfigure(useSettings.getState().onboarded),
+  }));
   return (
-    <SuperwallProvider apiKeys={API_KEYS} options={OPTIONS} onConfigurationError={onConfigurationError}>
+    <SuperwallProvider apiKeys={API_KEYS} options={options} onConfigurationError={onConfigurationError}>
+      <TrackingBehaviorSync initial={options.eventTrackingBehavior} />
       <SubscriptionSync />
       <AttributeSync />
       <AttributionBridge />
@@ -64,6 +81,43 @@ function SubscriptionSync() {
     const next = planFromStatus(subscriptionStatus, customerInfo as CustomerInfoLike, { tier: tierOf(s), billing: s.billing });
     if (s.tier !== next.tier || s.billing !== next.billing || s.isPro !== (next.tier !== 'free')) s.setPlan(next);
   }, [subscriptionStatus, customerInfo]);
+  return null;
+}
+
+/**
+ * Turns Superwall's event tracking back on (`all`) after a `none` configure, once the tracking prompt is
+ * answered either way, or once onboarding is done (a build without AppsFlyer never asks). Only after configure:
+ * expo-superwall's setter waits for it, and SuperwallKit decides on the install match before configure
+ * completes, so switching can't start one. Purchases, restores, paywalls and the event callbacks (trials and
+ * subscriptions for AppsFlyer and PostHog) work under `none` too; it only stops events reaching Superwall.
+ */
+function TrackingBehaviorSync({ initial }: { initial: EventTrackingBehavior }) {
+  const onboarded = useSettings((s) => s.onboarded);
+  const { ready, setEventTrackingBehavior } = useSuperwall((s) => ({
+    ready: s.isConfigured,
+    setEventTrackingBehavior: s.setEventTrackingBehavior,
+  }));
+  const [answered, setAnswered] = useState(false);
+  const done = useRef(initial === 'all');
+
+  useEffect(() => {
+    if (done.current) return;
+    let alive = true;
+    trackingAnswered().then((a) => alive && a && setAnswered(true));
+    const off = onTrackingAnswered(() => setAnswered(true));
+    return () => {
+      alive = false;
+      off();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (done.current || !trackingCanTurnOn({ configured: ready, trackingAnswered: answered, onboarded })) return;
+    done.current = true;
+    setEventTrackingBehavior('all').catch(() => {
+      done.current = false; // try again on the next change
+    });
+  }, [ready, answered, onboarded, setEventTrackingBehavior]);
   return null;
 }
 
@@ -185,6 +239,12 @@ function showFallback(req: GateRequest) {
   router.push(req.fallback ?? { pathname: '/paywall', params: { from: req.placement } });
 }
 
+/** Superwall's user id; see ./superwall.ts `useSupportId`. The same id AttributionBridge sends to AppsFlyer and PostHog. */
+export function useLiveSupportId(): string | null {
+  const { user } = useUser();
+  return user?.appUserId || user?.aliasId || null;
+}
+
 /** True once Superwall is configured; see ./superwall.ts `usePaywallReady`. */
 export function useLiveReady(): boolean {
   return useSuperwall((s) => ({ ok: s.isConfigured })).ok;
@@ -278,10 +338,15 @@ export function useLiveGate(): (req: GateRequest) => void {
 
 const OFFLINE = 'Couldn’t reach the App Store. Check your connection and try again.';
 
-// Store prices, fetched once per launch.
+const PRICE_IDS = Object.values(PRODUCT_IDS).flatMap((b) => [b.monthly, b.annual]);
+// How long to wait for Superwall to configure before saying the prices couldn't load (it keeps trying).
+const NOT_READY_MS = 12_000;
+
+// Store prices, kept for the launch once every product has loaded. A partial answer (a product missing from
+// this storefront, or a flaky connection) is shown but fetched again on the next reload.
 let loadedPrices: Record<string, StorePrice> | null = null;
 
-/** Purchase, restore and localized prices for the native fallback paywall. */
+/** Purchase, restore and localized prices for the native paywall. */
 export function useLiveStore(): StoreActions {
   const { purchase, restorePurchases, getEntitlements, getCustomerInfo, products, ready } = useSuperwall((s) => ({
     purchase: s.purchase,
@@ -291,25 +356,75 @@ export function useLiveStore(): StoreActions {
     products: s.products,
     ready: s.isConfigured,
   }));
-  const [prices, setPrices] = useState(loadedPrices);
+  const [prices, setPrices] = useState<Record<string, StorePrice> | null>(loadedPrices);
+  // How the last fetch ended; null while one is due or running. 'timeout': Superwall didn't configure in time.
+  const [outcome, setOutcome] = useState<'loaded' | 'failed' | 'timeout' | null>(loadedPrices ? 'loaded' : null);
+  // Bumped by a retry while Superwall isn't configured, to restart the wait.
+  const [attempt, setAttempt] = useState(0);
+  const fetching = useRef(false);
+  const alive = useRef(true);
   useEffect(() => {
-    if (!ready || loadedPrices) return;
-    let alive = true;
-    const ids = Object.values(PRODUCT_IDS).flatMap((b) => [b.monthly, b.annual]);
-    products(ids)
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
+  const load = useCallback(() => {
+    if (loadedPrices || !ready || fetching.current) return;
+    fetching.current = true;
+    products(PRICE_IDS)
       .then((list) => {
         const found: Record<string, StorePrice> = {};
         for (const p of list) found[p.productIdentifier] = { price: p.price, localizedPrice: p.localizedPrice, monthlyPrice: p.monthlyPrice };
-        loadedPrices = found;
-        if (alive) setPrices(found);
+        const count = Object.keys(found).length;
+        if (count === PRICE_IDS.length) loadedPrices = found;
+        if (!alive.current) return;
+        // An empty answer is StoreKit failing (offline), not a storefront without any of the plans.
+        if (count > 0) setPrices(found);
+        setOutcome(count > 0 ? 'loaded' : 'failed');
       })
-      .catch(() => {}); // the paywall keeps its USD prices
-    return () => {
-      alive = false;
-    };
+      .catch(() => {
+        if (alive.current) setOutcome('failed');
+      })
+      .finally(() => {
+        fetching.current = false;
+      });
   }, [ready, products]);
+
+  // Fetch once Superwall is configured.
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Not configured yet (usually no connection): say so after a while instead of loading forever.
+  useEffect(() => {
+    if (ready || loadedPrices) return;
+    const t = setTimeout(() => {
+      if (alive.current) setOutcome((o) => o ?? 'timeout');
+    }, NOT_READY_MS);
+    return () => clearTimeout(t);
+  }, [ready, attempt]);
+
+  const reloadPrices = useCallback(() => {
+    // Another screen's fetch may have loaded them all since this one failed.
+    if (loadedPrices) {
+      setPrices(loadedPrices);
+      setOutcome('loaded');
+      return;
+    }
+    setOutcome(null);
+    if (ready) load();
+    else setAttempt((n) => n + 1);
+  }, [ready, load]);
+
+  // A timeout no longer counts once Superwall has configured: the fetch it starts decides.
+  const status: PricesStatus = outcome === 'timeout' ? (ready ? 'loading' : 'failed') : (outcome ?? 'loading');
+
   return {
     prices: prices ?? undefined,
+    pricesStatus: status,
+    reloadPrices,
     // The module is in this build but Superwall hasn't configured (usually no connection on first launch).
     available: ready,
     unavailableReason: ready ? null : OFFLINE,

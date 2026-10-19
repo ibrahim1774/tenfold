@@ -12,7 +12,7 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
-  s.frameworks = 'AVFoundation', 'CoreMedia', 'CoreText', 'QuartzCore', 'Vision', 'Speech', 'Photos', 'PhotosUI', 'UniformTypeIdentifiers'
+  s.frameworks = 'AVFoundation', 'CoreMedia', 'CoreText', 'QuartzCore', 'Vision', 'Speech', 'Photos', 'PhotosUI', 'StoreKit', 'UniformTypeIdentifiers'
 
   # Swift/Objective-C compatibility
   # TODO: switch to Swift 6 language mode once verified on Xcode 26 (core already type-checks in Swift 6).

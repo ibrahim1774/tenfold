@@ -12,9 +12,11 @@
   main { max-width: 680px; margin: 0 auto; padding: 48px 20px 80px; }
   h1 { font-size: 30px; line-height: 1.2; margin: 0 0 8px; }
   h2 { font-size: 20px; margin: 36px 0 8px; }
+  h3 { font-size: 17px; margin: 24px 0 6px; }
   p, li { color: var(--fg); }
   .meta { color: var(--muted); margin-bottom: 32px; }
-  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 15px; }
   a { color: var(--accent); }
   nav a { margin-right: 16px; }
@@ -24,56 +26,122 @@
 <main>
   <nav><a href="./">Tenfold</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a></nav>
   <h1>Privacy Policy</h1>
-  <p class="meta">Effective 5 October 2026</p>
+  <p class="meta">Last updated October 19, 2026</p>
 
-  <p>Tenfold is an iPhone app that edits talking-to-camera videos. It removes pauses, filler words and retakes, adds captions and reframes your clips. This policy explains what the app does with your data. The short version: your videos never leave your iPhone, and Tenfold has no account system and no servers of its own.</p>
+  <p>Tenfold is an iPhone app that edits talking-to-camera videos. It removes pauses, filler words and retakes, adds captions and reframes your clips. This policy explains what happens to your data when you use it.</p>
+  <p>In short: your videos, audio, transcripts and captions are processed on your iPhone and are never uploaded. Tenfold has no accounts and never asks for your name or email. The app does send usage, device and purchase data to three services: PostHog (analytics), Superwall (paywall and subscriptions) and AppsFlyer (ad measurement). The rest of this page explains what each one receives.</p>
 
-  <h2>Your videos and audio</h2>
+  <h2>What stays on your iPhone</h2>
   <ul>
-    <li>Videos you import from Photos, record in the app, or add from Files are copied into the app's private storage on your iPhone and processed there.</li>
-    <li>Transcription uses Apple's on-device speech recognition built into iOS. Your audio is not sent to Tenfold, and it is not sent to Apple by Tenfold. iOS may download a language model from Apple for on-device use, under Apple's own terms.</li>
-    <li>Finished videos are saved to your Photos library only when you choose to export.</li>
-    <li>Deleting a project or batch in the app deletes its files from the app's storage. Deleting the app deletes everything the app stored.</li>
+    <li>Videos you import from Photos or Files, or record in the app, are copied into the app's private storage on your iPhone and edited there. They are not uploaded to Tenfold or to any of the services named in this policy.</li>
+    <li>Transcription uses Apple's speech recognition, which runs on your iPhone. Your audio, transcripts and captions are not sent anywhere. The first time you use a language, iOS may download that language's speech files from Apple. That download comes from Apple and is covered by Apple's terms.</li>
+    <li>Your projects, edits, caption text, presets and settings are stored on your iPhone.</li>
+    <li>Finished videos are saved to your Photos library only when you export them.</li>
   </ul>
 
-  <h2>What Tenfold collects</h2>
-  <p>Tenfold does not collect your name, email, contacts, precise location, or the content of your videos. It uses your device's advertising identifier only if you allow tracking when iOS asks (see "Ad measurement" below).</p>
+  <h2>What we collect and why</h2>
+  <p>Tenfold does not collect your name, email address, phone number, contacts, photo library or precise location. The services below receive the data described in the table. "Linked to you" means the data is stored with an identifier for your device or app install, not with your name or email.</p>
+
+  <div class="table-wrap">
   <table>
-    <tr><th>Data</th><th>Where it lives</th><th>Why</th></tr>
-    <tr><td>Your projects, videos, transcripts, captions and preferences</td><td>On your iPhone only</td><td>So the app works and remembers your choices</td></tr>
-    <tr><td>Purchase status (free, Starter, Pro or Studio)</td><td>Apple's App Store and a paywall service (see below)</td><td>To unlock what you paid for</td></tr>
-    <tr><td>Anonymous paywall and purchase events, such as "paywall shown" or "trial started", with a random device identifier</td><td>Paywall service</td><td>To show the right offer and honour your subscription</td></tr>
-    <tr><td>Anonymous usage events (screens opened, onboarding steps and answers, clips imported, edits chosen, processing and export results and times, paywall views, plan), with a random identifier, device model, iOS and app version</td><td>PostHog (product analytics)</td><td>To learn which parts of the app work and where people get stuck</td></tr>
-    <tr><td>Install and in-app events (install, app open, onboarding finished, trial started, subscription started), device and network information, and the advertising identifier if you allow tracking</td><td>AppsFlyer (ad measurement)</td><td>To learn which ads bring people to Tenfold</td></tr>
+    <tr><th>Service</th><th>Data</th><th>Purpose</th><th>Linked to you?</th><th>Used for tracking?</th></tr>
+    <tr>
+      <td><strong>PostHog</strong><br>product analytics (servers in the United States)</td>
+      <td>
+        A random ID created by the app. Device model, iOS version, app version, language and region setting, time zone and screen size.
+        Usage events: app installed, updated, opened and moved to the background; screens viewed (screen names only); onboarding steps and your answers (your role, what you make, videos per week, minutes per video, speech language); your answer to the tracking prompt; clips imported (count and total length); the edits, preset, caption style and aspect ratio you choose; how long processing and exports take and whether they succeed; short failure reasons with file names and paths removed; paywalls shown and closed; limits reached; your plan and billing period.
+        Purchase events: trials and subscriptions, with the product, plan and its US-dollar list price.
+        Your AppsFlyer ID and Superwall user ID, stored on your PostHog profile.
+        PostHog receives your IP address and may use it to estimate your approximate location (city, region and country).
+      </td>
+      <td>To learn which parts of the app work, where people get stuck, and which plans and paywalls people choose.</td>
+      <td>Yes, to the random IDs (see "How the IDs are linked").</td>
+      <td>No. PostHog data is not used for advertising.</td>
+    </tr>
+    <tr>
+      <td><strong>Superwall</strong><br>paywall and subscription status</td>
+      <td>
+        A random Superwall user ID created by the app. Your subscription status, the products you have bought, and App Store transaction details.
+        Paywall events, such as a paywall shown or closed, a trial started, a purchase or a restore.
+        Device attributes: device model, iOS version, app version, language, locale and region, time zone, screen size, network type, Low Power Mode, and when the app was installed.
+        Your onboarding answers (role, videos per week, minutes per video, speech language).
+        Your AppsFlyer ID and Apple's Search Ads attribution token.
+        On first launch, Superwall tries to match the install to an ad. It uses your IP address and device signals for this, including the identifier for vendor (IDFV), an ID Apple gives each app maker for your device. It uses the advertising identifier only if you allowed tracking.
+      </td>
+      <td>To show subscription offers, unlock your plan, restore purchases, and measure which paywalls and ads lead to subscriptions.</td>
+      <td>Yes, to the Superwall user ID.</td>
+      <td>Yes. Its install match links your install to ad campaigns. It receives the advertising identifier only if you allow tracking.</td>
+    </tr>
+    <tr>
+      <td><strong>AppsFlyer</strong><br>ad measurement</td>
+      <td>
+        A random AppsFlyer ID, device type, iOS version and IP address.
+        Events: app install and opens, onboarding finished (sent as "registration"), trial started and subscription started, with the product and its US-dollar list price.
+        Your Superwall user ID, as AppsFlyer's customer ID.
+        Your device's advertising identifier (IDFA), only if you tap "Allow" when iOS asks whether Tenfold may track you.
+      </td>
+      <td>To learn which ads bring people to Tenfold and which of them lead to trials and subscriptions.</td>
+      <td>Yes, to the AppsFlyer ID and Superwall user ID.</td>
+      <td>Yes, if you allow tracking. AppsFlyer may share attribution results with the ad networks that showed you an ad, such as Meta (Facebook and Instagram), TikTok and Google.</td>
+    </tr>
+    <tr>
+      <td><strong>Apple</strong><br>App Store</td>
+      <td>Your purchase and subscription, handled entirely by Apple.</td>
+      <td>To sell, bill, renew, refund and restore subscriptions.</td>
+      <td>Apple handles this under its own privacy policy. We never receive your payment card details.</td>
+      <td>No.</td>
+    </tr>
   </table>
+  </div>
 
-  <h2>Ad measurement</h2>
-  <p>Tenfold is advertised on services such as Meta (Facebook and Instagram), TikTok and Google. To understand which ads work, the app uses AppsFlyer, a mobile measurement service. AppsFlyer receives the events listed above together with a random AppsFlyer identifier, device type, iOS version, IP address and, only if you tap "Allow" when iOS asks whether Tenfold may track you, your device's advertising identifier. AppsFlyer may share attribution results with the ad networks that showed you an ad. It never receives your videos, audio, transcripts or captions.</p>
-  <p>If you tap "Ask App Not to Track", the advertising identifier is not shared and Apple's privacy-preserving ad reports are used instead. You can change this at any time in Settings, then Privacy &amp; Security, then Tracking. AppsFlyer's privacy policy is at <a href="https://www.appsflyer.com/legal/privacy-policy/">appsflyer.com/legal/privacy-policy</a>.</p>
+  <h3>How the IDs are linked</h3>
+  <p>The three services' IDs are linked to each other. Superwall's user ID is sent to AppsFlyer as its customer ID and stored on your PostHog profile. Your AppsFlyer ID is sent to Superwall and stored on your PostHog profile. This lets us connect an ad, an install, a trial or subscription, and how the app is used. If you allow tracking, the AppsFlyer records also include your advertising identifier.</p>
+  <p>Deleting and reinstalling the app does not reliably give you new, unlinked IDs. AppsFlyer keeps a value in the iOS keychain so it can recognise a reinstall, and Superwall can recognise your subscription after a reinstall.</p>
 
-  <h2>Product analytics</h2>
-  <p>To improve the app, Tenfold sends anonymous usage events to PostHog, a product analytics service (servers in the United States). Events are tied to a random identifier created on your iPhone, not to your name, email or advertising identifier. They say what happened (for example "clips imported: 8" or "export finished in 40 seconds") and never contain your videos, audio, transcripts, caption text or file names. Tenfold does not record your screen. PostHog's privacy policy is at <a href="https://posthog.com/privacy">posthog.com/privacy</a>.</p>
+  <h2>Tracking and the iOS tracking prompt</h2>
+  <p>On your first tap in onboarding, iOS asks whether Tenfold may track your activity across other companies' apps and websites.</p>
+  <ul>
+    <li>If you tap <strong>Allow</strong>, AppsFlyer and Superwall receive your device's advertising identifier (IDFA) and use it to match your install and purchases to the ad you saw. AppsFlyer may share the results with that ad network.</li>
+    <li>If you tap <strong>Ask App Not to Track</strong>, the advertising identifier is not shared. The other data in the table is still sent, and ad results also come from Apple's privacy-preserving ad reports. The app works the same either way.</li>
+  </ul>
+  <p>You can change your choice at any time in the Settings app, under Privacy &amp; Security, then Tracking.</p>
 
-  <h2>Payments and the paywall service</h2>
-  <p>Subscriptions are sold and billed by Apple through the App Store. Tenfold never sees your payment details. To present subscription offers and confirm your subscription, Tenfold uses Superwall, a paywall service. Superwall receives a random identifier for your device, your subscription status, and events about the paywall (for example that it was shown or that a purchase completed). Superwall's handling of that data is described in its privacy policy at <a href="https://superwall.com/privacy">superwall.com/privacy</a>.</p>
+  <h2>Sharing</h2>
+  <p>We share data only with the service providers named above, which process it under their own terms and privacy policies:</p>
+  <ul>
+    <li>PostHog: <a href="https://posthog.com/privacy">posthog.com/privacy</a></li>
+    <li>Superwall: <a href="https://superwall.com/privacy">superwall.com/privacy</a></li>
+    <li>AppsFlyer: <a href="https://www.appsflyer.com/legal/privacy-policy/">appsflyer.com/legal/privacy-policy</a></li>
+    <li>Apple: <a href="https://www.apple.com/legal/privacy/">apple.com/legal/privacy</a></li>
+  </ul>
+  <p>Through AppsFlyer, ad networks such as Meta, TikTok and Google may receive attribution results about the ads they showed. We may also disclose information when the law requires it. These services may process data in the United States and other countries.</p>
 
   <h2>Permissions the app asks for</h2>
   <ul>
-    <li><strong>Camera and microphone</strong>: only if you record a clip or a voiceover inside the app. Recordings stay on your iPhone.</li>
-    <li><strong>Add to Photos</strong>: to save your exported videos. Importing uses Apple's picker and needs no permission to your library.</li>
-    <li><strong>Speech recognition</strong>: to transcribe your clips on-device for captions and cuts.</li>
+    <li><strong>Camera and microphone</strong>: only if you record a clip or a voiceover in the app. Recordings stay on your iPhone.</li>
+    <li><strong>Photos</strong>: to open the videos you choose and to save your exported videos.</li>
+    <li><strong>Speech recognition</strong>: to transcribe your clips on your iPhone for captions and cuts.</li>
+    <li><strong>Tracking</strong>: see "Tracking and the iOS tracking prompt" above.</li>
   </ul>
-  <p>You can change any of these at any time in the iPhone Settings app.</p>
+  <p>You can change any of these at any time in the Settings app.</p>
 
-  <h2>Keeping and deleting your data</h2>
-  <p>Everything Tenfold stores on your iPhone is deleted when you delete it in the app or delete the app. Usage events in PostHog and attribution records in AppsFlyer are kept only as long as they are needed to understand how the app and its ads perform. Because these are tied only to random identifiers, deleting the app and reinstalling it starts with a new identifier that is not linked to the old one.</p>
-  <p>To ask for the events tied to your device to be deleted, email us from the app's You tab (Contact support). Include the date you installed Tenfold, and we will ask PostHog and AppsFlyer to delete the matching records. You can also stop ad tracking at any time in iPhone Settings, Privacy &amp; Security, Tracking.</p>
+  <h2>How long data is kept</h2>
+  <p>What Tenfold stores on your iPhone stays there until you delete it in the app or delete the app. Exported videos stay in your Photos library until you delete them there.</p>
+  <p>We keep analytics, paywall and attribution data only as long as we need it to run the app, honour your subscription and understand how the app and its ads perform. PostHog, Superwall and AppsFlyer store it under their own retention settings and policies. Apple keeps purchase records under its own policies. If you ask us to delete your data, we handle it as described below.</p>
+
+  <h2>Your choices and deleting your data</h2>
+  <ul>
+    <li><strong>Ask us to access or delete your data.</strong> Email <a href="mailto:support@davoxa.com">support@davoxa.com</a> and include the Support ID shown in Tenfold, in the You tab. It is your Superwall user ID, which is also your AppsFlyer customer ID and is stored on your PostHog profile, so we can find your records with all three services. If you can't open the You tab (for example, your subscription has ended) or your version of the app doesn't show a Support ID, tell us your iPhone model, your plan and roughly when you installed Tenfold, and we will do our best to find the matching records. We will delete what we hold, or ask PostHog, Superwall and AppsFlyer to delete it. Apple's purchase records are managed by Apple.</li>
+    <li><strong>Delete your videos and projects.</strong> Delete them in the app, or delete the app. Deleting the app removes the videos, projects and settings it stored on your iPhone.</li>
+    <li><strong>Turn off tracking.</strong> In the Settings app, go to Privacy &amp; Security, then Tracking, and turn Tenfold off.</li>
+    <li><strong>Manage your subscription.</strong> In the Settings app, tap your name, then Subscriptions.</li>
+  </ul>
 
   <h2>Children</h2>
-  <p>Tenfold is not directed at children under 13 and does not knowingly collect information from them.</p>
+  <p>Tenfold is not directed at children under 13 and does not knowingly collect information from them. If you think a child has used Tenfold and you want their data deleted, email us.</p>
 
   <h2>Changes</h2>
-  <p>If this policy changes, the new version will be published at this address with a new effective date.</p>
+  <p>If this policy changes, the new version will be published at this address with a new "last updated" date.</p>
 
   <h2>Contact</h2>
   <p>Questions about privacy, or requests to access or delete your data: <a href="mailto:support@davoxa.com">support@davoxa.com</a>. Tenfold is made by Mohammed Ibrahim, New York, United States.</p>

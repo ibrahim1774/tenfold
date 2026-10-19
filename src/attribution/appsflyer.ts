@@ -51,6 +51,16 @@ export async function trackingAnswered(): Promise<boolean> {
   }
 }
 
+const answeredListeners = new Set<() => void>();
+
+/** Calls `listener` when the tracking prompt is answered during this launch. Returns the unsubscribe. */
+export function onTrackingAnswered(listener: () => void): () => void {
+  answeredListeners.add(listener);
+  return () => {
+    answeredListeners.delete(listener);
+  };
+}
+
 /**
  * Shows Apple's "Allow Tenfold to track…" prompt if it hasn't been answered, then starts AppsFlyer.
  * Safe to call more than once; resolves to the AppsFlyer id, or null when attribution is off.
@@ -65,6 +75,7 @@ export function startAttribution(): Promise<string | null> {
         const { status } = await requestTrackingPermissionsAsync();
         track(EV.trackingAnswered, { status });
         setTraits({ tracking: status });
+        answeredListeners.forEach((l) => l());
       }
     } catch {
       // No prompt available: AppsFlyer still attributes through Apple's privacy-preserving reports.

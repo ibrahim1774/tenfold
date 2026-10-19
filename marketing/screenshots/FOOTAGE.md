@@ -24,7 +24,9 @@ The file name gives the timestamp in seconds, for example `-4_2s` is 4.2 s. Fram
 
 ## Where they appear
 
-- **App** (`assets/onboarding/take01–10.jpg`, 360 × 640, the take wall on the hook, Ready and Create screens): 42323 @12.6, 42319 @4.9, 41290 @2.0, 34487 @1.8, 41272 @2.1, 39814 @3.0, 42319 @7.7, 10443 @3.6, 39813 @3.2, 2960 @4.2.
+- **App** (`assets/onboarding/take01–10.jpg`, 360 × 640, the take wall on the hook, Ready and Create screens): 34487 @8.2, 39813 @7.0, 41290 @2.0, 34487 @1.8, 41272 @2.1, 39814 @3.0, 2960 @4.2, 10443 @3.6, 39813 @3.2, 2960 @4.2.
 - **App onboarding video** (`assets/onboarding/demo.mp4`): 39813, see `assets/onboarding/VIDEO.md`.
-- **Screenshot 03** (results): 34487 @1.8, 42319 @4.9, 42323 @12.6, 39813 @7.0. **04** (captions): 34487. **05** (timeline): 39813, 39814.
+- **Screenshot 03** (results): 34487 @1.8, 10443 @3.6, 34487 @6.0, 39813 @7.0. **04** (captions): 34487. **05** (timeline): 39813, 39814.
 - **Screenshot 01 and the App Preview**: the 10 clips imported in the simulator are cut from these same Mixkit clips.
+
+**2026-10-19:** clips 42319 and 42323 were dropped everywhere. They were shot in front of a wall of branded cereal boxes (Cocoa Puffs, Puffins, Wheaties, Super Mario, Star Wars), and the Mixkit licence covers the footage, not the trademarks in it (App Store guideline 5.2.1). Their frames stay in `footage/` for reference but nothing uses them. Don't add footage that shows logos or packaging.

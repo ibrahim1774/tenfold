@@ -16,5 +16,14 @@ description) plus the 7 screenshot headlines and sublines. en-US is the source.
 - Screenshots: `SHOT_LOCALE=xx SHOT_LOC=locales/xx.json SHOT_SRC=<tmp> SHOT_FONTS=~/.claude/skills/vibe-aso/renderer/fonts node marketing/screenshots/build.mjs`,
   then `render.mjs` with `SHOT_SRC/SHOT_OUT/SHOT_SIZES=6.7`, then `SHOT_LOCALE=xx SHOT_DIR=<out>/6.7 node scripts/asc-screenshots.mjs`.
 
+**2026-10-19 (resubmission after the 3.1.2(c) rejection):** the locale JSONs now mirror what is LIVE, including the
+subscription paragraph (local prices, trial, auto-renewal, Terms/Privacy links) at the end of every description.
+- `sync-live.py <vloc.json> [<info.json>]`: copy live ASC text into `locales/` (keeps headings/sublines).
+- `fix-2026-10-19.py`: the edits made that day (no platform names, batch wording, privacy scoped to videos,
+  speech-language line for non en/es/fr/de/it/pt locales, ja keywords).
+- `push-version-text.mjs [--apply] [loc…]`: PATCHes only description/keywords/promotionalText that differ from live,
+  then re-reads all locales. Prefer it over `upload.mjs`, which also rewrites name/subtitle/URLs.
+- `review-notes-2026-10-19.mjs`: App Review notes addition + subscription review-note fixes.
+
 **Do not run `eas metadata:push`:** store.config.json only has en-US and would not carry the other 49 languages.
 Edit the JSON here and use `upload.mjs` instead.

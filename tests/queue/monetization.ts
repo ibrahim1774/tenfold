@@ -10,19 +10,27 @@ import {
   tierFromEntitlements,
   tierFromProductIds,
   tierFromStatus,
+  trackingAtConfigure,
+  trackingCanTurnOn,
   type CustomerInfoLike,
   type PlanState,
 } from '@/monetization/tiers';
 import {
   annualSavingPercent,
   annualSavingPill,
+  changeStartsAtRenewal,
+  ctaTitle,
   featuresFor,
   limitsFor,
   nextTier,
   planFor,
   PLANS,
+  priceLine,
   PRODUCT_IDS,
+  renewalChangeNote,
   renewalLine,
+  storeAnnualSaving,
+  trialShown,
   type Tier,
 } from '@/onboarding/plans';
 import {
@@ -97,17 +105,21 @@ export function runMonetizationTests(check: Check) {
     'prices match the table',
   );
   check(PRODUCT_IDS.pro.annual === 'com.ibrahim.tenfold.pro.yearly' && PRODUCT_IDS.starter.monthly === 'com.ibrahim.tenfold.starter.monthly', 'product ids');
-  check(renewalLine(planFor('pro'), 'annual').startsWith('Free for 3 days, then $159.99 a year.'), `renewal line (${renewalLine(planFor('pro'), 'annual')})`);
+  runPaywallCopyTests(check);
 
-  console.log('• monetization: feature lists are written from the table');
+  console.log('• monetization: feature lists are written from the table (no batch size, watermark or 4K advertised)');
   const free = featuresFor('free');
-  check(free.includes('3 exports a month') && free.includes('Batches of 10') && free.includes('Small watermark') && free.includes('Free caption styles'), `free (${free.join(', ')})`);
+  check(free[0] === '3 exports a month' && free.includes('Free caption styles'), `free (${free.join(', ')})`);
   const starter = featuresFor('starter');
-  check(starter.includes('30 exports a month') && starter.includes('Batches of 20') && starter.includes('No watermark') && !starter.includes('4K export'), `starter (${starter.join(', ')})`);
+  check(starter[0] === '30 exports a month' && starter.includes('All caption styles'), `starter (${starter.join(', ')})`);
   const pro = featuresFor('pro');
-  check(pro.includes('300 exports a month') && pro.includes('Batches of 50') && !pro.includes('4K export'), `pro (${pro.join(', ')})`);
+  check(pro[0] === '300 exports a month', `pro (${pro.join(', ')})`);
   const studio = featuresFor('studio');
-  check(studio.includes('Unlimited exports') && studio.includes('Batches of 100') && !studio.includes('4K export'), `studio (${studio.join(', ')})`);
+  check(studio[0] === 'Unlimited exports', `studio card fact is its exports (${studio.join(', ')})`);
+  for (const t of ['free', 'starter', 'pro', 'studio'] as const) {
+    const lines = featuresFor(t).join(' | ');
+    check(!/batch|watermark|4K/i.test(lines), `${t}: nothing about batches, watermark or 4K (${lines})`);
+  }
 
   console.log('• monetization: exports left this month for each tier');
   const month = monthKey();
@@ -130,8 +142,60 @@ export function runMonetizationTests(check: Check) {
     `attributes (${JSON.stringify(attrs)})`,
   );
 
+  console.log('• monetization: Superwall tracking is off until the install match can no longer run');
+  check(trackingAtConfigure(false) === 'none', 'new install (not onboarded): configure with none (no install match before ATT)');
+  check(trackingAtConfigure(true) === 'all', 'onboarded launch: configure with all');
+  check(!trackingCanTurnOn({ configured: false, trackingAnswered: true, onboarded: true }), 'never before configure completes');
+  check(!trackingCanTurnOn({ configured: true, trackingAnswered: false, onboarded: false }), 'not before the tracking prompt or the end of onboarding');
+  check(trackingCanTurnOn({ configured: true, trackingAnswered: true, onboarded: false }), 'after the tracking prompt (either answer)');
+  check(trackingCanTurnOn({ configured: true, trackingAnswered: false, onboarded: true }), 'after onboarding, in a build that never asks');
+
   runPlanMappingTests(check);
   useEntitlements.setState({ tier: 'free', isPro: false, billing: null, exportsUsed: 0, exportMonth: month });
+}
+
+/** The native paywall's price and trial copy (guideline 3.1.2(c)). */
+function runPaywallCopyTests(check: Check) {
+  console.log('• paywall: billed price leads, trial only when StoreKit says eligible, never USD');
+  check(priceLine('annual', '$159.99') === '$159.99 a year' && priceLine('monthly', '19,99 €') === '19,99 € a month', 'billed line uses the App Store’s text');
+  const withTrial = renewalLine('annual', '$159.99', true);
+  check(withTrial.startsWith('Free for 3 days, then $159.99 a year. Renews automatically'), `renewal line with trial (${withTrial})`);
+  const noTrial = renewalLine('monthly', '£19.99', false);
+  check(noTrial.startsWith('£19.99 a month. Renews automatically') && !/free/i.test(noTrial), `renewal line without trial (${noTrial})`);
+  check(renewalLine('annual', '$159.99', true, 7).startsWith('Free for 7 days'), 'trial length from StoreKit when known');
+  check(/cancel in Settings/.test(noTrial), 'disclosure says how to cancel');
+
+  check(trialShown(planFor('pro'), { freeTrial: true }) && trialShown(planFor('studio'), { freeTrial: true }), 'eligible Pro/Studio: trial shown');
+  check(!trialShown(planFor('starter'), { freeTrial: true }), 'Starter never shows a trial');
+  check(!trialShown(planFor('pro'), { freeTrial: false }), 'lapsed subscriber (not eligible): no trial');
+  check(!trialShown(planFor('pro'), null) && !trialShown(planFor('pro'), undefined), 'eligibility unknown or failed: no trial');
+
+  for (const t of ['starter', 'pro', 'studio'] as const) {
+    for (const cur of ['free', 'starter', 'pro', 'studio'] as const) {
+      const title = ctaTitle(cur, cur === 'free' ? null : 'monthly', t, 'annual');
+      check(!/free|trial|day/i.test(title), `button has no trial wording (${cur} → ${t}: "${title}")`);
+    }
+  }
+  check(ctaTitle('free', null, 'pro', 'annual') === 'Get Pro', 'gate button: Get Pro');
+  check(ctaTitle('pro', 'annual', 'pro', 'annual') === 'Keep Pro' && ctaTitle('pro', null, 'pro', 'monthly') === 'Keep Pro', 'own plan: Keep');
+  check(ctaTitle('pro', 'monthly', 'pro', 'annual') === 'Switch to Pro Annual' && ctaTitle('pro', 'annual', 'studio', 'annual') === 'Switch to Studio', 'switching');
+
+  const prices = (entries: [string, number][]) => Object.fromEntries(entries.map(([id, price]) => [id, { price }]));
+  check(storeAnnualSaving(undefined) === null && storeAnnualSaving({}) === null, 'no prices: no saving pill');
+  const all = prices(PLANS.flatMap((p) => [[PRODUCT_IDS[p.tier as 'pro'].monthly, p.price!.monthly], [PRODUCT_IDS[p.tier as 'pro'].annual, p.price!.annual]] as [string, number][]));
+  check(storeAnnualSaving(all) === 33, `all six: 33% (${storeAnnualSaving(all)})`);
+  // A storefront without Studio Monthly (BGR, MDA in 2026-10): the saving from the plans that have both prices.
+  const { [PRODUCT_IDS.studio.monthly]: _gone, ...partial } = all;
+  check(storeAnnualSaving(partial) === 33, 'a missing product is skipped, not a dead end');
+  check(storeAnnualSaving(prices([[PRODUCT_IDS.pro.monthly, 10], [PRODUCT_IDS.pro.annual, 60]])) === 50, 'saving from the store’s own numbers');
+
+  console.log('• paywall: downgrades and monthly ↔ annual start at the next renewal');
+  check(changeStartsAtRenewal('pro', 'monthly', 'starter', 'monthly') && changeStartsAtRenewal('studio', 'annual', 'pro', 'annual'), 'downgrade → next renewal');
+  check(changeStartsAtRenewal('pro', 'monthly', 'pro', 'annual') && changeStartsAtRenewal('pro', 'annual', 'pro', 'monthly'), 'same plan, other billing → next renewal');
+  check(!changeStartsAtRenewal('starter', 'monthly', 'pro', 'monthly') && !changeStartsAtRenewal('pro', 'annual', 'studio', 'monthly'), 'upgrade → now');
+  check(!changeStartsAtRenewal('free', null, 'starter', 'monthly') && !changeStartsAtRenewal('pro', null, 'pro', 'annual'), 'first purchase, or billing unknown → now');
+  check(renewalChangeNote('pro', 'starter', 'monthly') === 'Done. Starter Monthly starts at your next renewal. You keep Pro until then.', renewalChangeNote('pro', 'starter', 'monthly'));
+  check(renewalChangeNote('pro', 'pro', 'annual') === 'Done. Pro Annual starts at your next renewal.', renewalChangeNote('pro', 'pro', 'annual'));
 }
 
 const sub = (productId: string, extra: Partial<{ isActive: boolean; isRevoked: boolean; purchaseDate: string }> = {}) => ({

@@ -145,7 +145,7 @@ export default function CaptionsSheet() {
         })}
       </SettingsGroup>
 
-      <SettingsGroup label="Layout" footer="Shaded areas are covered by TikTok and Reels buttons.">
+      <SettingsGroup label="Layout" footer="Shaded areas may be covered by app buttons when you post.">
         <View style={styles.stepRow}>
           <AppText variant="body" style={styles.flex}>
             Size

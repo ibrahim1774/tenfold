@@ -286,6 +286,9 @@ export type ExportResult = {
 
 export type SpeechStatus = { state: 'unsupported' | 'supported' | 'downloading' | 'installed'; locale: string };
 
+/** A subscription's free trial for this Apple ID (StoreKit 2). `freeTrial`: it has one and this Apple ID can get it. */
+export type IntroOffer = { productId: string; freeTrial: boolean; trialDays?: number | null };
+
 // App-side records (persisted in the library store).
 
 export type ProjectStatus =

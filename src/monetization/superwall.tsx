@@ -11,7 +11,7 @@ import { EV, track } from '@/analytics/posthog';
 
 import type { GateRequest, StoreActions } from './types';
 
-export type { GateRequest, Placement, PurchaseOutcome, RestoreOutcome, StoreActions, StorePrice } from './types';
+export type { GateRequest, Placement, PricesStatus, PurchaseOutcome, RestoreOutcome, StoreActions, StorePrice } from './types';
 
 /** True when this build includes Superwall's native module. */
 export const superwallAvailable = requireOptionalNativeModule('SuperwallExpo') != null;
@@ -60,6 +60,7 @@ const UPDATE_NEEDED = 'Purchases need the latest version of Tenfold. Update the 
 const UNAVAILABLE: StoreActions = {
   available: false,
   unavailableReason: UPDATE_NEEDED,
+  pricesStatus: 'failed',
   purchase: async () => 'unavailable',
   restore: async () => ({ ok: false, message: UPDATE_NEEDED }),
 };
@@ -73,3 +74,10 @@ export const usePaywallReady: () => boolean = live?.useLiveReady ?? (() => false
 
 /** Purchase and restore for the native fallback paywall. */
 export const useStoreActions: () => StoreActions = live?.useLiveStore ?? useFallbackStore;
+
+/**
+ * The Support ID on the You tab: Superwall's user id, which is also AppsFlyer's customer user id and the
+ * `superwall_user_id` property on PostHog, so support can find (and delete) one person's records everywhere.
+ * Null in builds without Superwall, or before Superwall has loaded the user.
+ */
+export const useSupportId: () => string | null = live?.useLiveSupportId ?? (() => null);

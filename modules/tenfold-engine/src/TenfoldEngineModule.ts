@@ -9,6 +9,10 @@ declare class TenfoldEngineModule extends NativeModule<TenfoldEngineModuleEvents
   isLowPowerMode(): boolean;
   freeDiskBytes(): number;
   setKeepAwake(on: boolean): Promise<void>;
+  /** Copies text to the clipboard. Absent in older builds. */
+  copyText?(text: string): Promise<void>;
+  /** Free-trial eligibility per subscription product (StoreKit 2): JSON [{ productId, freeTrial, trialDays? }]. Absent in older builds. */
+  introOfferEligibility?(productIds: string[]): Promise<string>;
   /** System colour picker; resolves "#RRGGBB", or null when closed without a choice. Absent in older builds. */
   pickColor?(initialHex: string): Promise<string | null>;
   pickVideos(maxCount: number): Promise<string>;

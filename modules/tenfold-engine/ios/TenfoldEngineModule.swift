@@ -28,6 +28,18 @@ public class TenfoldEngineModule: Module {
       UIApplication.shared.isIdleTimerDisabled = on
     }.runOnQueue(.main)
 
+    /// Copies text to the clipboard (the You tab's Support ID).
+    AsyncFunction("copyText") { (text: String) in
+      UIPasteboard.general.string = text
+    }.runOnQueue(.main)
+
+    // MARK: Store
+
+    /// Free-trial eligibility per subscription product (StoreKit 2). JSON [IntroOffers.Eligibility].
+    AsyncFunction("introOfferEligibility") { (productIds: [String]) async throws -> String in
+      try encodeJSON(try await IntroOffers.eligibility(productIds))
+    }
+
     // MARK: Import
 
     AsyncFunction("pickVideos") { (maxCount: Int) async throws -> String in

@@ -1,6 +1,7 @@
+import * as Linking from 'expo-linking';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorText } from '@/batch/queue';
@@ -10,6 +11,10 @@ import { colors, spacing } from '@/design/tokens';
 import type { InfoRow } from '@/editor/Panel';
 import { Engine, type Analysis } from '@/engine';
 import { formatDuration, useLibrary } from '@/state/library';
+
+// The engine's note when Speech Recognition is off for Tenfold (TranscriberError in the engine); clips in a
+// multi-clip video get their title in front, so it's matched at the end.
+const SPEECH_DENIED = 'Allow Speech Recognition for Tenfold in Settings to add captions.';
 
 /**
  * Facts about one video: how it was transcribed and what the export will look like.
@@ -61,6 +66,7 @@ export default function VideoInfoSheet() {
   if (frame) video.push({ label: 'Output frame', value: `${frame}${aspect && aspect !== 'original' ? ` · ${aspect}` : ''}` });
 
   const warnings = analysis?.warnings ?? [];
+  const speechDenied = warnings.some((w) => w.endsWith(SPEECH_DENIED));
 
   return (
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
@@ -93,6 +99,16 @@ export default function VideoInfoSheet() {
                     {w}
                   </AppText>
                 ))}
+                {speechDenied ? (
+                  <Pressable
+                    onPress={() => Linking.openSettings()}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [styles.settingsLink, pressed && styles.pressed]}>
+                    <AppText variant="bodyStrong" color={colors.textPrimary}>
+                      Open Settings
+                    </AppText>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           )}
@@ -112,4 +128,6 @@ const styles = StyleSheet.create({
   notesWrap: { gap: spacing.sm },
   notesLabel: { marginLeft: spacing.lg },
   notes: { gap: spacing.sm, paddingHorizontal: spacing.lg },
+  settingsLink: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center' },
+  pressed: { opacity: 0.6 },
 });

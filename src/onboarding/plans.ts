@@ -1,6 +1,7 @@
 // The one source of truth for tiers: names, prices, App Store products and limits.
 // `src/state/entitlements.ts` reads its limits from here; the paywall and the You tab read the copy.
-// Superwall's paywalls show the store's localized prices; these USD prices drive the native fallback paywall.
+// Every price shown to people is the App Store's, localized; these USD prices are the list prices (annual saving
+// in tests, revenue on attribution events).
 // No imports from `state/`, so this file stays free of import cycles.
 
 export type Tier = 'free' | 'starter' | 'pro' | 'studio';
@@ -95,16 +96,16 @@ export function lowestTierWhere(ok: (l: TierLimits) => boolean): Tier | null {
 
 const count = (n: number) => (Number.isFinite(n) ? n.toLocaleString('en-US') : 'Unlimited');
 
-/** Feature lines for a tier, written from its limits. */
+/**
+ * Feature lines for a tier, written from its limits. The first is the fact that tells the plans apart on the
+ * paywall. Batch sizes and the watermark aren't advertised (the owner's call, and there is no free plan).
+ */
 export function featuresFor(tier: Tier): string[] {
   const l = limitsFor(tier);
-  const lines = [
+  return [
     Number.isFinite(l.exportsPerMonth) ? `${count(l.exportsPerMonth)} exports a month` : 'Unlimited exports',
-    `Batches of ${l.batchSize}`,
     l.allCaptionStyles ? 'All caption styles' : 'Free caption styles',
-    l.watermark ? 'Small watermark' : 'No watermark',
   ];
-  return lines;
 }
 
 export type PlanInfo = TierInfo & { features: string[] };
@@ -127,32 +128,80 @@ export function annualSavingPill(): number {
   return Math.min(...PLANS.map(annualSavingPercent));
 }
 
-export const money = (n: number) => `$${n.toFixed(2)}`;
-
-/** "$159.99 a year", "$19.99 a month". `localized`: the App Store's price text, used instead of the USD price. */
-export function priceLine(plan: Pick<TierInfo, 'price'>, billing: Billing, localized?: string): string {
-  if (!plan.price) return 'Free';
-  return `${localized ?? money(plan.price[billing])} a ${billing === 'annual' ? 'year' : 'month'}`;
+/**
+ * The same from the App Store's prices (any currency): the smallest across the plans whose monthly and annual
+ * prices both loaded, or null when none has (the toggle then shows no saving).
+ */
+export function storeAnnualSaving(prices: Partial<Record<string, { price: number }>> | undefined): number | null {
+  const savings = PAID_TIERS.flatMap((t) => {
+    const monthly = prices?.[PRODUCT_IDS[t].monthly]?.price;
+    const annual = prices?.[PRODUCT_IDS[t].annual]?.price;
+    return monthly && annual ? [annualSavingPercent({ price: { monthly, annual } })] : [];
+  });
+  return savings.length ? Math.min(...savings) : null;
 }
 
-/** Annual price as a monthly figure, "$13.33 a month". */
-export function perMonth(plan: Pick<TierInfo, 'price'>, localized?: string): string | null {
-  return plan.price ? `${localized ?? money(plan.price.annual / 12)} a month` : null;
+/** "a year", "a month". */
+export const periodWord = (billing: Billing) => (billing === 'annual' ? 'a year' : 'a month');
+
+/**
+ * "$159.99 a year", "$19.99 a month". `localized`: the App Store's price text. There is no USD fallback: the
+ * paywall shows no price, and sells nothing, until the App Store's prices have loaded.
+ */
+export function priceLine(billing: Billing, localized: string): string {
+  return `${localized} ${periodWord(billing)}`;
 }
 
-/** What the plan charges, shown under the button as prominently as the trial: "Free for 3 days, then $19.99 a month." */
-export function chargeLine(plan: Pick<TierInfo, 'price'>, billing: Billing, trial = true, localized?: string): string {
-  if (!plan.price) return 'Free has no trial and no payment.';
-  const price = priceLine(plan, billing, localized);
-  return trial ? `Free for ${TRIAL_DAYS} days, then ${price}.` : `${price}.`;
+/** What the plan charges, trial first only when the App Store says this Apple ID gets one: "Free for 3 days, then $19.99 a month." */
+export function chargeLine(billing: Billing, localized: string, trial: boolean, trialDays = TRIAL_DAYS): string {
+  const price = priceLine(billing, localized);
+  return trial ? `Free for ${trialDays} days, then ${price}.` : `${price}.`;
 }
 
 export const RENEWAL_TERMS = 'Renews automatically until you cancel in Settings at least 24 hours before the end of the period.';
 
-/** The full renewal sentence. `trial` false: already subscribed, so no second free trial. */
-export function renewalLine(plan: Pick<TierInfo, 'price'>, billing: Billing, trial = true, localized?: string): string {
-  const charge = chargeLine(plan, billing, trial, localized);
-  return plan.price ? `${charge} ${RENEWAL_TERMS}` : charge;
+/** The full renewal disclosure under the button. `trial` false: not eligible (or not known yet), so no trial is promised. */
+export function renewalLine(billing: Billing, localized: string, trial: boolean, trialDays = TRIAL_DAYS): string {
+  return `${chargeLine(billing, localized, trial, trialDays)} ${RENEWAL_TERMS}`;
+}
+
+/**
+ * Whether to promise a free trial for a plan: the plan has one (Pro, Studio; never Starter) and StoreKit says this
+ * Apple ID can still get it (one introductory offer per subscription group). Unknown, loading or failed: no.
+ * The App Store's own purchase sheet still applies a trial the person is eligible for.
+ */
+export function trialShown(plan: Pick<TierInfo, 'trial'>, offer: { freeTrial: boolean } | null | undefined): boolean {
+  return plan.trial && offer?.freeTrial === true;
+}
+
+/**
+ * True when a plan change bought now starts at the next renewal rather than at once. Apple applies a move to a
+ * lower level (Studio → Pro → Starter) and a switch between monthly and annual on the same plan (same level,
+ * other length) when the current period ends; upgrades start straight away.
+ */
+export function changeStartsAtRenewal(current: Tier, currentBilling: Billing | null, tier: PaidTier, billing: Billing): boolean {
+  if (current === 'free') return false;
+  return tierRank(tier) < tierRank(current) || (tier === current && currentBilling !== null && billing !== currentBilling);
+}
+
+/**
+ * The paywall's button. Never trial wording: the billed price is the screen's most prominent price and the
+ * trial sits under it in smaller type (guideline 3.1.2(c)).
+ */
+export function ctaTitle(current: Tier, currentBilling: Billing | null, tier: PaidTier, billing: Billing): string {
+  const name = TIERS[tier].name;
+  if (tier === current) {
+    return !currentBilling || billing === currentBilling ? `Keep ${name}` : `Switch to ${name} ${billing === 'annual' ? 'Annual' : 'Monthly'}`;
+  }
+  return current === 'free' ? `Get ${name}` : `Switch to ${name}`;
+}
+
+/** The note shown after such a change, instead of closing as if it had already happened. */
+export function renewalChangeNote(current: PaidTier, tier: PaidTier, billing: Billing): string {
+  const next = `${TIERS[tier].name} ${billing === 'annual' ? 'Annual' : 'Monthly'}`;
+  return tier === current
+    ? `Done. ${next} starts at your next renewal.`
+    : `Done. ${next} starts at your next renewal. You keep ${TIERS[current].name} until then.`;
 }
 
 export const TERMS_URL = 'https://ibrahim1774.github.io/tenfold/terms.html';

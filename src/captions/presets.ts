@@ -36,8 +36,9 @@ export const CAPTION_PRESETS: CaptionPreset[] = [
     free: true,
   },
   {
+    // The id stays 'tiktok' so saved projects and the engine still resolve it; only the name changed.
     id: 'tiktok',
-    name: 'TikTok Classic',
+    name: 'Classic Box',
     font: 'tiktok',
     colors: { base: '#FFFFFF', active: '#FFFFFF', stroke: 'transparent', bg: 'rgba(0,0,0,0.88)' },
     uppercase: false,
@@ -158,9 +159,12 @@ export const CAPTION_PRESETS: CaptionPreset[] = [
   },
 ];
 
-/** Caption fonts. The first four are TikTok's built-in text fonts (TikTok Sans is bundled; the others are the iOS system equivalents). */
+/**
+ * Caption fonts. The first four match the common short-video text fonts (the bundled sans is shown as "Classic
+ * Sans"; the others are the iOS system equivalents). Ids and font families are unchanged for saved projects.
+ */
 export const CAPTION_FONTS: { id: CaptionFont; name: string; family: string }[] = [
-  { id: 'tiktok', name: 'TikTok Sans', family: 'TikTokSans-ExtraBold' },
+  { id: 'tiktok', name: 'Classic Sans', family: 'TikTokSans-ExtraBold' },
   { id: 'typewriter', name: 'Typewriter', family: 'AmericanTypewriter-Bold' },
   { id: 'handwriting', name: 'Handwriting', family: 'Noteworthy-Bold' },
   { id: 'serif', name: 'Serif', family: 'Georgia-Bold' },

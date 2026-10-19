@@ -4,13 +4,13 @@ import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useState, type ReactNode } from 'react';
-import { ActionSheetIOS, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, Alert, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
 import { AppText, Background, ProgressBar, Toggle } from '@/design/components';
 import type { SFSymbol } from '@/design/symbols';
 import { colors, radii, spacing } from '@/design/tokens';
 import { Engine, engineAvailable } from '@/engine';
-import { usePaywallGate, useStoreActions } from '@/monetization/superwall';
+import { usePaywallGate, useStoreActions, useSupportId } from '@/monetization/superwall';
 import { hasSampleClip } from '@/onboarding/fileImport';
 import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/onboarding/plans';
 import {
@@ -38,6 +38,11 @@ function languageName(locale: string) {
   }
 }
 
+/** Superwall's anonymous id without its "$SuperwallAlias:" prefix, for display; the full id is what's copied. */
+function displayId(id: string) {
+  return id.replace(/^\$SuperwallAlias:/, '');
+}
+
 function formatBytes(n: number) {
   if (n < 1e6) return `${Math.round(n / 1e3)} KB`;
   if (n < 1e9) return `${(n / 1e6).toFixed(0)} MB`;
@@ -60,6 +65,8 @@ export default function YouScreen() {
   const resetTour = useOnboarding((s) => s.resetTour);
   const engine = engineAvailable();
   const [storage, setStorage] = useState<number | null>(null);
+  const supportId = useSupportId();
+  const [copied, setCopied] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -120,11 +127,25 @@ export default function YouScreen() {
       Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => {}),
     );
 
-  // The Mail app with the support address filled in; without Mail, the address to copy.
-  const contactSupport = () =>
-    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Tenfold support')}`).catch(() =>
-      Alert.alert('Contact support', `Email ${SUPPORT_EMAIL}`),
+  // The Mail app with the support address and the Support ID filled in; without Mail, the address to copy.
+  const contactSupport = () => {
+    const body = supportId ? `&body=${encodeURIComponent(`\n\nSupport ID: ${supportId}`)}` : '';
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Tenfold support')}${body}`).catch(() =>
+      Alert.alert('Contact support', `Email ${SUPPORT_EMAIL}${supportId ? ` with your Support ID: ${supportId}` : ''}`),
     );
+  };
+
+  // The id support uses to find (or delete) this person's records. Older builds can't copy: the share sheet can.
+  const copySupportId = async () => {
+    if (!supportId) return;
+    if (await Engine.copyText(supportId).catch(() => false)) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } else {
+      Share.share({ message: supportId }).catch(() => {});
+    }
+  };
 
   const restore = async () => {
     const result = await store.restore();
@@ -170,9 +191,7 @@ export default function YouScreen() {
             <View style={[styles.divider, { left: ROW_PAD + ICON_BOX + ICON_GAP }]} />
           </View>
           <Row icon="square.stack" title="Batch size" value={`Up to ${maxBatchSize(tier)} clips`} />
-          {tier === 'free' ? (
-            <Row icon="arrow.up.circle" title="Upgrade" accessory="chevron" onPress={seePlans} />
-          ) : tier !== 'studio' ? (
+          {tier !== 'free' && tier !== 'studio' ? (
             <Row icon="arrow.up.arrow.down.circle" title="Change plan" accessory="chevron" onPress={seePlans} />
           ) : null}
           {tier !== 'free' ? (
@@ -222,7 +241,7 @@ export default function YouScreen() {
 
         <Group
           title="Privacy"
-          footer="Videos never leave this iPhone. Purchase events go to Superwall, install and ad measurement to AppsFlyer, anonymous usage events to PostHog.">
+          footer="Videos never leave this iPhone. Purchase events go to Superwall, install and ad measurement to AppsFlyer, usage events to PostHog under a random ID (there’s no account).">
           <Row icon="hand.raised" title="Privacy policy" accessory="external" onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)} />
           <Row icon="doc.text" title="Terms of use" accessory="external" onPress={() => WebBrowser.openBrowserAsync(TERMS_URL)} last />
         </Group>
@@ -233,6 +252,15 @@ export default function YouScreen() {
             <Row icon="play.rectangle" title="Replay the demo" accessory="chevron" onPress={() => router.push('/demo')} />
           )}
           <Row icon="envelope" title="Contact support" accessory="external" onPress={contactSupport} />
+          {supportId ? (
+            <Row
+              icon="person.text.rectangle"
+              title="Support ID"
+              value={copied ? 'Copied' : displayId(supportId)}
+              hint="Copies your Support ID, for messages to support"
+              onPress={copySupportId}
+            />
+          ) : null}
           <Row icon="hand.point.up.left" title="Replay the tour" action onPress={replayTour} />
           <Row icon="arrow.counterclockwise" title="Replay onboarding" action onPress={replayOnboarding} last />
         </Group>
@@ -341,7 +369,7 @@ function Row({ icon, title, subtitle, hint, value, toggle, onPress, accessory, s
       onPress={onPress}
       accessibilityRole={selected === undefined ? 'button' : 'radio'}
       accessibilityState={selected === undefined ? undefined : { checked: selected }}
-      accessibilityLabel={title}
+      accessibilityLabel={value ? `${title}, ${value}` : title}
       accessibilityHint={subtitle ?? hint}>
       {({ pressed }) => content(pressed)}
     </Pressable>

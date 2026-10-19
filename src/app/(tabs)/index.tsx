@@ -22,7 +22,6 @@ import { Engine, EngineEvents, engineAvailable } from '@/engine';
 import type { Batch } from '@/engine/types';
 import { hasSampleClip } from '@/onboarding/fileImport';
 import { BatchCard, openBatch, summarize, type BatchSummary } from '@/library/BatchCard';
-import { usePaywallGate } from '@/monetization/superwall';
 import { maxBatchSize, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
 import { useLibrary } from '@/state/library';
 import { useSettings } from '@/state/settings';
@@ -185,24 +184,15 @@ function MoreButton() {
 }
 
 function ProPill({ isPro, name }: { isPro: boolean; name: string }) {
-  // Free: the same plans paywall as You → Upgrade.
-  const gate = usePaywallGate();
-  if (isPro) {
-    return (
-      <View style={styles.proBadge} accessible accessibilityLabel={`Tenfold ${name} is active`}>
-        <SymbolView name="crown.fill" size={13} tintColor={colors.accent} weight="regular" />
-        <AppText variant="label" color={colors.textSecondary}>
-          {name}
-        </AppText>
-      </View>
-    );
-  }
+  // Only subscribers get past the hard paywall, so there's no free-plan state to show here.
+  if (!isPro) return null;
   return (
-    <IconButton
-      icon="crown"
-      label="See plans"
-      onPress={() => gate({ placement: 'settings_upgrade', params: { source: 'home' }, allowed: () => false })}
-    />
+    <View style={styles.proBadge} accessible accessibilityLabel={`Tenfold ${name} is active`}>
+      <SymbolView name="crown.fill" size={13} tintColor={colors.accent} weight="regular" />
+      <AppText variant="label" color={colors.textSecondary}>
+        {name}
+      </AppText>
+    </View>
   );
 }
 

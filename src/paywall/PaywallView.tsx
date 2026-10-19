@@ -1,11 +1,11 @@
 import * as Haptics from 'expo-haptics';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import * as WebBrowser from 'expo-web-browser';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,20 +13,23 @@ import { EV, track } from '@/analytics/posthog';
 import { AppText, Background, GradientButton, IconButton, PressableScale } from '@/design/components';
 import { sampleFrame } from '@/design/sampleFrames';
 import { colors, motion, radii, spacing } from '@/design/tokens';
+import { Engine, type IntroOffer } from '@/engine';
 import { usePaywallGate, usePaywallReady, useStoreActions, type StorePrice } from '@/monetization/superwall';
 import {
-  annualSavingPercent,
-  annualSavingPill,
+  changeStartsAtRenewal,
+  ctaTitle,
+  periodWord,
   PLANS,
-  perMonth,
   planFor,
   priceLine,
   PRIVACY_URL,
   PRODUCT_IDS,
-  chargeLine,
-  RENEWAL_TERMS,
+  renewalChangeNote,
+  renewalLine,
+  storeAnnualSaving,
   TERMS_URL,
   TRIAL_DAYS,
+  trialShown,
   type Billing,
   type PaidTier,
   type PlanInfo,
@@ -35,7 +38,12 @@ import { takeGateSource } from '@/paywall/gateSource';
 import { hasAccess, tierOf, TIER_NAMES, useEntitlements } from '@/state/entitlements';
 
 const HERO = 260;
-const BENEFITS = ['Silences and filler words cut', 'Word-by-word captions', 'Framed for vertical', 'No watermark'];
+const BENEFITS = ['Silences and filler words cut', 'Word-by-word captions', 'Framed for vertical'];
+const PRODUCTS = PLANS.flatMap((p) => Object.values(PRODUCT_IDS[p.tier as PaidTier]));
+
+const PRICES_LOADING = 'Loading prices from the App Store…';
+const PRICES_FAILED = 'Couldn’t load prices. Check your connection.';
+const PLAN_NOT_SOLD = 'This plan isn’t sold in your country’s App Store. Choose another plan.';
 
 // Superwall's paywall is shown once per launch from the gate; closing it leaves the person on the gate.
 let gatePresentedThisLaunch = false;
@@ -47,6 +55,11 @@ let gatePresentedThisLaunch = false;
  *   close button: the root layout lets people into the app only when the tier says they're subscribed, so a
  *   purchase, a restore or Superwall's status arriving late (a reinstall) is what moves them on.
  * - `upgrade` (route `/paywall`): subscribers changing plan, and the fallback when Superwall can't present.
+ *
+ * Guideline 3.1.2(c): the billed amount is the most prominent price (20 pt on the cards, bold by the button), a
+ * free trial is only mentioned when StoreKit says this Apple ID gets one, and always smaller than the price.
+ * Prices are only ever the App Store's: until they load nothing is shown or sold, and they're fetched again
+ * when the screen or the app comes back.
  */
 export function PaywallView({ mode }: { mode: 'gate' | 'upgrade' }) {
   const insets = useSafeAreaInsets();
@@ -64,27 +77,48 @@ export function PaywallView({ mode }: { mode: 'gate' | 'upgrade' }) {
   const [tier, setSelected] = useState<PaidTier>(current === 'free' ? 'pro' : current);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Apple gives one free trial per subscription group: subscribers switching plans don't get another.
-  // Only plans with a trial offer it (Pro and Studio; Starter has none).
-  const eligible = current === 'free';
+  // Free-trial eligibility per product, from StoreKit (one trial per subscription group, so someone who has had
+  // one, or any Tenfold subscription, gets none). Null until known: no trial is promised meanwhile.
+  const [offers, setOffers] = useState<Record<string, IntroOffer> | null>(null);
   // Already on this plan (same billing, or billing not known yet): nothing to buy.
   const onCurrentPlan = tier === current && (!currentBilling || billing === currentBilling);
-  const billingSwitch = tier === current && !onCurrentPlan;
   const plan = planFor(tier);
-  const trial = eligible && plan.trial;
-  // The App Store's prices in the person's currency, when all six loaded; otherwise USD everywhere (never mixed).
-  const local = store.prices;
-  const localized = PLANS.every((p) => local?.[PRODUCT_IDS[p.tier as PaidTier].monthly] && local?.[PRODUCT_IDS[p.tier as PaidTier].annual]);
-  const storePrice = (t: PaidTier, b: Billing) => (localized ? local?.[PRODUCT_IDS[t][b]] : undefined);
-  const saving = localized
-    ? Math.min(
-        ...PLANS.map((p) =>
-          annualSavingPercent({
-            price: { monthly: storePrice(p.tier as PaidTier, 'monthly')!.price, annual: storePrice(p.tier as PaidTier, 'annual')!.price },
-          }),
-        ),
-      )
-    : annualSavingPill();
+  const offerFor = (t: PaidTier, b: Billing) => offers?.[PRODUCT_IDS[t][b]];
+  const trial = trialShown(plan, offerFor(tier, billing));
+  const trialDays = offerFor(tier, billing)?.trialDays ?? TRIAL_DAYS;
+  // The App Store's prices in the person's currency, per product. A product it didn't return isn't sold here.
+  const storePrice = (t: PaidTier, b: Billing) => store.prices?.[PRODUCT_IDS[t][b]];
+  const price = storePrice(tier, billing)?.localizedPrice;
+  const saving = storeAnnualSaving(store.prices);
+  const purchasable = onCurrentPlan || !!price;
+  // Instead of the billed price while it's missing: why, and (after a failure) a way to try again.
+  const priceStatus = price
+    ? null
+    : store.pricesStatus === 'loading'
+      ? PRICES_LOADING
+      : store.pricesStatus === 'loaded'
+        ? PLAN_NOT_SOLD
+        : store.reloadPrices
+          ? PRICES_FAILED
+          : (store.unavailableReason ?? PRICES_FAILED);
+  const canRetry = !price && store.pricesStatus === 'failed' && !!store.reloadPrices;
+
+  // Prices and trial eligibility, again whenever the screen is back in view or the app is back in front.
+  // Loaded prices are kept, so this only fetches what's missing (eligibility is cheap to ask again).
+  const reloadPrices = store.reloadPrices;
+  const refresh = useCallback(() => {
+    reloadPrices?.();
+    Engine.introOfferEligibility(PRODUCTS).then((o) => {
+      if (o) setOffers(o);
+    });
+  }, [reloadPrices]);
+  useFocusEffect(refresh);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+    return () => sub.remove();
+  }, [refresh]);
 
   // Paywall analytics for this native screen (Superwall's own paywall is tracked in superwallLive).
   const outcomeRef = useRef<'closed' | 'purchased'>('closed');
@@ -143,6 +177,8 @@ export function PaywallView({ mode }: { mode: 'gate' | 'upgrade' }) {
       close();
       return;
     }
+    // Nothing is sold without the App Store's price on screen (the button is disabled; this is the backstop).
+    if (!price) return;
     if (!store.available) {
       setNotice(store.unavailableReason);
       return;
@@ -154,6 +190,11 @@ export function PaywallView({ mode }: { mode: 'gate' | 'upgrade' }) {
     if (outcome === 'purchased') {
       outcomeRef.current = 'purchased';
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // A downgrade, or monthly ↔ annual on the same plan: Apple starts it at the next renewal, so say so.
+      if (current !== 'free' && changeStartsAtRenewal(current, currentBilling, tier, billing)) {
+        setNotice(renewalChangeNote(current, tier, billing));
+        return;
+      }
       close();
     } else if (outcome === 'pending') {
       setNotice('The purchase is waiting for approval. Your plan changes when it’s approved.');
@@ -206,8 +247,9 @@ export function PaywallView({ mode }: { mode: 'gate' | 'upgrade' }) {
             pointerEvents="none"
           />
           <View style={styles.heroText}>
+            {/* No price or trial up here: the billed price is the most prominent price on the screen. */}
             <AppText variant="display" accessibilityRole="header">
-              {trial ? `Try ${plan.name} free for ${TRIAL_DAYS} days` : 'Choose your plan'}
+              {isGate ? 'Edit 10 videos at once.' : 'Choose your plan'}
             </AppText>
           </View>
         </View>
@@ -230,12 +272,12 @@ export function PaywallView({ mode }: { mode: 'gate' | 'upgrade' }) {
                 onPress={() => pickBilling(b)}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: on }}
-                accessibilityLabel={b === 'annual' ? `Annual, save ${saving}%` : 'Monthly'}
+                accessibilityLabel={b === 'annual' ? (saving ? `Annual, save ${saving}%` : 'Annual') : 'Monthly'}
                 style={[styles.segmentItem, on && styles.segmentOn]}>
                 <AppText variant="chip" color={on ? colors.textInverse : colors.textPrimary}>
                   {b === 'annual' ? 'Annual' : 'Monthly'}
                 </AppText>
-                {b === 'annual' && saving > 0 ? (
+                {b === 'annual' && saving != null && saving > 0 ? (
                   <View style={styles.savePill}>
                     <AppText variant="caption" color={colors.accentText} tabular>
                       Save {saving}%
@@ -253,8 +295,10 @@ export function PaywallView({ mode }: { mode: 'gate' | 'upgrade' }) {
               key={p.tier}
               plan={p}
               billing={billing}
-              trial={eligible && p.trial}
+              trial={trialShown(p, offerFor(p.tier as PaidTier, billing))}
+              trialDays={offerFor(p.tier as PaidTier, billing)?.trialDays ?? TRIAL_DAYS}
               localized={storePrice(p.tier as PaidTier, billing)}
+              notSold={store.pricesStatus === 'loaded'}
               selected={tier === p.tier}
               current={current === p.tier}
               onPress={() => pickTier(p.tier as PaidTier)}
@@ -272,10 +316,32 @@ export function PaywallView({ mode }: { mode: 'gate' | 'upgrade' }) {
       )}
 
       <View style={styles.footer}>
+        {/* What the button charges, larger than any trial wording; or why there's no price yet. */}
+        {price ? (
+          <AppText variant="bodyStrong" color={colors.textPrimary} tabular style={styles.center}>
+            {priceLine(billing, price)}
+          </AppText>
+        ) : (
+          <View style={styles.priceStatus} accessibilityLiveRegion="polite">
+            <AppText variant="label" color={colors.textSecondary} style={styles.center}>
+              {priceStatus}
+            </AppText>
+            {canRetry ? (
+              <Pressable
+                onPress={() => reloadPrices?.()}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
+                <AppText variant="bodyStrong" color={colors.textPrimary}>
+                  Retry
+                </AppText>
+              </Pressable>
+            ) : null}
+          </View>
+        )}
         <GradientButton
-          title={busy ? 'Waiting for the App Store' : onCurrentPlan ? `Keep ${plan.name}` : billingSwitch ? `Switch to ${plan.name} ${billing === 'annual' ? 'Annual' : 'Monthly'}` : trial ? `Try ${plan.name} free` : eligible ? `Get ${plan.name}` : `Switch to ${plan.name}`}
+          title={busy ? 'Waiting for the App Store' : ctaTitle(current, currentBilling, tier, billing)}
           shape="pill"
-          disabled={busy}
+          disabled={busy || !purchasable}
           onPress={confirm}
         />
         {notice ? (
@@ -285,13 +351,10 @@ export function PaywallView({ mode }: { mode: 'gate' | 'upgrade' }) {
             </AppText>
           </Animated.View>
         ) : null}
-        {/* The price as plainly as the trial (guideline 3.1.2), then the renewal terms. */}
-        <AppText variant="bodyStrong" color={colors.textPrimary} tabular style={styles.center}>
-          {chargeLine(plan, billing, trial, storePrice(tier, billing)?.localizedPrice)}
-        </AppText>
-        {plan.price ? (
-          <AppText variant="caption" color={colors.textSecondary} style={styles.center}>
-            {RENEWAL_TERMS}
+        {/* The renewal terms, with the trial (when there is one) in the same small type. */}
+        {price ? (
+          <AppText variant="caption" color={colors.textSecondary} tabular style={styles.center}>
+            {renewalLine(billing, price, trial, trialDays)}
           </AppText>
         ) : null}
 
@@ -321,7 +384,9 @@ function PlanCard({
   plan,
   billing,
   trial,
+  trialDays,
   localized,
+  notSold,
   selected,
   current,
   onPress,
@@ -329,24 +394,22 @@ function PlanCard({
 }: {
   plan: PlanInfo;
   billing: Billing;
+  /** This Apple ID gets this product's free trial (StoreKit). */
   trial: boolean;
+  trialDays: number;
   /** The App Store's price for this plan and billing, when loaded. */
   localized?: StorePrice;
+  /** The App Store answered; a missing price means the plan isn't sold in this storefront. */
+  notSold: boolean;
   selected: boolean;
   current: boolean;
   onPress: () => void;
   onLongPress?: () => void;
 }) {
-  const price = priceLine(plan, billing, localized?.localizedPrice);
-  const detail = plan.price
-    ? billing === 'annual'
-      ? perMonth(plan, localized?.monthlyPrice)
-      : trial
-        ? `${TRIAL_DAYS} days free`
-        : null
-    : null;
+  const price = localized?.localizedPrice;
   // The fact that tells the plans apart; the full list is in the VoiceOver label.
-  const facts = plan.features[1];
+  const facts = plan.features[0];
+  const priceLabel = price ? `${priceLine(billing, price)}${trial ? `, ${trialDays} days free` : ''}` : notSold ? 'not available' : 'price loading';
   return (
     <PressableScale
       haptic={false}
@@ -356,7 +419,7 @@ function PlanCard({
       onLongPress={onLongPress}
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${plan.name}, ${price}${current ? ', your plan' : ''}. ${plan.features.join(', ')}`}
+      accessibilityLabel={`${plan.name}, ${priceLabel}${current ? ', your plan' : ''}. ${plan.features.join(', ')}`}
       style={[styles.plan, selected && styles.planOn]}>
       <View style={styles.planHead}>
         <SymbolView
@@ -378,13 +441,25 @@ function PlanCard({
             {facts}
           </AppText>
         </View>
+        {/* The billed amount is the card's largest text; the period and any trial sit under it, smaller. */}
         <View style={styles.priceCol}>
-          <AppText variant="bodyStrong" tabular>
-            {price}
-          </AppText>
-          {detail ? (
-            <AppText variant="caption" color={colors.textMuted} tabular>
-              {detail}
+          {price ? (
+            <>
+              <AppText variant="title" tabular>
+                {price}
+              </AppText>
+              <AppText variant="caption" color={colors.textSecondary}>
+                {periodWord(billing)}
+              </AppText>
+              {trial ? (
+                <AppText variant="caption" color={colors.textMuted} tabular>
+                  {trialDays} days free
+                </AppText>
+              ) : null}
+            </>
+          ) : notSold ? (
+            <AppText variant="caption" color={colors.textMuted}>
+              Not available
             </AppText>
           ) : null}
         </View>
@@ -434,6 +509,7 @@ const styles = StyleSheet.create({
   priceCol: { alignItems: 'flex-end' },
 
   footer: { paddingHorizontal: spacing.gutter, paddingTop: spacing.md, gap: spacing.xs },
+  priceStatus: { alignItems: 'center' },
   textButton: { minHeight: 44, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
   links: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xs },
   link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md },

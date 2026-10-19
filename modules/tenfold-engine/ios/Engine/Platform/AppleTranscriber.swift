@@ -54,9 +54,15 @@ public final class AppleTranscriber: Transcriber {
     } catch let error as CancellationError {
       throw error
     } catch {
-      // File transcription may need speech permission on some iOS versions: ask once, then retry.
-      guard SFSpeechRecognizer.authorizationStatus() == .notDetermined else { throw error }
+      // File transcription may need speech permission on some iOS versions: ask once, then retry. Turned off
+      // for Tenfold: say so, so the app can point to Settings.
+      switch SFSpeechRecognizer.authorizationStatus() {
+      case .notDetermined: break
+      case .denied, .restricted: throw TranscriberError.speechPermissionDenied
+      default: throw error
+      }
       let status = await withCheckedContinuation { c in SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0) } }
+      if status == .denied || status == .restricted { throw TranscriberError.speechPermissionDenied }
       guard status == .authorized else { throw error }
       return try await run(samples: samples, sampleRate: sampleRate, locale: locale, started: started, progress: progress)
     }

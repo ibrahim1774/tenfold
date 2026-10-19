@@ -18,8 +18,10 @@ import { formatDuration, useLibrary } from '@/state/library';
 import { batchPreset } from '@/state/presets';
 import { useSettings } from '@/state/settings';
 
-const MAX_SEC = 15 * 60;
-const WARN_SEC = MAX_SEC - 60;
+// The importer refuses videos over 10 minutes (AnalysisEngine.maxDuration in the engine), so a take stops just
+// before that (a take stopped at the limit can run a fraction over); the countdown shows from 9 minutes.
+const MAX_SEC = 10 * 60 - 5;
+const WARN_SEC = 9 * 60;
 
 type Take = { uri: string; seconds: number };
 
@@ -55,7 +57,7 @@ export default function RecordScreen() {
           </AppText>
         </View>
         <GradientButton
-          title={blocked ? 'Open Settings' : 'Allow camera and microphone'}
+          title={blocked ? 'Open Settings' : 'Continue'}
           shape="pill"
           onPress={blocked ? () => Linking.openSettings() : ask}
           style={styles.permissionButton}
@@ -174,7 +176,7 @@ function Recorder({ close, projectId }: { close: ReactNode; projectId?: string }
         ) : !recording ? (
           <AppText variant="caption" color={canImportFiles() ? colors.textSecondary : colors.textPrimary} style={styles.center}>
             {canImportFiles()
-              ? 'Up to 15 minutes'
+              ? 'Up to 10 minutes'
               : 'This build can’t edit recordings yet. Import from Photos instead.'}
           </AppText>
         ) : null}

@@ -4,6 +4,7 @@ en=json.load(open(f'{D}/locales/en-US.json'))
 LOCALES="ar-SA bn-BD ca cs da de-DE el en-AU en-CA en-GB es-ES es-MX fi fr-CA fr-FR gu-IN he hi hr hu id it ja kn-IN ko ml-IN mr-IN ms nl-NL no or-IN pa-IN pl pt-BR pt-PT ro ru sk sl-SI sv ta-IN te-IN th tr uk ur-PK vi zh-Hans zh-Hant".split()
 LIM={'name':30,'subtitle':30,'keywords':100,'promotionalText':170,'description':4000}
 ATOMS=['https://ibrahim1774.github.io/tenfold/terms.html','https://ibrahim1774.github.io/tenfold/privacy.html','iPhone']
+PLATFORM=re.compile(r'tik ?tok|\breels?\b|\bshorts?\b|instagram|youtube|capcut|ティックトック|틱톡|유튜브|ユーチューブ|ユーチューバー|ショート|쇼츠|릴스|抖音|快手|4K|HDR',re.I)
 BAN=re.compile(r'\b(free|trial|gratis|gratuit|kostenlos)\b',re.I)
 problems=0; missing=[]
 for loc in LOCALES:
@@ -23,7 +24,11 @@ for loc in LOCALES:
             if d.get(k)==en[k]: p.append(f'{k} same as English')
     if '—' not in d.get('name','') and '-' not in d.get('name',''): p.append('name has no "Descriptor — Brand" shape')
     if re.search(r'caption|subtit',(d.get('name','')+d.get('subtitle','')+d.get('keywords','')),re.I): p.append('captions word in name/subtitle/keywords')
-    if BAN.search(d.get('description','')+d.get('promotionalText','')): p.append('pricing word')
+    # Pricing words are allowed only in the required subscription paragraph (the one naming Starter/Pro/Studio).
+    body='\n\n'.join(x for x in d.get('description','').split('\n\n') if not ('Starter' in x and 'Studio' in x))
+    if BAN.search(body+d.get('promotionalText','')): p.append('pricing word')
+    if not any('Starter' in x and 'Studio' in x for x in d.get('description','').split('\n\n')): p.append('subscription paragraph missing')
+    if PLATFORM.search(d.get('description','')+d.get('promotionalText','')+d.get('keywords','')): p.append('platform/app name')
     kw=[w.strip().lower() for w in d.get('keywords','').split(',') if w.strip()]
     if ', ' in d.get('keywords',''): p.append('space after comma in keywords')
     namesub=(d.get('name','')+' '+d.get('subtitle','')).lower()

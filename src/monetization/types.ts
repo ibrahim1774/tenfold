@@ -34,7 +34,16 @@ export type StoreActions = {
   restoreAlertShown?: boolean;
   /** The App Store's prices in the person's currency, by product id, once loaded. Missing ids: not loaded. */
   prices?: Partial<Record<string, StorePrice>>;
+  /**
+   * `loading` while fetching (or waiting for Superwall), `loaded` once the App Store answered with prices (a
+   * product it didn't return isn't sold in this storefront), `failed` when it couldn't be reached.
+   */
+  pricesStatus: PricesStatus;
+  /** Fetches the prices again unless they're all loaded or a fetch is running. Absent when there's no store. */
+  reloadPrices?: () => void;
 };
+
+export type PricesStatus = 'loading' | 'loaded' | 'failed';
 
 export type StorePrice = {
   price: number;

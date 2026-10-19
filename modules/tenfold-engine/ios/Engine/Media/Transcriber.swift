@@ -7,6 +7,13 @@ public protocol Transcriber: Sendable {
   func transcribe(samples: [Float], sampleRate: Double, language: String, progress: @escaping @Sendable (Double) -> Void) async throws -> Transcript
 }
 
+/// iOS refuses speech recognition for Tenfold (Settings › Privacy & Security › Speech Recognition).
+public enum TranscriberError: LocalizedError {
+  case speechPermissionDenied
+  /// Also the analysis warning; the app matches it to offer Open Settings.
+  public var errorDescription: String? { "Allow Speech Recognition for Tenfold in Settings to add captions." }
+}
+
 /// Splits a timed text run into words, spreading its time range by character count.
 public enum RunSplitter {
   public static func words(text: String, start: Double, end: Double, confidence: Double) -> [Word] {
